@@ -46,6 +46,23 @@ Simulation (`tests/sim_chato.py`, uncommon sale, 72 worlds where a deal can beat
 
 The simulation rests on the assumptions in its docstring. Proposal for the first contact: `--open 22`, pacing over 2 (the agent now guesses 2 from his patience trait). It closes more deals than 31 and costs little price.
 
+First conversation (thread 294, sell MAL-08 uncommon, our floor 13). No deal: the card was already sold to Abuela at tick 155 by another session, so the thread closed with `not_owner`.
+
+| Tick | Who | Price |
+|---|---|---|
+| 148 | us | 22 |
+| 149 | El Chato | 13 ("Veintidós, dices... trece primas") |
+| 149 | us | 18 |
+| 150 | El Chato | 13 |
+| 150 | us | 14 |
+| 151 | El Chato | 13 ("Yo no me muevo si tú apenas te mueves. Lo tomas o te lo quedas.") |
+
+- H5 holds: his bid for an uncommon started at 13 (list 26, 50%). It never moved while our steps were small (22, 18, 14).
+- H3 holds roughly: he named a take-it-or-leave-it offer after 3 of our messages. The offer did not carry `final: true`, so the model cannot read his patience from the flag. Read the text instead.
+- H4 is untested: we never repeated a price.
+- New: his bid equals Abuela's bid (13). He is no better than Abuela for uncommons at our opening.
+- Mistake to avoid: two sessions chose the same spare card. Check that the asset is still ours before a conversation, and agree who trades which card.
+
 Checks after the first conversation:
 1. Did he open where H1 or H5 says?
 2. How many messages before his final offer? (H3)
