@@ -26,6 +26,8 @@ from . import log
 
 THREAD_DIR = os.path.join(log.LOG_DIR, "threads")
 MODEL_PATH = os.path.join(log.LOG_DIR, "dealer_model.json")
+TRAITS_PATH = os.path.join(log.LOG_DIR, "dealer_traits.json")
+MESSAGES_PER_TRAIT = 8  # first guess, from Abuela alone (patience 0.85, final after 5-7 of our messages)
 
 
 def _cash(o: dict):
@@ -151,11 +153,53 @@ def build_model(cards_by_id: dict = None) -> dict:
     return out
 
 
-def plan(dealer: str, kind: str, cards_by_id: dict = None) -> dict:
-    """Learned parameters for haggle(): target, accept_at, patience (all None without data)."""
-    stats = build_model(cards_by_id).get(dealer, {}).get(kind)
+def save_traits(b) -> dict:
+    """Keep each dealer's public traits (patience, strictness, ...) next to the model. One entry per dealer."""
+    res = b.dealers()
+    traits = {d["id"]: d.get("traits") or {} for d in res.get("personas", res.get("dealers", []))}
+    os.makedirs(log.LOG_DIR, exist_ok=True)
+    with open(TRAITS_PATH, "w", encoding="utf-8") as f:
+        json.dump(traits, f, ensure_ascii=False, indent=1)
+    return traits
+
+
+def load_traits() -> dict:
+    if not os.path.exists(TRAITS_PATH):
+        return {}
+    with open(TRAITS_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def messages_per_trait(model: dict, traits: dict) -> float:
+    """Our messages before a dealer names its final offer, per unit of its patience trait, seen across dealers.
+    Each dealer is measured on its own conversations. Only this one number is shared between them."""
+    ratios = [s["patience"] / traits[d]["patience"] for d, kinds in model.items() for s in kinds.values()
+              if s["patience"] is not None and (traits.get(d) or {}).get("patience")]
+    return statistics.median(ratios) if ratios else MESSAGES_PER_TRAIT
+
+
+def best_elsewhere(dealer: str, kind: str, cards_by_id: dict = None):
+    """Her best price for this kind at the OTHER dealers: our outside option (sell: highest bid, buy: lowest ask)."""
+    seen = [kinds[kind]["best_ever"] for d, kinds in build_model(cards_by_id).items()
+            if d != dealer and kind in kinds and kinds[kind]["haggled"]]
+    if not seen:
+        return None
+    return max(seen) if kind.startswith("sell") else min(seen)
+
+
+def plan(dealer: str, kind: str, cards_by_id: dict = None, traits: dict = None) -> dict:
+    """Learned parameters for haggle(): target, accept_at, patience (all None without data).
+
+    With no conversation of this kind yet, patience comes from the dealer's public patience trait."""
+    model = build_model(cards_by_id)
+    stats = model.get(dealer, {}).get(kind)
     if not stats or not stats["haggled"]:
-        return {"target": None, "accept_at": None, "patience": None, "stats": stats}
+        prior = None
+        if traits and traits.get("patience"):
+            ratio = messages_per_trait(model, load_traits())
+            prior = max(2, round(ratio * traits["patience"]))
+        return {"target": None, "accept_at": None, "patience": prior, "stats": stats,
+                "source": "prior" if prior else None}
     patience = stats["patience"]
     return {
         "target": round(stats["best_median"]),
@@ -168,6 +212,9 @@ def plan(dealer: str, kind: str, cards_by_id: dict = None) -> dict:
 def describe(dealer: str, kind: str, p: dict) -> str:
     s = p.get("stats")
     if not s or not s["haggled"]:
+        if p.get("source") == "prior":
+            return (f"[{dealer}] {kind}: no haggled conversations yet, pacing over {p['patience']} messages "
+                    f"(guess from its patience trait)")
         return f"[{dealer}] {kind}: no haggled conversations yet, default pacing"
     return (f"[{dealer}] {kind}: learned from {s['haggled']} haggles (her best {s['best']}, final after "
             f"~{s['patience']} of our messages) -> target {p['target']}, take at {p['accept_at']} once she stalls, "

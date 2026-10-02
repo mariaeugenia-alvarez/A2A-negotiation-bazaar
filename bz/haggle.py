@@ -93,7 +93,7 @@ def haggle(b, dealer: str, topic: dict, side: str, opening: int, limit: int, *,
     tid = th["id"]
     log.say(f"[{dealer}] thread {tid} open: {side} {label or topic} (opening {opening}, limit {limit}"
             + (f", target {target}, take at {accept_at}, patience {patience})" if target is not None else ")"))
-    writer, ours, theirs = Writer(side), [], []
+    writer, ours, theirs = Writer(side, dealer), [], []
     accepted, waits, stalled, status, reason, saw_final, p_at_last_msg = None, 0, 0, "open", None, False, None
 
     while True:

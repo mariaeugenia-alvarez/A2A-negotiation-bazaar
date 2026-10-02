@@ -23,7 +23,7 @@ from bz.haggle import haggle
 from bz.state import State
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEALER = "abuela"
+DEFAULT_DEALER = "abuela"
 
 
 def load_env() -> None:
@@ -43,8 +43,8 @@ def connect() -> Bazaar:
     return Bazaar(os.environ.get("BAZAAR_URL", "https://bazaar.causaprima.ai"), key)
 
 
-def menu(b: Bazaar) -> dict:
-    return b.dealer(DEALER)["menu"]
+def menu(b: Bazaar, dealer: str) -> dict:
+    return b.dealer(dealer)["menu"]
 
 
 def sells_item(m: dict, **match) -> dict:
@@ -55,8 +55,9 @@ def learned(st: State, args, kind: str) -> dict:
     """haggle() keyword arguments learned from earlier conversations of this kind."""
     if getattr(args, "no_learn", False):
         return {}
-    p = learn.plan(DEALER, kind, st.cards_by_id)
-    log.say(learn.describe(DEALER, kind, p))
+    traits = (learn.load_traits().get(args.dealer) or {})
+    p = learn.plan(args.dealer, kind, st.cards_by_id, traits=traits)
+    log.say(learn.describe(args.dealer, kind, p))
     return {k: p[k] for k in ("target", "accept_at", "patience")}
 
 
@@ -114,23 +115,26 @@ def open_new_packs(b: Bazaar, st: State, ref: str = "sobre_barrio") -> None:
 
 
 def cmd_buy_pack(b: Bazaar, st: State, args) -> dict:
-    item = sells_item(menu(b), pack="sobre_barrio")
+    pack = args.pack
+    item = sells_item(menu(b, args.dealer), pack=pack)
+    if not item:
+        sys.exit(f"{args.dealer} does not sell {pack}")
     lp = item["list_price"]
-    worth = price.from_state(st).pack_value("sobre_barrio")
+    worth = price.from_state(st).pack_value(pack)
     limit = min(st.cash, args.limit or price.buy_cap(worth, margin=args.margin))
     label = f"pack (list {lp}, worth {worth:.1f} to us)"
     log.say(f"{label}: limit {limit}")
     if limit < 1:
         return skipped("buy", label, f"worth {worth:.1f} to us: not worth buying")
     opening = args.open or round(lp * 0.5)
-    plan = learned(st, args, "buy:pack:sobre_barrio")
+    plan = learned(st, args, f"buy:pack:{pack}")
     why = out_of_reach(args, "buy", limit, plan)
     if why:
         return skipped("buy", label, why)
-    res = haggle(b, DEALER, {"buy": {"pack": "sobre_barrio"}}, "buy", opening, limit,
+    res = haggle(b, args.dealer, {"buy": {"pack": pack}}, "buy", opening, limit,
                  step_frac=args.step, label=label, **plan)
     if res["status"] == "deal" and not args.keep:
-        open_new_packs(b, st)
+        open_new_packs(b, st, pack)
     return res
 
 
@@ -138,9 +142,9 @@ def cmd_buy_card(b: Bazaar, st: State, args) -> dict:
     card = st.cards_by_id.get(args.card)
     if not card:
         sys.exit(f"unknown card {args.card}")
-    item = sells_item(menu(b), rarity=card["rarity"])
+    item = sells_item(menu(b, args.dealer), rarity=card["rarity"])
     if not item:
-        sys.exit(f"Abuela does not sell {card['rarity']} cards")
+        sys.exit(f"{args.dealer} does not sell {card['rarity']} cards")
     worth = b.value(args.card)["your_value"]
     lp = item["list_price"]
     limit = min(st.cash, args.limit or min(lp, price.buy_cap(worth, margin=args.margin)))
@@ -151,19 +155,23 @@ def cmd_buy_card(b: Bazaar, st: State, args) -> dict:
     why = out_of_reach(args, "buy", limit, plan)
     if why:
         return skipped("buy", label, why)
-    return haggle(b, DEALER, {"buy": {"card": args.card}}, "buy", args.open or round(lp * 0.5), limit,
+    return haggle(b, args.dealer, {"buy": {"card": args.card}}, "buy", args.open or round(lp * 0.5), limit,
                   step_frac=args.step, label=label, **plan)
 
 
 def cmd_sell_spares(b: Bazaar, st: State, args) -> list:
-    buys = {r["rarity"] for r in menu(b)["buys"]}
-    prices = {s["rarity"]: s["list_price"] for s in menu(b)["sells"] if s.get("rarity")}
+    m = menu(b, args.dealer)
+    buys = {r["rarity"] for r in m["buys"]}
+    prices = {s["rarity"]: s["list_price"] for s in m["sells"] if s.get("rarity")}
     out = []
     valuer = price.from_state(st)
     for a in st.spares(rarities=buys)[: args.n]:
         rarity = st.cards_by_id[a["ref"]]["rarity"]
         worth = valuer.copy_value(a["ref"])
-        floor = args.limit or price.sell_floor(worth)  # never sell below what the copy is worth to us
+        elsewhere = learn.best_elsewhere(args.dealer, f"sell:{rarity}", st.cards_by_id)
+        # never sell below what the copy is worth to us, nor below what another dealer already paid
+        floor = args.limit or max(price.sell_floor(worth), elsewhere or 0)
+        log.say(f"floor {floor} for {a['ref']}: worth {worth:.1f} to us, best bid at other dealers {elsewhere}")
         opening = args.open or max(floor + 1, round(prices.get(rarity, 10) * 1.2))
         label = f"spare {a['ref']} (worth {worth:.1f} to us)"
         plan = learned(st, args, f"sell:{rarity}")
@@ -171,7 +179,7 @@ def cmd_sell_spares(b: Bazaar, st: State, args) -> list:
         if why:
             out.append(skipped("sell", label, why))
             continue
-        res = haggle(b, DEALER, {"sell": {"assets": [a["id"]]}}, "sell", opening, floor,
+        res = haggle(b, args.dealer, {"sell": {"assets": [a["id"]]}}, "sell", opening, floor,
                      step_frac=args.step, label=label, **plan)
         out.append(res)
         if res["status"] == "error":
@@ -199,6 +207,7 @@ def main() -> None:
     sub.add_parser("learn")
     for name in ("buy-pack", "buy-card", "sell-spares", "abuela"):
         p = sub.add_parser(name)
+        p.add_argument("--dealer", default=DEFAULT_DEALER, help="who to trade with (abuela, chato)")
         p.add_argument("--step", type=float, default=0.15, help="share of the room left to our limit we concede per message")
         p.add_argument("--no-learn", action="store_true", help="ignore what earlier conversations taught us")
         p.add_argument("--force", action="store_true", help="haggle even if her best price ever is beyond our limit")
@@ -210,6 +219,8 @@ def main() -> None:
             p.add_argument("card")
         if name == "sell-spares":
             p.add_argument("--n", type=int, default=1)
+        if name == "buy-pack":
+            p.add_argument("--pack", default="sobre_barrio", help="pack id (chato sells sobre_plata)")
         if name in ("buy-pack", "abuela"):
             p.add_argument("--keep", action="store_true", help="do not open the pack")
         if name == "abuela":
@@ -217,11 +228,15 @@ def main() -> None:
             p.add_argument("--spares", type=int, default=2)
     args = ap.parse_args()
     if args.cmd == "abuela":
-        args.n = args.spares
+        args.n, args.pack = args.spares, "sobre_barrio"
     b = connect()
     st = State(b)
     if args.cmd not in ("status", "learn"):
         learn.backfill(b)
+        try:
+            learn.save_traits(b)
+        except BazaarError as e:
+            log.say(f"could not save dealer traits: {e}")
     {"status": cmd_status, "learn": cmd_learn, "buy-pack": cmd_buy_pack, "buy-card": cmd_buy_card,
      "sell-spares": cmd_sell_spares, "abuela": cmd_abuela}[args.cmd](b, st, args)
 

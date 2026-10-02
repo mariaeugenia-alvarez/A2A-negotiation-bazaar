@@ -35,6 +35,17 @@ First real contact, proposal: sell one spare uncommon, not the 150 P pack.
 - It tests H3, H4 and H5 at low cost.
 - Our leaving price (floor) is 13 P, because Abuela pays that.
 
+Simulation (`tests/sim_chato.py`, uncommon sale, 72 worlds where a deal can beat our floor of 13):
+
+| Opening | Pacing | Deals | Average price |
+|---|---|---|---|
+| 31 (list x 1.2, the default) | 15% steps | 48 of 72 | 15.5 |
+| 31 | over 2 messages | 54 of 72 | 16.6 |
+| 22 | over 2 messages | 63 of 72 | 15.9 |
+| 18 | over 2 messages | 66 of 72 | 14.9 |
+
+The simulation rests on the assumptions in its docstring. Proposal for the first contact: `--open 22`, pacing over 2 (the agent now guesses 2 from his patience trait). It closes more deals than 31 and costs little price.
+
 Checks after the first conversation:
 1. Did he open where H1 or H5 says?
 2. How many messages before his final offer? (H3)

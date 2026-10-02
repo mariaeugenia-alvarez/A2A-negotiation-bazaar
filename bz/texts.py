@@ -1,4 +1,5 @@
-"""Kind words for Abuela (she likes kindness). Every message carries a new price, and no text repeats in a thread."""
+"""Words for dealers. Abuela likes kindness; every other dealer gets a short, plain, truthful tone.
+Every message carries a new price, and no text repeats in a thread."""
 import random
 
 BUY = [
@@ -25,9 +26,33 @@ SELL = [
 ]
 
 
+PLAIN_BUY = [
+    "Buenas. Le ofrezco {p} primas.",
+    "Cierro en {p} si lo hacemos hoy.",
+    "Subo a {p}. Creo que es un precio justo.",
+    "{p} y cerramos, sin vueltas.",
+    "Mi oferta ahora es {p} primas.",
+    "Me acerco a su precio: {p}.",
+    "Pago {p} en este momento. ¿Trato?",
+    "Hago un esfuerzo real: {p}.",
+]
+PLAIN_SELL = [
+    "Buenas. Tengo un cromo repetido en perfecto estado: {p} primas.",
+    "Lo dejo en {p}, está impecable.",
+    "Bajo a {p} para cerrar hoy.",
+    "{p} y es suyo.",
+    "Mi precio ahora es {p}. Es un buen cromo.",
+    "Me acerco a su oferta: {p}.",
+    "Puedo dejarlo en {p}. ¿Trato?",
+    "Hago un gesto: {p} primas.",
+]
+POOLS = {"abuela": (BUY, SELL)}  # any other dealer uses the plain pool
+
+
 class Writer:
-    def __init__(self, side: str):
-        self.pool = list(BUY if side == "buy" else SELL)
+    def __init__(self, side: str, dealer: str = "abuela"):
+        buy, sell = POOLS.get(dealer, (PLAIN_BUY, PLAIN_SELL))
+        self.pool = list(buy if side == "buy" else sell)
         random.shuffle(self.pool)
         self.used = set()
 
