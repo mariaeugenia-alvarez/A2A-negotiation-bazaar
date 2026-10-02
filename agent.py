@@ -8,16 +8,17 @@
     python3 agent.py learn                      save past conversations, show what we learned per dealer
 
 Every haggle uses what earlier conversations of the same kind taught us (bz/learn.py); --no-learn turns it off.
+Limits come from what the item is worth to us (bz/price.py): buy up to its value minus --margin, sell never below
+what the copy is worth to us. If Abuela has never gone past our limit, we skip the haggle; --force tries anyway.
 
 BAZAAR_KEY (and optionally BAZAAR_URL) come from the environment or a .env file next to this one.
 """
 import argparse
-import math
 import os
 import sys
 
 from bazaar_sdk import Bazaar, BazaarError
-from bz import learn, log
+from bz import learn, log, price
 from bz.haggle import haggle
 from bz.state import State
 
@@ -59,6 +60,23 @@ def learned(st: State, args, kind: str) -> dict:
     return {k: p[k] for k in ("target", "accept_at", "patience")}
 
 
+def skipped(side: str, label: str, why: str) -> dict:
+    log.say(f"skip {label}: {why}")
+    return {"side": side, "label": label, "status": "skipped", "reason": why, "price": None, "ours": [], "theirs": []}
+
+
+def out_of_reach(args, side: str, limit: int, plan: dict):
+    """Why the haggle cannot work, or None: her best price ever is already beyond our limit."""
+    best = plan.get("accept_at")
+    if getattr(args, "force", False) or best is None:
+        return None
+    if side == "buy" and best > limit:
+        return f"her best price ever is {best}, above our limit {limit}"
+    if side == "sell" and best < limit:
+        return f"her best bid ever is {best}, below our floor {limit}"
+    return None
+
+
 def cmd_learn(b: Bazaar, st: State, _args) -> None:
     n = learn.backfill(b)
     print(f"saved {n} new transcripts")
@@ -98,11 +116,19 @@ def open_new_packs(b: Bazaar, st: State, ref: str = "sobre_barrio") -> None:
 def cmd_buy_pack(b: Bazaar, st: State, args) -> dict:
     item = sells_item(menu(b), pack="sobre_barrio")
     lp = item["list_price"]
-    limit = min(st.cash, args.limit or int(lp * 0.9))
+    worth = price.from_state(st).pack_value("sobre_barrio")
+    limit = min(st.cash, args.limit or price.buy_cap(worth, margin=args.margin))
+    label = f"pack (list {lp}, worth {worth:.1f} to us)"
+    log.say(f"{label}: limit {limit}")
+    if limit < 1:
+        return skipped("buy", label, f"worth {worth:.1f} to us: not worth buying")
     opening = args.open or round(lp * 0.5)
+    plan = learned(st, args, "buy:pack:sobre_barrio")
+    why = out_of_reach(args, "buy", limit, plan)
+    if why:
+        return skipped("buy", label, why)
     res = haggle(b, DEALER, {"buy": {"pack": "sobre_barrio"}}, "buy", opening, limit,
-                 step_frac=args.step, label=f"pack (list {lp}, opening ask {item.get('opening_ask')})",
-                 **learned(st, args, "buy:pack:sobre_barrio"))
+                 step_frac=args.step, label=label, **plan)
     if res["status"] == "deal" and not args.keep:
         open_new_packs(b, st)
     return res
@@ -117,25 +143,36 @@ def cmd_buy_card(b: Bazaar, st: State, args) -> dict:
         sys.exit(f"Abuela does not sell {card['rarity']} cards")
     worth = b.value(args.card)["your_value"]
     lp = item["list_price"]
-    limit = min(st.cash, args.limit or math.floor(min(lp, worth)))
+    limit = min(st.cash, args.limit or min(lp, price.buy_cap(worth, margin=args.margin)))
+    label = f"{args.card} (list {lp}, worth {worth} to us)"
     if limit < 1:
-        sys.exit(f"{args.card} is worth {worth} to us: not worth buying")
+        return skipped("buy", label, f"{args.card} is worth {worth} to us: not worth buying")
+    plan = learned(st, args, f"buy:card:{card['rarity']}")
+    why = out_of_reach(args, "buy", limit, plan)
+    if why:
+        return skipped("buy", label, why)
     return haggle(b, DEALER, {"buy": {"card": args.card}}, "buy", args.open or round(lp * 0.5), limit,
-                  step_frac=args.step, label=f"{args.card} (list {lp}, worth {worth} to us)",
-                  **learned(st, args, f"buy:card:{card['rarity']}"))
+                  step_frac=args.step, label=label, **plan)
 
 
 def cmd_sell_spares(b: Bazaar, st: State, args) -> list:
     buys = {r["rarity"] for r in menu(b)["buys"]}
     prices = {s["rarity"]: s["list_price"] for s in menu(b)["sells"] if s.get("rarity")}
     out = []
+    valuer = price.from_state(st)
     for a in st.spares(rarities=buys)[: args.n]:
         rarity = st.cards_by_id[a["ref"]]["rarity"]
-        floor = max(1, math.ceil(a.get("your_value") or 0))  # never sell below what the copy is worth to us
+        worth = valuer.copy_value(a["ref"])
+        floor = args.limit or price.sell_floor(worth)  # never sell below what the copy is worth to us
         opening = args.open or max(floor + 1, round(prices.get(rarity, 10) * 1.2))
+        label = f"spare {a['ref']} (worth {worth:.1f} to us)"
+        plan = learned(st, args, f"sell:{rarity}")
+        why = out_of_reach(args, "sell", floor, plan)
+        if why:
+            out.append(skipped("sell", label, why))
+            continue
         res = haggle(b, DEALER, {"sell": {"assets": [a["id"]]}}, "sell", opening, floor,
-                     step_frac=args.step, label=f"spare {a['ref']} (worth {a.get('your_value')} to us)",
-                     **learned(st, args, f"sell:{rarity}"))
+                     step_frac=args.step, label=label, **plan)
         out.append(res)
         if res["status"] == "error":
             break
@@ -149,7 +186,7 @@ def cmd_abuela(b: Bazaar, st: State, args) -> None:
     for _ in range(args.packs):
         st.refresh()
         buys.append(cmd_buy_pack(b, st, args))
-        if buys[-1]["status"] == "error":
+        if buys[-1]["status"] in ("error", "skipped"):
             break
     for r in sells + buys:
         print(f"{r['side']:4} {r['label'][:45]:45} {r['status']:12} price {r['price']}  path ours {r['ours']} hers {r['theirs']}")
@@ -164,6 +201,8 @@ def main() -> None:
         p = sub.add_parser(name)
         p.add_argument("--step", type=float, default=0.15, help="share of the room left to our limit we concede per message")
         p.add_argument("--no-learn", action="store_true", help="ignore what earlier conversations taught us")
+        p.add_argument("--force", action="store_true", help="haggle even if her best price ever is beyond our limit")
+        p.add_argument("--margin", type=float, default=0.1, help="share of an item's value we keep as profit when buying")
         if name != "abuela":
             p.add_argument("--open", type=int, help="our first price")
             p.add_argument("--limit", type=int, help="most we pay (buy) / least we take (sell)")
