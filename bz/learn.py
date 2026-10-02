@@ -10,8 +10,8 @@ we build, per kind of deal ("sell:uncommon", "buy:pack:sobre_barrio", "buy:card:
 
 The plan for the next conversation of that kind:
 
-  target     where her best usually lands: we pace our concessions to arrive there just as her patience
-             runs out, instead of spending our room long before she stops moving
+  target     her best price ever: we pace our concessions to stand there two messages before her usual final
+             offer (she meets us in the middle, so where we stand when her patience ends sets the price)
   accept_at  the best price she has ever given: once she offers it and stops moving, we take it (no ticks
              wasted waiting for her final word; while she still moves we keep exploring)
   patience   our number of messages to spread the concessions over
@@ -202,10 +202,12 @@ def plan(dealer: str, kind: str, cards_by_id: dict = None, traits: dict = None) 
         return {"target": None, "accept_at": None, "patience": prior, "stats": stats,
                 "source": "prior" if prior else None}
     patience = stats["patience"]
+    # Aim at her best ever, not the median: with Abuela the price is set by where WE stand when her patience runs
+    # out ("let's meet in the middle"), so we reach the target two messages before her usual final offer.
     return {
-        "target": round(stats["best_median"]),
+        "target": stats["best_ever"],
         "accept_at": stats["best_ever"],
-        "patience": max(2, int(patience)) if patience is not None else None,
+        "patience": max(2, int(patience) - 2) if patience is not None else 4,
         "stats": stats,
     }
 

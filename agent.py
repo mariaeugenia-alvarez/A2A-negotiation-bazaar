@@ -163,12 +163,13 @@ def cmd_sell_spares(b: Bazaar, st: State, args) -> list:
     m = menu(b, args.dealer)
     buys = {r["rarity"] for r in m["buys"]}
     prices = {s["rarity"]: s["list_price"] for s in m["sells"] if s.get("rarity")}
+    only = getattr(args, "card", None)  # --card: sell only spares of this card
     out, tried = [], set()
     for _ in range(args.n):
         st.refresh()  # another session on our key may have sold a spare since we last looked
-        a = next((x for x in st.spares(rarities=buys) if x["id"] not in tried), None)
+        a = next((x for x in st.spares(rarities=buys) if x["id"] not in tried and (not only or x["ref"] == only)), None)
         if a is None:
-            log.say("no spare left to sell")
+            log.say(f"no spare left to sell{' for ' + only if only else ''}")
             break
         tried.add(a["id"])
         valuer = price.from_state(st)
@@ -225,6 +226,8 @@ def main() -> None:
             p.add_argument("card")
         if name == "sell-spares":
             p.add_argument("--n", type=int, default=1)
+        if name == "sell-spares":
+            p.add_argument("--card", help="sell only spares of this card (e.g. LAT-02)")
         if name == "buy-pack":
             p.add_argument("--pack", default="sobre_barrio", help="pack id (chato sells sobre_plata)")
         if name in ("buy-pack", "abuela"):
