@@ -63,3 +63,13 @@ class Writer:
                 return t.format(p=price)
         self.used.clear()  # every text used once: start over, the price is new anyway
         return self.line(price)
+
+
+FINAL_PHRASES = ("lo tomas o te lo quedas", "take it or leave it", "última oferta", "ultima oferta", "mi última", "mi ultima")
+
+
+def says_final(text) -> bool:
+    """Does a dealer's message name its last word in words? Used to take a price inside our limit sooner,
+    never to move our limit: the words can be a bluff, the price is checked by the code."""
+    t = (text or "").lower()
+    return any(p in t for p in FINAL_PHRASES)

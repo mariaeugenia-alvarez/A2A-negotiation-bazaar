@@ -163,9 +163,15 @@ def cmd_sell_spares(b: Bazaar, st: State, args) -> list:
     m = menu(b, args.dealer)
     buys = {r["rarity"] for r in m["buys"]}
     prices = {s["rarity"]: s["list_price"] for s in m["sells"] if s.get("rarity")}
-    out = []
-    valuer = price.from_state(st)
-    for a in st.spares(rarities=buys)[: args.n]:
+    out, tried = [], set()
+    for _ in range(args.n):
+        st.refresh()  # another session on our key may have sold a spare since we last looked
+        a = next((x for x in st.spares(rarities=buys) if x["id"] not in tried), None)
+        if a is None:
+            log.say("no spare left to sell")
+            break
+        tried.add(a["id"])
+        valuer = price.from_state(st)
         rarity = st.cards_by_id[a["ref"]]["rarity"]
         worth = valuer.copy_value(a["ref"])
         elsewhere = learn.best_elsewhere(args.dealer, f"sell:{rarity}", st.cards_by_id)

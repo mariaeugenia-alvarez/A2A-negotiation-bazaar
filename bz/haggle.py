@@ -9,7 +9,7 @@ import time
 from bazaar_sdk import BazaarError
 
 from . import log
-from .texts import Writer
+from .texts import Writer, says_final
 
 RETRYABLE = ("network", "bad_response", "rate_limited")
 FATAL = ("persona_quota", "cooloff", "locked", "insufficient_cash", "sold_out", "not_owner", "asset_locked")
@@ -25,6 +25,13 @@ def _wait(b) -> None:
 def _dealer_offer(t: dict, dealer: str):
     hers = [o for o in t.get("standing_offers") or [] if o.get("maker") == dealer and o.get("status") == "open"]
     return hers[-1] if hers else None
+
+
+def _said_final(t: dict, dealer: str) -> bool:
+    for m in reversed(t.get("messages") or []):
+        if m.get("sender") == dealer:
+            return says_final(m.get("text"))
+    return False
 
 
 def _price(o: dict, side: str):
@@ -120,11 +127,12 @@ def haggle(b, dealer: str, topic: dict, side: str, opening: int, limit: int, *,
 
             if o and p is not None:
                 final = bool(o.get("final"))
+                said_final = _said_final(t, dealer)  # "take it or leave it": only ever used to accept inside our limit
                 close = bool(ours) and abs(p - ours[-1]) <= accept_gap
                 # her best price ever, and she did not move after our last concession: take it now
                 stalled_here = p_at_last_msg is not None and p == p_at_last_msg
                 learned = accept_at is not None and stalled_here and (p <= accept_at if buy else p >= accept_at)
-                if within(p) and (close or final or at_least_ours(p) or learned):
+                if within(p) and (close or final or said_final or at_least_ours(p) or learned):
                     b.accept(o["id"])
                     accepted = p
                     log.say(f"[{dealer}] accepted {p}")

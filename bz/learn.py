@@ -23,6 +23,7 @@ import statistics
 from bazaar_sdk import BazaarError
 
 from . import log
+from .texts import says_final
 
 THREAD_DIR = os.path.join(log.LOG_DIR, "threads")
 MODEL_PATH = os.path.join(log.LOG_DIR, "dealer_model.json")
@@ -69,7 +70,7 @@ def features(t: dict, cards_by_id: dict = None) -> dict:
             continue
         if m.get("sender") == dealer:
             hers.append(p)
-            if o.get("final") and final_at is None:
+            if (o.get("final") or says_final(m.get("text"))) and final_at is None:
                 final_at = ours_seen
         else:
             ours.append(p)
