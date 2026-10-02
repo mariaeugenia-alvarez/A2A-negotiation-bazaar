@@ -1,59 +1,62 @@
-"""Duels: a BOA agent in code. Bidding = Boulware curve over the ticks left, Acceptance = take the rival's offer when
-it is inside our limit and at least as good as our next counter (or the deadline is near). The words only ask nicely.
+"""Duels agent: every decision comes from bz/duel.py (code decides), the words only carry it politely.
 
-    python3 duels.py            # plays every live duel until none is left
-    python3 duels.py --beta 0.5 --dry
+    python3 duels.py                         # plays every live duel until none is left
+    python3 duels.py --dry                   # prints the decisions, sends nothing
+    python3 duels.py --rounds 3 --beta 2.0 --days-sign -1   # force: your_days_weight is a cost per day
 """
 import argparse
+import fcntl
+import os
+import sys
 import time
 
 from agent import connect
 from bazaar_sdk import BazaarError
 from bz import log
+from bz.duel import decide
 
-OPEN_FRAC = 0.45  # buyer opens at limit*(1-OPEN_FRAC), seller at limit*(1+OPEN_FRAC)
-TEXTS = ["Thank you for meeting me. I can offer {p} P.", "I appreciate your move. {p} P is where I can be.",
-         "Let us close quickly: {p} P.", "A step towards you: {p} P.", "I think {p} P is fair for both of us."]
-
-
-def boulware(start: float, limit: float, t: float, T: float, beta: float) -> int:
-    frac = min(1.0, max(0.0, t / max(1.0, T))) ** (1 / beta)
-    return round(start + frac * (limit - start))
+TEXTS = ["Thank you for meeting me. I can do {o}.", "I appreciate your move. {o} is where I can be.",
+         "Let us close quickly: {o}.", "A real step towards you: {o}.", "I think {o} is fair for both of us."]
 
 
-def play(b, d: dict, tick: int, beta: float, dry: bool, first_tick: dict) -> None:
-    buy = d["role"] == "buyer"
-    limit = d["your_limit"]
-    start = limit * (1 - OPEN_FRAC) if buy else limit * (1 + OPEN_FRAC)
-    t0 = first_tick.setdefault(d["duel"], tick)
-    T = max(1, d["deadline_tick"] - t0 - 1)  # leave the last tick for a deadline accept
-    left = d["deadline_tick"] - tick
-    mine = boulware(start, limit, tick - t0 + 1, T, beta)
-    rival = (d.get("rival_offer") or {}).get("price")
-    inside = rival is not None and (rival <= limit if buy else rival >= limit)
-    better_than_next = rival is not None and (rival <= mine if buy else rival >= mine)
-    log.event("duels", duel=d["duel"], tick=tick, role=d["role"], limit=limit, rival=rival, mine=mine, left=left)
-    if inside and (better_than_next or left <= 2):
-        log.say(f"[duel {d['duel']}] {d['role']} limit {limit}: accept rival {rival} (next counter {mine}, {left} left)")
-        if not dry:
-            b.duel_accept(d["duel"])
+def offer_text(i: int, price: int, days) -> str:
+    o = f"{price} P" + (f" with delivery on day {days}" if days is not None else "")
+    return TEXTS[i % len(TEXTS)].format(o=o)
+
+
+def play(b, d: dict, tick: int, args) -> None:
+    a = decide(d, tick, beta=args.beta, rounds_budget=args.rounds, days_sign=args.days_sign)
+    log.event("duels", duel=d["duel"], tick=tick, role=d["role"], limit=d["your_limit"], rival=d.get("rival_offer"), **a)
+    if a["action"] == "wait":
         return
-    if (d.get("your_offer") or {}).get("price") == mine:
-        mine += 1 if buy else -1  # never the same price twice
-        if (mine > limit) if buy else (mine < limit):
-            return
-    log.say(f"[duel {d['duel']}] {d['role']} limit {limit}: rival {rival} -> we offer {mine} ({left} ticks left)")
-    if not dry:
-        b.duel_say(d["duel"], TEXTS[(tick - t0) % len(TEXTS)].format(p=mine), price=mine)
+    log.say(f"[duel {d['duel']}] {a['action']} {a.get('price', '')} {'' if a.get('days') is None else 'day ' + str(a['days'])}"
+            f" · {a['why']} (his U {a['u_his']}, next step {a['next_step']}, {a['left']} left, days: {a['w_how']})")
+    if args.dry:
+        return
+    if a["action"] == "accept":
+        b.duel_accept(d["duel"])
+    elif a["days"] is None:
+        b.duel_say(d["duel"], offer_text(a["k"], a["price"], None), price=a["price"])
+    else:  # price and days side by side at the top level, as the rules show
+        b.call("POST", f"/api/duels/{int(d['duel'])}/messages",
+               {"text": offer_text(a["k"], a["price"], a["days"]), "price": int(a["price"]), "days": int(a["days"])})
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--beta", type=float, default=0.5)
+    ap.add_argument("--beta", type=float, default=2.0)
+    ap.add_argument("--rounds", type=int, default=3, help="exchanges over which we concede to our reserve")
+    ap.add_argument("--days-sign", type=int, default=None, choices=(1, -1),
+                    help="force the sign of your_days_weight (default: read it from days_meaning, per duel)")
     ap.add_argument("--dry", action="store_true")
     args = ap.parse_args()
+    lock = open(os.path.join(log.LOG_DIR, "duels.lock"), "w")
+    try:  # one agent per team: two would talk twice per tick in the same duel
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        sys.exit("another duels.py is already running (logs/duels.lock)")
     b = connect()
-    first_tick: dict = {}
+    shown = set()
     while True:
         try:
             tick = b.clock()["tick"]
@@ -62,19 +65,23 @@ def main() -> None:
                 log.say("no live duels left")
                 break
             for d in live:
-                if "days" in (d.get("issues") or []):
-                    log.say(f"[duel {d['duel']}] multi-issue (days) not supported yet: skipped")
-                    continue
+                if d["duel"] not in shown:
+                    shown.add(d["duel"])
+                    log.say(f"[duel {d['duel']}] {d['role']} {d.get('item')} limit {d['your_limit']} issues {d.get('issues')} "
+                            f"days_weight {d.get('your_days_weight')} ({d.get('days_meaning')}) deadline {d['deadline_tick']}")
                 try:
-                    play(b, d, tick, args.beta, args.dry, first_tick)
+                    play(b, d, tick, args)
                 except BazaarError as e:
                     log.say(f"[duel {d['duel']}] refused: {e}")
+                except Exception as e:  # one odd duel must not stop the others
+                    log.say(f"[duel {d.get('duel')}] unexpected {type(e).__name__}: {e}")
             b.wait_tick()
-        except BazaarError as e:
-            log.say(f"duels: {e}, retrying")
+        except Exception as e:  # network or server hiccup: never die mid-session
+            log.say(f"duels: {type(e).__name__}: {e}, retrying")
             time.sleep(3)
     for d in b.duels(done=True).get("duels", []):
-        log.say(f"[duel {d['duel']}] {d['role']} limit {d['your_limit']}: {d.get('result')} at {d.get('price')}")
+        log.say(f"[duel {d.get('duel')}] {d.get('role')} limit {d.get('your_limit')}: {d.get('status')} at {d.get('price')} "
+                f"after {d.get('rounds')} rounds -> {d.get('result')}")
 
 
 if __name__ == "__main__":

@@ -46,8 +46,22 @@ Frases de cierre: «Let's meet in the middle», «Venga, X P», y la final: «I 
   Motivo: con «meet in the middle» importa dónde estamos cuando se le acaba la paciencia. No demostrado aún.
 - `bz/learn.py`: el precio del trato cuenta como «su mejor precio» (acepta a veces NUESTRA oferta).
 
-### Nivel 2
-- Llevamos 6 tratos negociados con Abuela, pero `GET /api/levels` está vacío: el nivel 2 aún no está activado.
+### Revisión con el feed completo (106 hilos, ticks 60–122; deep-dive del viernes 22:30)
+- **Su final es un suelo oculto F por conversación** (20–25, media 22,3), independiente de nuestra trayectoria:
+  corr(nº de mensajes, final) −0,16, corr(nuestro último precio, final) −0,10. «Meet in the middle» y «N concesiones»
+  descartados (85 %).
+- **Su primera bajada delata F**: F ≈ 30 − 2·d1, con ±1 en 16 de 17 hilos (75 %). Ej.: hilo 165, d1 = 3 → F ≈ 24 > nuestro
+  límite 21; hilo 166, d1 = 5 → F = 20 (no fue por abrir en 8).
+- Solo concede cuando subimos (~1 P por subida, sea cual sea el paso). Repetir precio no la mueve.
+- Acepta nuestra oferta cuando llega a F (a veces F − 1) (60 %).
+- **H2 descartada** (final de 20 en el tick 95). `best_ever = 19` (tick 35) está caducado: `accept_at` nunca dispara.
+- Mejoras pendientes: límite 25 en vez de 23 (con 23 perdemos ~18 % de tratos), pujar F − 1 y luego F tras su primera bajada.
+
+## El Chato (nivel 2)
+- **Activo para nosotros desde el tick 98** (desbloqueado con 4 tratos con Abuela); abre a todos en t = 2,63 h.
+- Vende: comunes/poco comunes desde 33, raras desde 97 (−1 por subida nuestra, final ~91), sobre_plata 188.
+- Compra poco comunes a 13 sin moverse; una rara: de 39 a 46 (final).
+- Aún no hemos abierto ningún hilo con él: sus 3 mejores tratos llenan los huecos del nivel 2, que pesa más.
 
 ## Puntuación: experimentos con `neg_points` (viernes 22:00–22:22)
 La clasificación (y el `score` de `/api/me`) se recalcula cada 5 ticks (`snapshot_tick`, `next_refresh_tick`).
