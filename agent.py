@@ -129,7 +129,10 @@ def cmd_sell_spares(b: Bazaar, st: State, args) -> list:
     buys = {r["rarity"] for r in menu(b)["buys"]}
     prices = {s["rarity"]: s["list_price"] for s in menu(b)["sells"] if s.get("rarity")}
     out = []
-    for a in st.spares(rarities=buys)[: args.n]:
+    spares = [a for a in st.spares(rarities=buys) if not getattr(args, "card", None) or a["ref"] == args.card]
+    if not spares:
+        log.say(f"no spare to sell{' for ' + args.card if getattr(args, 'card', None) else ''}")
+    for a in spares[: args.n]:
         rarity = st.cards_by_id[a["ref"]]["rarity"]
         floor = max(1, math.ceil(a.get("your_value") or 0))  # never sell below what the copy is worth to us
         opening = args.open or max(floor + 1, round(prices.get(rarity, 10) * 1.2))
@@ -171,6 +174,7 @@ def main() -> None:
             p.add_argument("card")
         if name == "sell-spares":
             p.add_argument("--n", type=int, default=1)
+            p.add_argument("--card", help="sell only spares of this card (e.g. LAT-02)")
         if name in ("buy-pack", "abuela"):
             p.add_argument("--keep", action="store_true", help="do not open the pack")
         if name == "abuela":
