@@ -837,18 +837,32 @@ function chrome() {
 function live() {
   if (!/^https?:$/.test(location.protocol) || !D.live) return;
   const every = Math.max(3, D.live.every || 10) * 1000;
+  let lastOk = D.built.slice(11), pid = D.live.pid;
   async function poll() {
+    let j = null;
     try {
       const r = await fetch("data.json?" + Date.now(), {cache: "no-store"});
-      const j = await r.json();
+      if (!r.ok) throw new Error("el servidor contestó " + r.status);
+      j = await r.json();
+    } catch (e) {
+      liveNote = `<span class="dot hollow" style="--dc:var(--bad)"></span><b>Sin conexión con dashboard.py</b><br>El servidor no responde: se ha parado o se cerró su terminal. Arráncalo otra vez con <span class="mono">python3 dashboard.py --serve</span>; esta página se reconecta sola.<br>Últimos datos: ${esc(lastOk)}`;
+      chrome();
+      return;
+    }
+    try {  // the server answered: if drawing fails that is a bug of the page, not a lost connection
       if (j.rev !== D.rev) {
         D = j; ME = D.me; PAGES = pagesOf();
-        const y = scrollY, f = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.go;
+        const y = scrollY;
         route(true); scrollTo(0, y);
       }
-      liveNote = `<span class="dot" style="--dc:var(--ok)"></span>En directo · ${esc(D.built.slice(11))}<br>Datos nuevos cada ${D.live.refresh || D.live.every} s`;
+      D.live = j.live;  // the fingerprint ignores it, so keep it current by hand
+      lastOk = j.built.slice(11);
+      const restarted = j.live && j.live.pid !== pid;
+      pid = j.live ? j.live.pid : pid;
+      liveNote = `<span class="dot" style="--dc:var(--ok)"></span>En directo · ${esc(lastOk)}<br>Datos nuevos cada ${D.live.refresh || D.live.every} s${restarted ? "<br>El servidor se reinició" : ""}`;
     } catch (e) {
-      liveNote = `<span class="dot hollow" style="--dc:var(--bad)"></span>Sin conexión con dashboard.py<br>Reintentando…`;
+      console.error("dashboard: no se pudieron dibujar los datos nuevos", e);
+      liveNote = `<span class="dot hollow" style="--dc:var(--bad)"></span><b>Error al dibujar</b><br>El servidor sí responde, pero esta pantalla no pudo dibujar los datos nuevos (detalle en la consola del navegador).`;
     }
     chrome();
   }

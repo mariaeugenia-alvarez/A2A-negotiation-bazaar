@@ -145,6 +145,31 @@ def test_trader_view_new_logs():
     assert v["counts"]["human"] == 1
 
 
+def test_free_port_skips_a_busy_one():
+    import socket
+    import dashboard
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen(1)
+        taken = busy.getsockname()[1]
+        assert dashboard.free_port(taken) != taken, "a second dashboard must not fight the first one for its port"
+
+
+def test_journal_writes_a_line():
+    import tempfile
+    from bz import log
+    import dashboard
+    old_dir, old_path = log.LOG_DIR, dashboard.JOURNAL
+    with tempfile.TemporaryDirectory() as tmp:
+        log.LOG_DIR, dashboard.JOURNAL = tmp, os.path.join(tmp, "dashboard_server.log")
+        try:
+            dashboard.journal("stopped by SIGTERM")
+            text = open(dashboard.JOURNAL).read()
+        finally:
+            log.LOG_DIR, dashboard.JOURNAL = old_dir, old_path
+    assert "stopped by SIGTERM" in text and "pid" in text
+
+
 def test_rev_ignores_build_time():
     import dashboard
     a = dashboard.stamp({"built": "10:00:00", "x": [1, 2]})

@@ -15,6 +15,8 @@ import argparse
 import hashlib
 import json
 import os
+import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -40,14 +42,35 @@ def stamp(data: dict) -> dict:
     return data
 
 
+JOURNAL = os.path.join(log.LOG_DIR, "dashboard_server.log")
+
+
+def journal(msg: str) -> None:
+    """One line per start, stop and failure of --serve, so that 'why did it stop?' has an answer next time."""
+    os.makedirs(log.LOG_DIR, exist_ok=True)
+    with open(JOURNAL, "a", encoding="utf-8") as f:
+        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} pid {os.getpid()} {msg}\n")
+
+
+def free_port(first: int) -> int:
+    """The wanted port, or the next free one: a second copy must not crash because the first still holds it."""
+    for port in range(first, first + 10):
+        with socket.socket() as s:
+            if s.connect_ex(("127.0.0.1", port)) != 0:
+                return port
+    return first
+
+
 def serve(args) -> None:
     """Rebuild the data every few seconds in the background and serve it. Local only: the data holds private values."""
     box = {"data": None}
     lock = threading.Lock()
+    started = time.strftime("%H:%M:%S")
+    args.port = free_port(args.port)
 
     def refresh() -> None:
         data = stamp(dash.build(offline=args.offline, key=not args.no_key))
-        data["live"] = {"every": max(3, min(args.every, 10)), "refresh": args.every}
+        data["live"] = {"every": max(3, min(args.every, 10)), "refresh": args.every, "pid": os.getpid(), "since": started}
         with lock:
             box["data"] = data
 
@@ -58,7 +81,8 @@ def serve(args) -> None:
             time.sleep(args.every)
             try:
                 refresh()
-            except Exception as e:  # a bad moment of the network must not stop the dashboard
+            except BaseException as e:  # a bad moment of the network must not stop the dashboard
+                journal(f"refresh failed: {type(e).__name__}: {e}")
                 log.say(f"dashboard: no se pudo refrescar ({type(e).__name__}: {e}), sigo con los datos anteriores")
 
     threading.Thread(target=loop, daemon=True).start()
@@ -88,12 +112,26 @@ def serve(args) -> None:
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)  # 127.0.0.1: only this computer can read it
     url = f"http://127.0.0.1:{args.port}/"
     log.say(f"dashboard: {url} (se actualiza solo cada {args.every} s; Ctrl+C para parar)")
+    journal(f"started on {url}")
+
+    def stopped_by(signum, _frame):  # someone ran kill, or the terminal window was closed
+        name = signal.Signals(signum).name
+        journal(f"stopped by {name} ({'terminal closed' if name == 'SIGHUP' else 'kill or stop request'})")
+        raise SystemExit(0)
+
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, stopped_by)
     if not args.no_open and sys.platform == "darwin":
         subprocess.run(["open", url], check=False)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        pass
+        journal("stopped by Ctrl+C")
+    except SystemExit:
+        raise
+    except BaseException as e:
+        journal(f"crashed: {type(e).__name__}: {e}")
+        raise
 
 
 def main() -> None:
