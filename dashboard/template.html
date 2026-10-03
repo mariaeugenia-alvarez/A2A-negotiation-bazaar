@@ -160,7 +160,7 @@ const DATA = /*__DATA__*/null;
 <script>
 "use strict";
 /* ============================================================ helpers */
-const D = DATA, ME = D.me;
+let D = DATA, ME = D.me;
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const num = (v, d = 1) => v == null || Number.isNaN(v) ? "—" : Number(v).toLocaleString("es-ES", {maximumFractionDigits: d});
@@ -771,9 +771,10 @@ function pageMercado(filter) {
 }
 
 /* ============================================================ router */
-const PAGES = [["resumen", "Resumen"], ...Object.keys(D.dealers).map(id => [id, D.dealers[id].name]), ["duelos", "Duelos"], ["mercado", "Mercado"], ["equipos", "Otros equipos"], ["formulas", "Fórmulas"]];
+const pagesOf = () => [["resumen", "Resumen"], ...Object.keys(D.dealers).map(id => [id, D.dealers[id].name]), ["duelos", "Duelos"], ["mercado", "Mercado"], ["equipos", "Otros equipos"], ["formulas", "Fórmulas"]];
+let PAGES = pagesOf();
 const state = {kind: {}, sort: null, mf: "all"};
-function route() {
+function route(keep) {
   const [page = "resumen", a, b] = location.hash.slice(1).split("/");
   const known = PAGES.find(p => p[0] === page) ? page : "resumen";
   $("#line").innerHTML = PAGES.map(([id, name], i) => `<li class="${id === known ? "on" : ""}" style="--i:${i};--st:${id === "resumen" || id === "formulas" ? "var(--us)" : id === "duelos" ? "var(--rival)" : id === "mercado" ? "var(--ink)" : id === "equipos" ? "var(--other)" : dcolor(id)}"><a href="${hash(id)}" ${id === known ? 'aria-current="page"' : ""}>${esc(name)}</a></li>`).join("");
@@ -785,7 +786,8 @@ function route() {
   else if (known === "formulas") html = pageFormulas();
   else html = pageDealer(known, a && b ? {source: a, id: +b} : null, state.kind[known]);
   $("#main").innerHTML = html;
-  if (a && (b || known === "duelos")) { const el = $("#detail") || $("#main section.panel"); if (el) el.scrollIntoView({block: "start"}); }
+  if (keep) { /* live refresh: stay where the reader is */ }
+  else if (a && (b || known === "duelos")) { const el = $("#detail") || $("#main section.panel"); if (el) el.scrollIntoView({block: "start"}); }
   else if (!a) scrollTo(0, 0);
   document.title = `${PAGES.find(p => p[0] === known)[1]} · Regateos`;
 }
@@ -797,10 +799,36 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("keydown", e => { if (e.key === "Enter") { const go = e.target.closest && e.target.closest("tr[data-go]"); if (go) location.hash = go.dataset.go; } });
 addEventListener("hashchange", route);
-$("#badge").textContent = String(ME || "").replace(/^\D+0*/, "") || "·";
-$("#meta").textContent = D.clock ? `${ME} · tick ${D.clock.tick}` : ME;
-$("#foot").innerHTML = `Actualizado ${esc(D.built)}<br>Para refrescar: <span class="mono">python3 dashboard.py</span>`;
+let liveNote = "";
+function chrome() {
+  $("#badge").textContent = String(ME || "").replace(/^\D+0*/, "") || "·";
+  $("#meta").textContent = D.clock ? `${ME} · tick ${D.clock.tick}` : ME;
+  $("#foot").innerHTML = liveNote || `Actualizado ${esc(D.built)}<br>Para que se refresque solo: <span class="mono">python3 dashboard.py --serve</span>`;
+}
+/* live mode: when the page comes from dashboard.py --serve it asks for fresh data and redraws only what changed */
+function live() {
+  if (!/^https?:$/.test(location.protocol) || !D.live) return;
+  const every = Math.max(3, D.live.every || 10) * 1000;
+  async function poll() {
+    try {
+      const r = await fetch("data.json?" + Date.now(), {cache: "no-store"});
+      const j = await r.json();
+      if (j.rev !== D.rev) {
+        D = j; ME = D.me; PAGES = pagesOf();
+        const y = scrollY, f = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.go;
+        route(true); scrollTo(0, y);
+      }
+      liveNote = `<span class="dot" style="--dc:var(--ok)"></span>En directo · ${esc(D.built.slice(11))}<br>Datos nuevos cada ${D.live.refresh || D.live.every} s`;
+    } catch (e) {
+      liveNote = `<span class="dot hollow" style="--dc:var(--bad)"></span>Sin conexión con dashboard.py<br>Reintentando…`;
+    }
+    chrome();
+  }
+  poll(); setInterval(poll, every);
+}
+chrome();
 route();
+live();
 </script>
 </body>
 </html>

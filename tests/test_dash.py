@@ -117,6 +117,14 @@ def test_trader_view_joins_counters_and_outcomes():
     assert {x["venue"]: x["decisions"] for x in v["by_venue"]} == {"rastro": 2, "v02": 1}
 
 
+def test_rev_ignores_build_time():
+    import dashboard
+    a = dashboard.stamp({"built": "10:00:00", "x": [1, 2]})
+    b = dashboard.stamp({"built": "10:00:20", "x": [1, 2]})
+    c = dashboard.stamp({"built": "10:00:20", "x": [1, 3]})
+    assert a["rev"] == b["rev"] and a["rev"] != c["rev"], "the page must redraw only when the data changed"
+
+
 def test_render_escapes_script_end():
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     import dashboard
