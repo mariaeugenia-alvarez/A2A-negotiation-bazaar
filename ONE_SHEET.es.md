@@ -40,7 +40,7 @@ puntos. Como la puntuación es relativa, quedarse quieto hace perder puestos.
 | **Tratos con equipos** | `neg_points` de 23,5 a **45** a las 23:00. Cada trato debe ganar valor | Seis tratos pequeños ya dieron +24. El quoter está listo (no en vivo) |
 | **Páginas** | Completar **Salamanca** (faltan SAL-06, 07, 09, 10). No romper nunca Lavapiés | Bono de página = +25 % del total de la página en cada carta ✅ |
 | **Dealers** | Solo tratos que ganen valor: cartas de página compradas por debajo de su valor, repetidas vendidas por encima. **Nunca una venta por debajo de nuestro valor, nunca una carta de página** | Los dealers dan muy pocos puntos. Sirven para cartas baratas y desbloqueos, no para puntos |
-| **Mercado** | Mantener 7,5 o más. Decidir sobre el broker de Maru antes del Market Test duro (≈21:30) | Los mejores equipos están en 10,6–12,1 |
+| **Mercado** | Mantener 7,5 o más. v21 está abierto sin broker (VII): decidir sobre el broker de Maru **antes del próximo Market Test**, no en el duro (≈21:30) | Los mejores equipos están en 10,6–12,1 |
 
 Los cuatro pasos de Voss para la meta: fijarla, escribirla, decírsela a una compañera (Maru), llevarla encima.
 **El peor caso que no aceptamos:** un trato fuera de nuestro límite, una venta por debajo de nuestro valor, un duelo sin
@@ -60,7 +60,7 @@ respuesta.
 - **Nuevo en el calendario:** Duelos II con **8 % de decaimiento, 16 ticks y hasta 6 duelos a la vez**. Duelos III y la Final con **10 % y solo 12 ticks** (3 minutos con los ticks de 15 s del domingo) ✅.
 - **Nuevo:** Doña Pilar comercia. Fiebre de Salamanca **≈16:00–18:00**: paga un 25 % sobre catálogo por Salamanca ✅ (calendario).
 - **Nuevo:** Radio Rastro (`GET /api/news`). Algunas noticias son ciertas y mueven el mercado; otras son rumores ✅. Tratar las noticias como pista, nunca como hecho.
-- **Aviso:** en el tick 567 `neg_points` bajó por primera vez (24,2 → 23,5), justo después de que los scripts de dealers vendieran a Pilar MAL-08 (21 P, vale 22,5) y SAL-07 (24 P, vale 27,5, carta de la página de Salamanca). Causa sin probar ⚠️. La regla fija 2 ya lo cubre.
+- **Aviso:** en el tick 567 `neg_points` bajó por primera vez (24,2 → 23,5), justo después de que los scripts de dealers vendieran a Pilar MAL-08 (21 P, vale 22,5) y SAL-07 (24 P, vale 27,5: nuestra única copia, así que a Salamanca vuelve a faltarle). Causa sin probar ⚠️: `DEALERS.md` midió el viernes que los tratos con dealers no movían `neg_points`, así que hay que buscar también en otra parte. La regla fija 2 ya lo cubre.
 
 ### Valor de las cartas (sin cambios, comprobado) ✅
 - Valor = catálogo × nuestro multiplicador del barrio × factor de copia, más el bono de página si la página está completa. **El trader lee los valores del juego** (`your_value` incluye el bono).
@@ -182,14 +182,14 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 
 ### Tratos con equipos (`trader.py`, dueña: sesión del trader) ✅
 - **Comprar:** valor recibido − dinero − comisión > margen. **Vender:** nunca por debajo de nuestro valor, primero las repetidas, nunca una carta que nos falte para una página.
-- **Quoter (hecho, no en vivo):** pujas fijas por las cartas que nos faltan y ofertas de venta de repetidas. El guardián lo para cuando debe. Plan del tick 568: pujas RET-02..05 a 8, SAL-06/07 y MAL-06/08 a 20, RET-09 a 68, venta de la LAV-06 repetida a 20. 180 P comprometidas, +79 de valor si todo se llena. **Necesita el visto bueno de Thameur.**
+- **Quoter (hecho, no en vivo):** pujas fijas por las cartas que nos faltan y ofertas de venta de repetidas. El guardián lo para cuando debe. Plan del tick 568: pujas RET-02..05 a 8, SAL-06/07 y MAL-06/08 a 20, RET-09 a 68, venta de la LAV-06 repetida a 20. 180 P comprometidas, +79 de valor si todo se llena. **Necesita el visto bueno de Thameur.** ⚠️ La caja tiene **48 P** (15:36, tras la fianza de v21): el plan de 180 P no cabe. Recortarlo a la caja (`--quote-budget`) o esperar a que vuelva la fianza.
 - **Lecciones de esta mañana:** nunca ofrecer una carta a dos equipos a la vez. Abrir las ventas por encima de la mejor puja vista. Revisar las pujas viejas (si se llenan después de conseguir la carta por otro lado, compramos una repetida que vale el 25 %).
 
 ### Dealers (scripts de Maru: `agent.py`, `bz/predict.py`, `DEALERS.md`) ✅
 - **Abuela:** su primera respuesta delata su límite (L = A − 2·d1). Error del modelo ≈ 0,4–0,7 P.
 - **El Chato:** calendario a·k², nunca cede más que nuestro paso. Modelo exacto en 77–98 %. Raras de 97 a 79 en 6 respuestas.
 - **Pilar:** compra MAL/SAL cerca del catálogo. **Fiebre de Salamanca ≈16:00–18:00 (+25 % sobre catálogo).** Decisión del equipo: venderle Salamanca solo si renunciamos a completar Salamanca.
-- **Arreglo pendiente (Maru):** los scripts deben rechazar cualquier venta por debajo de nuestro valor y cualquier carta que nos falte para una página.
+- **Guardián (Maru):** `agent.py sell-spares` solo vende copias a partir de la segunda y nunca por debajo de `sell_floor(valor)`. `--limit` ya no puede cruzar `sell_floor`/`buy_cap` (15:36). Cruzar el límite de valor necesita el visto bueno de Maru diciendo cuántas primas perdemos (`CLAUDE.md`).
 
 ### Mercado ✅
 - Puesto gratis: eficiencia 0,933, mercado 7,5. Los mejores equipos: 10,6–12,1.
@@ -225,7 +225,7 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 | 15:50 | Market Test 4 | solo lectura |
 | **16:00–18:00** | **Fiebre de Salamanca de Pilar** | scripts de dealers (Maru), solo si el equipo está de acuerdo |
 | 17:50 | Market Test 5 | |
-| **18:00** | **Ensayo en seco de `duels.py` en un duelo de dos temas. Decidir qué máquina ejecuta `duels_watch.py`** | sesión del trader + Thameur |
+| **18:00** | **Ensayo en seco de `duels.py` en un duelo de dos temas. Decidir qué máquina ejecuta `duels_watch.py`, y v1 o `--policy v2`** (v2 = esta doctrina, 83a1efd; v1 sigue por defecto hasta que Thameur apruebe la estrategia de esperar) | sesión del trader + Thameur |
 | **18:30** | **Duelos II** (8 %, 16 ticks, hasta 6 a la vez) | `duels.py` |
 | 19:50 · 21:30 (duro) · 21:50 | Market Tests | |
 | 23:00 | Cierran las puertas | |
@@ -235,7 +235,7 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 **≈11:30 Duelos III** · ≈14:30 cierran los dealers y **Gran Final** de duelos · 15:00 cierran las puertas · ≈15:30 se congela la puntuación.
 
 ### Decisiones para Thameur y Maru ahora
-1. **¿Quoter EN VIVO?** 180 P en pujas fijas por cartas de página, +79 de valor si todo se llena.
+1. **¿Quoter EN VIVO?** 180 P en pujas fijas por cartas de página, +79 de valor si todo se llena. La caja tiene 48 P: ¿con qué presupuesto?
 2. **Maru:** bloquear las ventas a dealers por debajo de nuestro valor y las de cartas de página. ¿Vendemos Salamanca a Pilar durante la fiebre o completamos la página?
 3. **Duelos II:** ✅ doctrina de la sección VI aprobada a las 13:35 (el día de entrega sigue siendo una hipótesis). La sesión del trader la pasa a `bz/duel.py` y la prueba en simulación antes de las 18:00. **Y: ¿qué máquina ejecutó `duels.py` en los Duelos I? Solo una puede ejecutar `duels_watch.py`.**
 4. **Mercado:** v21 está abierto. ¿Quién le pone un broker y desde cuándo? Si no, puede sacar menos que el 7,5 del puesto gratis.

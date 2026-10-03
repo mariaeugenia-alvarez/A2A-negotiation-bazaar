@@ -41,7 +41,7 @@ máquina**. Todos gastan la misma caja, así que hay que avisarse antes de una c
 |---|---|
 | 13:50 · 15:50 · 17:50 | Market Tests: apuntar nuestros números y los del mejor equipo (L6) |
 | **16:00–18:00** | **Fiebre de Salamanca de Pilar (+25 % sobre catálogo).** Antes, el equipo decide: vender Salamanca o completar la página |
-| **18:00** | Ensayo en seco `python3 duels.py --dry` en un duelo de dos temas: comprobar `days` y el signo de `days_meaning`. Elegir la máquina de `duels_watch.py` |
+| **18:00** | Ensayo en seco `python3 duels.py --dry` en un duelo de dos temas: comprobar `days` y el signo de `days_meaning`. Elegir la máquina de `duels_watch.py`, y v1 o `--policy v2` |
 | **18:30** | **Duelos II** (8 % por ronda, 16 ticks, hasta 6 a la vez). `observe.py tag D2`. Después `analyze_duels.py` y aplicar L3 |
 | 19:50 · **21:30 (duro)** · 21:50 | Market Tests |
 | 23:00 | Cierran las puertas |
@@ -49,10 +49,10 @@ máquina**. Todos gastan la misma caja, así que hay que avisarse antes de una c
 
 ## 4. Lista de trabajo (en este orden)
 
-1. **Lógica de decisión de los Duelos II** (`bz/duel.py`, sesión del trader, aprobada a las 13:35): sección VI de `ONE_SHEET.es.md`. Límite firme, primera oferta ambiciosa que el rival pueda aceptar, leer al bot y adaptarse (callar mientras cede solo), aceptar cuando una ronda más no pueda superar el decaimiento, como mucho 2 contraofertas reales. Día de entrega: solo hipótesis. Probar en simulación antes de las 18:00.
-2. **Guardián de dealers** (Maru): rechazar cualquier venta por debajo de nuestro valor y cualquier carta que nos falte para una página.
-3. **Quoter EN VIVO** con tu visto bueno (180 P en pujas, +79 de valor si todo se llena).
-4. **Broker:** solo si L6 lo pide.
+1. **Lógica de decisión de los Duelos II** (`bz/duel.py`, sesión del trader, aprobada a las 13:35): sección VI de `ONE_SHEET.es.md`. Límite firme, primera oferta ambiciosa que el rival pueda aceptar, leer al bot y adaptarse (callar mientras cede solo), aceptar cuando una ronda más no pueda superar el decaimiento, como mucho 2 contraofertas reales. Día de entrega: solo hipótesis. **Hecho** (83a1efd) como `duels.py --policy v2`, probado en `tests/sim_duel2.py`; v1 sigue por defecto hasta que Thameur apruebe la estrategia de esperar.
+2. **Guardián de dealers** (Maru): `sell-spares` solo vende repetidas, nunca por debajo de `sell_floor`; `--limit` limitado a `sell_floor`/`buy_cap` (15:36). **Hecho.**
+3. **Quoter EN VIVO** con tu visto bueno (180 P en pujas, +79 de valor si todo se llena). La caja tiene 48 P tras la fianza de v21: poner `--quote-budget` a lo que haya.
+4. **Broker:** v21 está abierto sin broker. Leer L6 en el próximo Market Test y decidir entonces, no a las 21:30.
 
 ## 5. Preguntas abiertas que deben responder los experimentos
 - La fórmula exacta de `neg_points`, `duel_points` y `ladder_points` a los 30 puntos de negociación.

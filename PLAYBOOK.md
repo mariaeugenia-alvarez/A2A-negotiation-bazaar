@@ -40,7 +40,7 @@ them spend the same cash, so tell each other before a big purchase or before pos
 |---|---|
 | 13:50 · 15:50 · 17:50 | Market Tests: write down our numbers and the best team's (L6) |
 | **16:00–18:00** | **Pilar's Salamanca fever (+25% over book).** Team decides first: sell Salamanca or finish the page |
-| **18:00** | Dry run `python3 duels.py --dry` on a two-issue duel: check `days` and the sign of `days_meaning`. Choose the machine for `duels_watch.py` |
+| **18:00** | Dry run `python3 duels.py --dry` on a two-issue duel: check `days` and the sign of `days_meaning`. Choose the machine for `duels_watch.py`, and v1 or `--policy v2` |
 | **18:30** | **Duels II** (8% per round, 16 ticks, up to 6 at once). `observe.py tag D2`. Afterwards `analyze_duels.py` and apply L3 |
 | 19:50 · **21:30 (hard)** · 21:50 | Market Tests |
 | 23:00 | Doors close |
@@ -48,10 +48,10 @@ them spend the same cash, so tell each other before a big purchase or before pos
 
 ## 4. Build list (in this order)
 
-1. **Duel decision logic for Duels II** (`bz/duel.py`, trader session, approved 13:35): `ONE_SHEET.md` section VI. Firm limit, an ambitious first offer the rival can accept, read the bot and adapt (stay silent while he concedes on his own), accept when one more round can't beat the decay, at most 2 real counters. Delivery day: hypothesis only. Test in simulation before 18:00.
-2. **Dealer guard** (Maru): refuse any sale below our value and any card we need for a page.
-3. **Quoter LIVE** with your OK (180 P of bids, +79 of value if all fill).
-4. **Broker:** only if L6 says so.
+1. **Duel decision logic for Duels II** (`bz/duel.py`, trader session, approved 13:35): `ONE_SHEET.md` section VI. Firm limit, an ambitious first offer the rival can accept, read the bot and adapt (stay silent while he concedes on his own), accept when one more round can't beat the decay, at most 2 real counters. Delivery day: hypothesis only. **Built** (83a1efd) as `duels.py --policy v2`, tested in `tests/sim_duel2.py`; v1 stays the default until Thameur approves the waiting strategy.
+2. **Dealer guard** (Maru): `sell-spares` sells only spares, never below `sell_floor`; `--limit` clamped to `sell_floor`/`buy_cap` (15:36). **Done.**
+3. **Quoter LIVE** with your OK (180 P of bids, +79 of value if all fill). Cash is 48 P after the v21 bond: set `--quote-budget` to what we have.
+4. **Broker:** v21 is open without one. Read L6 at the next Market Test and decide then, not at 21:30.
 
 ## 5. Open questions the experiments must answer
 - The exact formula from `neg_points`, `duel_points` and `ladder_points` to the 30 negotiating points.

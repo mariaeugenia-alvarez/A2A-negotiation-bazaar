@@ -202,7 +202,23 @@ def run(name, fn, n):
     print(f"ok {name}: {n} random cases, outcomes {counts}")
 
 
+def check_limit_flag(seed):
+    """agent.py --limit never crosses the card's value bound (CLAUDE.md): only a tighter limit gets through."""
+    import contextlib
+    import io
+    import agent
+    rng = random.Random(seed)
+    bound, asked = rng.randint(1, 300), rng.randint(1, 400)
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert agent.bounded("buy", asked, bound) <= bound, (asked, bound)
+        assert agent.bounded("sell", asked, bound + 5, bound) >= bound, (asked, bound)
+    assert agent.bounded("buy", None, bound) == bound
+    return "tighter" if asked < bound else "clamped"
+
+
 if __name__ == "__main__":
+    os.environ.setdefault("BAZAAR_KEY", "x")
+    run("limit flag", check_limit_flag, 2000)
     run("haggle", check_haggle, 3000)
     run("judge", check_judge, 5000)
     run("duel", check_duel, 3000)

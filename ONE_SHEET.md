@@ -40,7 +40,7 @@ Because the score is relative, standing still loses rank.
 | **Team trades** | `neg_points` 23.5 → **45** by 23:00. Every trade must gain value | Six small trades already gave +24. The quoter is ready (not live) |
 | **Pages** | Complete **Salamanca** (missing SAL-06, 07, 09, 10). Never break Lavapiés | Page bonus = +25% of the page total on every card of the page ✅ |
 | **Dealers** | Only trades that gain value: page cards bought below their value, spares sold above it. **Never a sale below our value, never a page card** | Dealer score is tiny. Their use is cheap cards and unlocks, not points |
-| **Market** | Keep 7.5 or better. Decide on Maru's broker before the hard Market Test (≈21:30) | Top teams are at 10.6–12.1 |
+| **Market** | Keep 7.5 or better. v21 is open without a broker (VII): decide on Maru's broker **before the next Market Test**, not at the hard one (≈21:30) | Top teams are at 10.6–12.1 |
 
 Voss's four goal steps: set it, write it down, say it to a teammate (Maru), carry it in. **The worst case we refuse:**
 a deal outside our limit, a sale below our value, a duel with no answer.
@@ -59,7 +59,7 @@ a deal outside our limit, a sale below our value, a duel with no answer.
 - **New from the schedule:** Duels II has **8% decay, 16 ticks, up to 6 duels at once**. Duels III and the Final have **10% decay and only 12 ticks** (3 minutes at Sunday's 15-second ticks) ✅.
 - **New:** Doña Pilar trades. Salamanca fever **≈16:00–18:00**: she pays 25% over book for Salamanca ✅ (schedule).
 - **New:** Radio Rastro (`GET /api/news`). Some items are true and move the market, some are rumours ✅. Treat news as a hint, never as a fact.
-- **Warning:** at tick 567 `neg_points` fell for the first time (24.2 → 23.5), right after the dealer scripts sold MAL-08 (21 P, worth 22.5) and SAL-07 (24 P, worth 27.5, a Salamanca page card) to Pilar. Cause not proven ⚠️. Hard rule 2 now covers it.
+- **Warning:** at tick 567 `neg_points` fell for the first time (24.2 → 23.5), right after the dealer scripts sold MAL-08 (21 P, worth 22.5) and SAL-07 (24 P, worth 27.5: our only copy, so Salamanca now misses it again) to Pilar. Cause not proven ⚠️: `DEALERS.md` measured on Friday that dealer deals did not move `neg_points`, so look elsewhere too. Hard rule 2 now covers it.
 
 ### Card values (unchanged, verified) ✅
 - Value = book × our set multiplier × copy factor, plus the page bonus when the page is complete. **The trader reads values from the game** (`your_value` includes the bonus).
@@ -180,14 +180,14 @@ built so we can close in one or two rounds without losing the pie."*
 
 ### Team trades (`trader.py`, owner: trader session) ✅
 - **Buy:** value received − cash − fee > margin. **Sell:** never below our value, spares first, never a card we need for a page.
-- **Quoter (built, not live):** standing bids for our missing page cards and asks for spares. The guard stops it when it should. Plan at tick 568: bids RET-02..05 at 8, SAL-06/07 and MAL-06/08 at 20, RET-09 at 68, an ask for the LAV-06 spare at 20. 180 P committed, +79 of value if everything fills. **Needs Thameur's OK.**
+- **Quoter (built, not live):** standing bids for our missing page cards and asks for spares. The guard stops it when it should. Plan at tick 568: bids RET-02..05 at 8, SAL-06/07 and MAL-06/08 at 20, RET-09 at 68, an ask for the LAV-06 spare at 20. 180 P committed, +79 of value if everything fills. **Needs Thameur's OK.** ⚠️ Cash is **48 P** (15:36, after the v21 bond): the 180 P plan does not fit. Trim it to the cash (`--quote-budget`) or wait for the bond to come back.
 - **Lessons from this morning:** never offer one card to two teams at once. Open sales above the best bid seen. Re-check stale bids (a fill after we got the card elsewhere buys a duplicate worth 25%).
 
 ### Dealers (Maru's scripts: `agent.py`, `bz/predict.py`, `DEALERS.md`) ✅
 - **Abuela:** her first answer gives away her limit (L = A − 2·d1). Model error ≈ 0.4–0.7 P.
 - **El Chato:** schedule a·k², never gives more than our step. Model exact 77–98%. Rares 97 → 79 in 6 answers.
 - **Pilar:** buys MAL/SAL near book. **Salamanca fever ≈16:00–18:00 (+25% over book).** Decision for the team: sell her Salamanca only if we give up on completing Salamanca.
-- **Fix needed (Maru):** the scripts must refuse any sale below our value and any card we need for a page.
+- **Guard (Maru):** `agent.py sell-spares` only sells copies beyond the first and never below `sell_floor(value)`. `--limit` can no longer cross `sell_floor`/`buy_cap` (15:36). Crossing the value bound needs Maru's OK with the loss in primas (`CLAUDE.md`).
 
 ### Market ✅
 - Free stall: efficiency 0.933, market 7.5. Top teams 10.6–12.1.
@@ -223,7 +223,7 @@ built so we can close in one or two rounds without losing the pie."*
 | 15:50 | Market Test 4 | read only |
 | **16:00–18:00** | **Pilar's Salamanca fever** | dealer scripts (Maru), only if the team agrees |
 | 17:50 | Market Test 5 | |
-| **18:00** | **Dry run of `duels.py` on a two-issue duel. Decide which machine runs `duels_watch.py`** | trader session + Thameur |
+| **18:00** | **Dry run of `duels.py` on a two-issue duel. Decide which machine runs `duels_watch.py`, and v1 or `--policy v2`** (v2 = this doctrine, 83a1efd; v1 stays the default until Thameur approves the waiting strategy) | trader session + Thameur |
 | **18:30** | **Duels II** (8%, 16 ticks, up to 6 at once) | `duels.py` |
 | 19:50 · 21:30 (hard) · 21:50 | Market Tests | |
 | 23:00 | Doors close | |
@@ -233,7 +233,7 @@ built so we can close in one or two rounds without losing the pie."*
 **≈11:30 Duels III** · ≈14:30 dealers close and **Grand Final** duels · 15:00 doors close · ≈15:30 scores freeze.
 
 ### Decisions for Thameur and Maru now
-1. **Quoter LIVE?** 180 P of standing bids for page cards, +79 of value if all fill.
+1. **Quoter LIVE?** 180 P of standing bids for page cards, +79 of value if all fill. Cash is 48 P: with what budget?
 2. **Maru:** block dealer sales below our value and sales of page cards. Do we sell Salamanca to Pilar during the fever, or finish the page?
 3. **Duels II:** ✅ doctrine in VI approved at 13:35 (the delivery day stays a hypothesis). The trader session turns it into `bz/duel.py` and tests it in simulation before 18:00. **And: which machine ran `duels.py` in Duels I? Only one may run `duels_watch.py`.**
 4. **Market:** v21 is open. Who runs a broker for it, from when? Otherwise it may score below the free stall's 7.5.

@@ -20,7 +20,8 @@ Equipo t09 en The Bazaar. Varias sesiones comparten la misma clave: antes de abr
    - El Chato («boulware»): su calendario a·k² limita lo que cede, y nunca cede más que nuestro paso. Pasos crecientes
      (rara: 1, 2, 2, 4, 4, 5) y el punto medio al final. Poco comunes: comprárselas a Abuela, no a él.
    - Pilar («linear»): no se mueve en su primera respuesta, luego +1 P por movimiento sea cual sea el paso. Abrir alto,
-     bajar 1 P sin repetir, aceptar su final (17-21; 24-25 si la carta es de SAL/RET). Las poco comunes sobrantes, a ella.
+     bajar 1 P sin repetir, aceptar su final (17-21; 24-25 si la carta es de SAL/RET). Las poco comunes sobrantes, a ella;
+     nunca una carta de página. En la fiebre de Salamanca (≈16-18 h) el equipo decide antes: vender SAL o completar la página.
    - Dealer nuevo: `bz.predict.family_of()` elige entre las tres familias en cuanto se ha movido en 3 hilos; hasta
      entonces no hay modelo y `agent.py` lo avisa. Para usarlo, añádelo a `MODELS` en `bz/predict.py`.
 4. **Después de negociar**: `python3 -m bz.predict` otra vez. Si la precisión de un dealer baja o un tipo de trato

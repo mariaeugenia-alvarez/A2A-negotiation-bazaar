@@ -131,6 +131,18 @@ def open_new_packs(b: Bazaar, st: State, ref: str = "sobre_barrio") -> None:
             log.say(f"  pulled {c.get('ref', c.get('id'))} {c['name']} · {c['rarity']} · #{c.get('serial')}/{c.get('print_run')}")
 
 
+def bounded(side: str, asked, default: int, bound: int = None) -> int:
+    """Our limit: --limit when given, else the default; never past what the card is worth to us (CLAUDE.md).
+    Crossing that bound needs Maru's OK, so it is done by hand, not with a flag."""
+    bound = default if bound is None else bound
+    if asked is None:
+        return default
+    ok = min(asked, bound) if side == "buy" else max(asked, bound)
+    if ok != asked:
+        log.say(f"--limit {asked} crosses our value bound {bound}: using {ok} (ask Maru to cross it)")
+    return ok
+
+
 def cmd_buy_pack(b: Bazaar, st: State, args) -> dict:
     pack = args.pack
     item = sells_item(menu(b, args.dealer), pack=pack)
@@ -138,7 +150,7 @@ def cmd_buy_pack(b: Bazaar, st: State, args) -> dict:
         sys.exit(f"{args.dealer} does not sell {pack}")
     lp = item["list_price"]
     worth = price.from_state(st).pack_value(pack)
-    limit = min(st.cash, args.limit or price.buy_cap(worth, margin=args.margin))
+    limit = min(st.cash, bounded("buy", args.limit, price.buy_cap(worth, margin=args.margin)))
     label = f"pack (list {lp}, worth {worth:.1f} to us)"
     log.say(f"{label}: limit {limit}")
     if limit < 1:
@@ -164,7 +176,7 @@ def cmd_buy_card(b: Bazaar, st: State, args) -> dict:
         sys.exit(f"{args.dealer} does not sell {card['rarity']} cards")
     worth = b.value(args.card)["your_value"]
     lp = item["list_price"]
-    limit = min(st.cash, args.limit or min(lp, price.buy_cap(worth, margin=args.margin)))
+    limit = min(st.cash, lp, bounded("buy", args.limit, price.buy_cap(worth, margin=args.margin)))
     label = f"{args.card} (list {lp}, worth {worth} to us)"
     if limit < 1:
         return skipped("buy", label, f"{args.card} is worth {worth} to us: not worth buying")
@@ -194,7 +206,7 @@ def cmd_sell_spares(b: Bazaar, st: State, args) -> list:
         worth = valuer.copy_value(a["ref"])
         elsewhere = learn.best_elsewhere(args.dealer, f"sell:{rarity}", st.cards_by_id)
         # never sell below what the copy is worth to us, nor below what another dealer already paid
-        floor = args.limit or max(price.sell_floor(worth), elsewhere or 0)
+        floor = bounded("sell", args.limit, max(price.sell_floor(worth), elsewhere or 0), price.sell_floor(worth))
         log.say(f"floor {floor} for {a['ref']}: worth {worth:.1f} to us, best bid at other dealers {elsewhere}")
         opening = args.open or max(floor + 1, round(prices.get(rarity, 10) * 1.2))
         label = f"spare {a['ref']} (worth {worth:.1f} to us)"
