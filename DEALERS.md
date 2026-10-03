@@ -124,6 +124,19 @@ límite 93, pero el agente repartió la subida en 3 mensajes (el prior de su pac
 - 84 es el segundo precio más bajo del feed (solo t04 sacó 82), y nos deja ~28 de ganancia sobre el valor.
 - La memoria de 0,9 no se notó: el hilo 505 fallido no le hizo endurecerse.
 
+**Cuarto hilo, 543 (minutos después): comprar LAV-09 (nos valía 218: completaba la página LAV). Trato a 89 (su final):**
+misma orden con LAV-09. Ahora `learn` sacó objetivo 84 del hilo 526, y el agente subió de 3 en 3.
+
+| Nosotros | 60 | 63 | 66 | 69 | 72 |
+|---|---|---|---|---|---|
+| El Chato | 97 | 96 | 95 | 92 | 89 FINAL → aceptamos |
+
+- Esta vez dio su final pronto (5º mensaje) y más alto. Dos posibles causas que aún no sabemos separar: pasos de 3
+  en vez de 4, o su memoria (segunda compra seguida en pocos minutos). Siguiente prueba: pasos de 4 y dejar más
+  tiempo entre compras.
+- Página LAV completa. Puntuación 12,18 → 16,58 y puesto 16º → 12º tras los dos tratos (otra sesión con nuestra clave
+  también estaba operando).
+
 **Prior para dealers nuevos (agrupado, aparte de los datos de cada dealer):** mensajes antes de su final ≈ 6 × rasgo de
 paciencia (Abuela 0,85 → 5-7; El Chato 0,35 → 3 observado, 2 con el prior). `learn.messages_per_trait` lo calcula con
 los dealers que ya conocemos, y un hilo real sustituye al prior.
