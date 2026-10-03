@@ -221,89 +221,6 @@ def read_bot(d: dict, w: float = None) -> dict:
             "his_days": [m.get("days") for m in his if m.get("days") is not None]}
 
 
-# ---------------------------------------------------------------- v2 packages: (price, day) built from a target U
-# Approved for Duels II: every two-issue offer is a PACKAGE; concessions are measured in our total value U = price surplus
-# + w x day, and a day moved toward him is paid for in price. Price-only duels never use this code.
-
-C_MIN = 1.0  # primas charged per day moved toward him, at least (c = max(|w|, C_MIN))
-
-
-def _u(role: str, limit: float, w: float, price: float, day) -> float:
-    return surplus(role, limit, price) + w * (day if day is not None else 0)
-
-
-def _favour(role: str, price: int, amount: int) -> int:
-    """`price` moved `amount` primas in OUR favour: a buyer pays less, a seller asks more."""
-    return price - amount if role == "buyer" else price + amount
-
-
-def opening_day(w: float, his_day) -> int:
-    """Opening day halfway between 5 and our preferred end (10 if a day gains us value, 0 if it costs). With w = 0 days
-    do not matter to us: his day if he named one, else 5. Halves round up."""
-    if w == 0:
-        return int(his_day) if his_day is not None else 5
-    return int((5 + (10 if w > 0 else 0)) / 2 + 0.5)
-
-
-def package_counter(role: str, limit: float, w: float, last: tuple, his, c_min: float = C_MIN):
-    """Our next counter as a package. last = (price, day) of our last offer. his = (price, day) of his latest offer, day may
-    be None, or None when he has made no offer.
-      target  u_t = U(last) - 0.4 (U(last) - U(his)), never below U(his); with no offer of his, 40 % of the room we have
-              left, in U (the old rule).
-      day     moves HALF-way from our last day toward the day he asked (no move if he asked none).
-      price   = the price that gives u_t at our UNCHANGED day. A day moved toward him that COSTS us value (or w = 0) is a
-              concession and is paid for: the price moves c x days_moved (c = max(|w|, c_min)) in our favour, in whole
-              primas rounded up. A day move that HELPS us (the pie grows for both) is no concession: no premium, no giving
-              it back, we keep the gain, so U ends above u_t; the "U above our last offer" check is skipped for it only.
-    If the package is outside our limit, or more demanding than our last offer (U above U(last)), or worse for him than
-    his own offer (U below U(his)), or not below his price, the day moves less, one day at a time, down to no move.
-    Returns {"price","day","u","u_t","p0","moved","charge"} or None when nothing fits (the caller falls back to the old rule)."""
-    lp, ld = last
-    ld = 5 if ld is None else int(ld)
-    u_last = _u(role, limit, w, lp, ld)
-    if his is None:
-        u_his, hp, hd = None, None, None
-        u_t = u_last - 0.4 * (u_last - w * ld)
-    else:
-        hp, hd = his
-        u_his = _u(role, limit, w, hp, hd if hd is not None else ld)
-        u_t = max(u_last - 0.4 * (u_last - u_his), u_his)
-    s0 = u_t - w * ld                                   # surplus we need at our unchanged day
-    p0 = int((limit - s0 if role == "buyer" else limit + s0) + 0.5)
-    c = max(abs(w), c_min)
-    target_day = int(ld + 0.5 * (hd - ld) + 0.5) if hd is not None else ld
-    step = 1 if target_day >= ld else -1
-    for d in list(range(target_day, ld, -step)) + [ld]:  # the biggest day move first, then smaller ones, then none
-        moved = abs(d - ld)
-        helps = w * (d - ld) > 0                        # the move raises our U: not a concession
-        charge = 0 if helps else int(-((-c * moved) // 1))  # ceil
-        base = _favour(role, p0, charge)
-        # Rounding may leave U a hair above our last offer: with NO day move the price may ease by 1-2 P. With a day move the
-        # premium must stay whole (>= c per day), so a package that does not fit makes the day move smaller instead.
-        for nudge in ((0, 1, 2) if moved == 0 else (0,)):
-            price = base + nudge if role == "buyer" else base - nudge
-            if hp is not None and (price >= hp if role == "buyer" else price <= hp):
-                if moved:
-                    continue                            # we would be at or beyond his price: a smaller move, or his offer wins
-                price = hp - 1 if role == "buyer" else hp + 1   # never at or beyond what he already offers
-            u = _u(role, limit, w, price, d)
-            if price >= 1 and inside(role, limit, price) and (helps or u <= u_last + 1e-9) \
-                    and (u_his is None or u >= u_his - 1e-9):
-                return {"price": int(price), "day": d, "u": round(u, 2), "u_t": round(u_t, 2), "p0": p0, "moved": moved,
-                        "charge": charge, "helps": helps}
-    return None
-
-
-def last_call_day(role: str, limit: float, w: float, price: int, his_day, our_day):
-    """The day for the last call: U >= 1 at this price, preferring his day, then ours, then the nearest day that fits."""
-    prefs = [x for x in (his_day, our_day, 5) if x is not None]
-    order = sorted(range(11), key=lambda d: (abs(d - prefs[0]), d))
-    for d in ([int(x) for x in prefs[:2]] + order):
-        if 0 <= d <= 10 and surplus(role, limit, price) + w * d >= 1:
-            return d
-    return None
-
-
 def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_COUNTERS, days_sign: int = None,
             last_call: bool = LAST_CALL) -> dict:
     """{"action": "accept" | "offer" | "wait", "price", "days", "why", "kind", ...} for one duel at one tick."""
@@ -379,11 +296,10 @@ def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_C
             p = int(limit) - margin if role == "buyer" else int(-(-limit // 1)) + margin
             # never retreat: a "best offer" that is worse for him than what we already offered is not an offer
             retreat = bool(ours) and ((ours[-1][1] >= p) if role == "buyer" else (ours[-1][1] <= p))
-            day = None
-            if two and not retreat:  # the day must leave U >= 1 at this price: his day if it fits, else the nearest that does
-                day = last_call_day(role, limit, w, max(1, p), bot["his_days"][-1] if bot["his_days"] else None,
-                                    ours[-1][2] if ours else None)
-            if inside(role, limit, p) and not retreat and (day is not None or not two):
+            if inside(role, limit, p) and not retreat:
+                day = None
+                if two:
+                    day = bot["his_days"][-1] if bot["his_days"] else 5
                 return {"action": "offer", "price": max(1, p), "days": day, "why": "last call near our limit",
                         "stage": "last_call", **est}
         return {"action": "wait", "why": "counters used: waiting for an in-limit offer (no deal is fine)", **est}
@@ -401,24 +317,17 @@ def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_C
     price = min(price, int(limit)) if role == "buyer" else max(price, int(-(-limit // 1)))  # never cross our limit
     price = max(1, price)
 
-    day, pkg = None, None
-    if two:
+    day = None
+    if two:  # hypothesis under test: lean the day toward our side, but never forced to 0 or 10
         his_day = bot["his_days"][-1] if bot["his_days"] else None
-        if not ours:  # the opening price is as before; the day is halfway between 5 and our preferred end
-            day = opening_day(w, his_day)
-        else:  # a counter is a package: concessions in U, a day moved toward him is paid in price
-            pkg = package_counter(role, limit, w, (ours[-1][1], ours[-1][2]),
-                                  (r_price, r_days) if r_price is not None else None)
-            if pkg:
-                price, day = pkg["price"], pkg["day"]
-        if day is None:  # nothing fits: the old rule (R5 "behave as today")
-            base = his_day if his_day is not None else 5
-            if w == 0:
-                day = base
-            else:
-                mine = 10 if w > 0 else 0
-                day = round(base + (mine - base) / 2)
-            day = max(0, min(10, int(day)))
+        base = his_day if his_day is not None else 5
+        w_rival = abs(w)
+        if w == 0:
+            day = base
+        else:
+            mine = 10 if w > 0 else 0
+            day = round(base + (mine - base) / 2) if (his_day is None or abs(w) >= w_rival) else base
+        day = max(0, min(10, int(day)))
     if ours and (ours[-1][1], ours[-1][2]) == (price, day):
         nudged = price + (1 if role == "buyer" else -1)
         if inside(role, limit, nudged):
@@ -428,5 +337,4 @@ def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_C
     if not inside(role, limit, price):
         return {"action": "wait", "why": "no offer inside our limit", **est}
     return {"action": "offer", "price": price, "days": day, "stage": "opening" if not ours else "counter",
-            "why": ("opening" if not ours else f"real step {counters + 1}/{max_counters}") + f" vs a {bot['kind']} bot",
-            **({"pkg": pkg} if pkg else {}), **est}
+            "why": ("opening" if not ours else f"real step {counters + 1}/{max_counters}") + f" vs a {bot['kind']} bot", **est}
