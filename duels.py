@@ -13,7 +13,7 @@ import time
 from agent import connect
 from bazaar_sdk import BazaarError
 from bz import log
-from bz.duel import decide
+from bz.duel import OPEN_FRAC, decide
 
 TEXTS = ["Thank you for meeting me. I can do {o}.", "I appreciate your move. {o} is where I can be.",
          "Let us close quickly: {o}.", "A real step towards you: {o}.", "I think {o} is fair for both of us."]
@@ -24,9 +24,16 @@ def offer_text(i: int, price: int, days) -> str:
     return TEXTS[i % len(TEXTS)].format(o=o)
 
 
+def arm_for(duel_id, arms: list) -> float:
+    """Split test: each duel always gets the same arm (by its id), so the opening never changes mid-duel."""
+    return arms[int(duel_id) % len(arms)]
+
+
 def play(b, d: dict, tick: int, args) -> None:
-    a = decide(d, tick, beta=args.beta, rounds_budget=args.rounds, days_sign=args.days_sign)
-    log.event("duels", duel=d["duel"], tick=tick, role=d["role"], limit=d["your_limit"], rival=d.get("rival_offer"), **a)
+    arm = arm_for(d["duel"], args.arms)
+    a = decide(d, tick, beta=args.beta, rounds_budget=args.rounds, days_sign=args.days_sign, open_frac=arm)
+    log.event("duels", duel=d["duel"], tick=tick, role=d["role"], limit=d["your_limit"], rival=d.get("rival_offer"),
+              arm=arm, **a)
     if a["action"] == "wait":
         return
     log.say(f"[duel {d['duel']}] {a['action']} {a.get('price', '')} {'' if a.get('days') is None else 'day ' + str(a['days'])}"
@@ -49,7 +56,11 @@ def main() -> None:
     ap.add_argument("--days-sign", type=int, default=None, choices=(1, -1),
                     help="force the sign of your_days_weight (default: read it from days_meaning, per duel)")
     ap.add_argument("--dry", action="store_true")
+    ap.add_argument("--ab", default=None, metavar="A,B",
+                    help="split test: opening shares to alternate by duel id, e.g. 0.45,0.25 (share of our limit we ask as "
+                         f"surplus; default {OPEN_FRAC} for every duel). Score the result with analyze_duels.py")
     args = ap.parse_args()
+    args.arms = [float(x) for x in args.ab.split(",")] if args.ab else [OPEN_FRAC]
     lock = open(os.path.join(log.LOG_DIR, "duels.lock"), "w")
     try:  # one agent per team: two would talk twice per tick in the same duel
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
