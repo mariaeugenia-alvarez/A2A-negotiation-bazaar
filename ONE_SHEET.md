@@ -197,6 +197,29 @@ built so we can close in one or two rounds without losing the pie."*
 - **After Duels II, check:** result per deal; how often his day answered ours; how many offers were waits for "no package with U ≥ 1"; in a random scan no package fitted in 27% of situations, so the old rule is used there. First check at ≈20:35: `days_meaning` is read with the right sign.
 - Code: `bz/duel.py` (`package_counter`, `fix_day_for_u`, `last_call_day`). Tests: `tests/test_duel2.py` (62 checks, 0 offers with U < 1 in 20,000 packages, 4,000 duels and 2,000 chains), `tests/test_duels_sim.py`.
 
+### Duels II results and the Duels III rules (approved by Thameur, Sunday ≈01:00)
+**Duels II, real (68 duels):** 60 deals (88%) · 18.4 points per deal (Duels I: 13.3) · 1,103 points in total · 0 avoidable no-deals · `duel_points` 5.98 → 25.93. Checked: result = value × 0.92^rounds on 60 of 60 deals.
+**Where the points were lost, real:**
+- **Rounds:** only 6.3% (74 of 1,178 points). Speed is mostly fixed already.
+- **The delivery day:** the biggest pool. Rivals ask for our worst end (44 of 56). 29 of 60 deals ended on his day. Up to 927 points of day value were given away (an upper limit).
+- **Rivals do not defend their day:** 17 of 27 accepted packages were 5+ days from their wish.
+- **Moving our day first costs us:** against reciprocal rivals, 7.5 points per deal (15 deals) vs 11.8 (9 deals).
+
+**Duels III rules (`duels.py --day-rules`, default on):**
+1. `best_open`: open at **our best day** (0 when a day costs us, 10 when it gains us), at the same opening price.
+2. `hold`: **never move our day in a counter.** Concede on price only.
+3. `lc_ours`: the last offer **keeps our day** when it is still worth ≥ 1 to us.
+- Unchanged: the waiting play, at most 2 counters, every offer worth ≥ 1, the price limit.
+- **Fallback = the exact Duels II code:** `python3 duels_watch.py -- --duel-ticks 12 --day-rules none`. Proved identical on 6,000 random duels (`tests/test_day_rules.py`). **Not automatic: it is justified to Thameur, who decides.**
+
+**Simulator check (model, `tests/sim_duel3.py`, calibrated on Duels II, 3 calibrations, Sunday settings):** +9 to +17% points per duel, **deals fall from about 85% to about 75%** (expected, not a failure sign), 0 deals worth < 0.
+**Model limits:** the simulator is too optimistic about last offers (it sends them in 25% of duels vs 16% real, and its rivals accept 98% vs 82% real). Ideas it rejected or could not prove: a bolder first offer (0 to +3%), a bolder last offer (unproven).
+
+**15-minute review after Duels III starts (pre-written rules):**
+- `lc_ours`: if **2 or more** of our last offers are refused → turn it off (`--day-rules best_open,hold`).
+- Fallback to the Duels II code is proposed to Thameur only with facts: 2+ avoidable no-deals, or points per duel clearly below the Duels II level for the same number of duels.
+- **Run on Sunday (Thameur's machine only):** `python3 duels_watch.py -- --duel-ticks 12` (already running since 00:52).
+
 ### Duels calendar ✅ (from `/api/schedule`, Madrid time estimated from tick 583 at 13:03)
 | Session | Real time ≈ | Clock | Decay per round | At once | Issues |
 |---|---|---|---|---|---|

@@ -199,6 +199,29 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 - **Tras Duelos II, comprobar:** resultado por trato; cuántas veces su día respondió al nuestro; cuántas ofertas fueron esperas por «ningún paquete con U ≥ 1»; en un barrido aleatorio ningún paquete cabía en el 27 % de las situaciones, y ahí se usa la regla antigua. Primera comprobación hacia las 20:35: `days_meaning` se lee con el signo correcto.
 - Código: `bz/duel.py` (`package_counter`, `fix_day_for_u`, `last_call_day`). Pruebas: `tests/test_duel2.py` (62 comprobaciones, 0 ofertas con U < 1 en 20.000 paquetes, 4.000 duelos y 2.000 cadenas), `tests/test_duels_sim.py`.
 
+### Resultados de Duelos II y reglas de Duelos III (aprobadas por Thameur, domingo ≈01:00)
+**Duelos II, real (68 duelos):** 60 tratos (88 %) · 18,4 puntos por trato (Duelos I: 13,3) · 1.103 puntos en total · 0 sin trato evitable · `duel_points` 5,98 → 25,93. Comprobado: resultado = valor × 0,92^rondas en 60 de 60 tratos.
+**Dónde se perdieron puntos, real:**
+- **Rondas:** solo un 6,3 % (74 de 1.178 puntos). La rapidez ya está casi resuelta.
+- **El día de entrega:** la mayor bolsa. Los rivales piden nuestro peor extremo (44 de 56). 29 de 60 tratos acabaron en su día. Hasta 927 puntos de valor del día cedidos (límite superior).
+- **Los rivales no defienden su día:** 17 de 27 paquetes aceptados estaban a 5+ días de lo que pedían.
+- **Mover nuestro día primero nos cuesta:** contra rivales recíprocos, 7,5 puntos por trato (15 tratos) frente a 11,8 (9 tratos).
+
+**Reglas de Duelos III (`duels.py --day-rules`, activas por defecto):**
+1. `best_open`: abrir con **nuestro mejor día** (0 si cada día nos cuesta, 10 si nos suma), con el mismo precio de apertura.
+2. `hold`: **nunca mover nuestro día en una contraoferta.** Ceder solo en precio.
+3. `lc_ours`: la última oferta **mantiene nuestro día** si sigue valiendo ≥ 1 para nosotros.
+- Sin cambios: la jugada de esperar, como mucho 2 contraofertas, toda oferta vale ≥ 1, el límite de precio.
+- **Plan B = el código exacto de Duelos II:** `python3 duels_watch.py -- --duel-ticks 12 --day-rules none`. Idéntico, probado en 6.000 duelos aleatorios (`tests/test_day_rules.py`). **No es automático: se justifica a Thameur, que decide.**
+
+**Comprobación con el simulador (modelo, `tests/sim_duel3.py`, calibrado con Duelos II, 3 calibraciones, ajustes del domingo):** +9 a +17 % de puntos por duelo, **los tratos bajan de ~85 % a ~75 %** (esperado, no es señal de fallo), 0 tratos con valor < 0.
+**Límites del modelo:** el simulador es demasiado optimista con las últimas ofertas (las envía en el 25 % de los duelos frente al 16 % real, y sus rivales aceptan el 98 % frente al 82 % real). Ideas que descartó o no pudo probar: primera oferta más atrevida (0 a +3 %), última oferta más atrevida (sin probar).
+
+**Revisión a los 15 minutos del inicio de Duelos III (reglas escritas antes):**
+- `lc_ours`: si se rechazan **2 o más** de nuestras últimas ofertas → desactivarla (`--day-rules best_open,hold`).
+- Volver al código de Duelos II se propone a Thameur solo con hechos: 2+ sin trato evitables, o puntos por duelo claramente por debajo del nivel de Duelos II para el mismo número de duelos.
+- **Arranque del domingo (solo en la máquina de Thameur):** `python3 duels_watch.py -- --duel-ticks 12` (ya en marcha desde las 00:52).
+
 ### Calendario de duelos ✅ (de `/api/schedule`, hora de Madrid estimada desde el tick 583 a las 13:03)
 | Sesión | Hora real ≈ | Reloj | Decaimiento por ronda | A la vez | Temas |
 |---|---|---|---|---|---|
