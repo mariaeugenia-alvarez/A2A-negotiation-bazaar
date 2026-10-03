@@ -201,11 +201,22 @@ def test_duel_live_board_switch_and_next():
     L = dash.duel_live(old + cur, {"tick": 45, "t_hours": 11.0}, up)
     assert L["session"] == 3 and L["prev_session"] == 2 and L["live"] == [8]
     assert L["board"]["done"] == 5 and L["board"]["deals"] == 1 and L["board"]["deal_rate"] == 0.2
-    assert L["before"]["deals"] == 1 and L["switch"] == "trip" and L["v2"]
+    assert L["before"]["deals"] == 1 and L["v2"]
+    assert L["avoidable"] == [4, 5, 6, 7] and L["switch"] == "trip"  # rival offered 90 under our buyer limit 100
     assert L["next"]["minutes"] == 39
     assert cur[0]["start"] == 34  # deadline 50 - 16 ticks
     L2 = dash.duel_live(old, {"tick": 45, "t_hours": 11.0}, up)
     assert L2["switch"] is None  # an old session without the waiting play has no switch
+    far = dash.duel_view({"duel": 9, "session": 3, "status": "no_deal", "role": "buyer", "your_limit": 100, "deadline_tick": 50,
+                          "messages": [{"tick": 40, "from": "Rival", "price": 120}]}, k)
+    silent = dash.duel_view({"duel": 10, "session": 3, "status": "no_deal", "role": "seller", "your_limit": 100,
+                             "deadline_tick": 50, "messages": []}, k)
+    days = dash.duel_view({"duel": 11, "session": 3, "status": "no_deal", "role": "buyer", "your_limit": 100, "deadline_tick": 50,
+                           "messages": [{"tick": 40, "from": "Rival", "price": 98, "days": 9}]}, [{"kind": "self", "w": -1.0}])
+    assert not dash.avoidable(far) and not dash.avoidable(silent)  # never inside our limit / silent: not our miss
+    assert not dash.avoidable(days)  # price inside, but day 9 at -1 per day makes it worth 2 - 9 < 1
+    L3 = dash.duel_live([cur[0], far, silent, cur[5]], {"tick": 45, "t_hours": 11.0}, up)
+    assert L3["switch"] == "ok" and L3["avoidable"] == []
 
 
 if __name__ == "__main__":

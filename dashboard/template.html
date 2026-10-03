@@ -620,6 +620,7 @@ function liveCard(d, now) {
     ${liveChart(d, now)}
     <p class="lv-now">${d.status === "live" ? duelWhy(e, d) : d.status === "deal" ? `Cerrado en ${d.rounds ?? "?"} ronda(s).` : "Terminó sin trato."}</p>
     ${d.status === "live" ? `<div class="lv-bar" title="${left} ticks de ${total}"><i style="width:${Math.round(left / total * 100)}%"></i></div><div class="small muted" style="margin-top:4px">Quedan ${left} ticks · contraofertas ${e ? e.counters ?? 0 : 0} de 2</div>` : ""}
+    ${(() => { const r = [...d.messages].reverse().find(x => x.who === "rival" && x.text); return r ? `<div class="small" style="margin-top:6px">«${esc(r.text.length > 140 ? r.text.slice(0, 140) + "…" : r.text)}» <span class="faint">tick ${r.tick}</span></div>` : ""; })()}
     ${hisDays || ourDays ? `<div class="small muted" style="margin-top:4px">Día de entrega: él pide ${hisDays ?? "—"} · nosotros ${ourDays ? ourDays.days : "—"}${e && e.w_how ? ` · <span class="mono">${esc(e.w_how)}</span>` : ""}</div>` : ""}
   </article>`;
 }
@@ -631,9 +632,9 @@ function liveDuels() {
   const board = B ? `<div class="lv-board">${cell(B.live, "en curso")}${cell(B.done, "terminados")}${cell(B.deals, "tratos", A ? cmp(B.deals, A.deals) : "")}
     ${cell(B.deal_rate != null ? num(B.deal_rate * 100, 0) + " %" : "—", "% de tratos", A && A.deal_rate != null ? `antes: ${num(A.deal_rate * 100, 0)} %` : "")}
     ${cell(B.mean_result != null ? num(B.mean_result, 1) : "—", "puntos por trato", A ? cmp(B.mean_result, A.mean_result, 1) : "")}${cell(B.mean_rounds != null ? num(B.mean_rounds, 1) : "—", "rondas por trato", A ? cmp(B.mean_rounds, A.mean_rounds, 1) : "")}</div>` : "";
-  const sw = L.switch === "ok" ? `<span class="lv-light" style="color:var(--ok)">● Interruptor: seguimos con la jugada de esperar (≥ ${num(L.switch_rate * 100, 0)} % de tratos)</span>`
-    : L.switch === "trip" ? `<span class="lv-light" style="color:var(--bad)">● Interruptor: menos del ${num(L.switch_rate * 100, 0)} % de tratos. Reiniciar con <span class="mono">python3 duels_watch.py -- --policy v1</span></span>`
-    : L.switch === "wait" ? `<span class="lv-light" style="color:var(--muted)">● Interruptor: esperando ${L.switch_min} duelos terminados</span>` : "";
+  const nm = (L.avoidable || []).length, ids = (L.avoidable || []).join(", ");
+  const sw = L.switch === "ok" ? `<span class="lv-light" style="color:var(--ok)">● Interruptor: seguimos con la jugada de esperar · sin trato evitable: ${nm}${nm ? ` (duelo ${ids})` : ""} de ${L.switch_avoidable} para volver a v1</span>`
+    : L.switch === "trip" ? `<span class="lv-light" style="color:var(--bad)">● Interruptor: ${nm} duelos sin trato evitable (${ids}): el rival entró en nuestro límite y no cerramos. Reiniciar con <span class="mono">python3 duels_watch.py -- --policy v1</span></span>` : "";
   const W = L.watch || {};
   const health = `<div class="lv-health"><span><span class="dot ${W.duels_watch ? "" : "hollow"}" style="--dc:${W.duels_watch ? "var(--ok)" : "var(--bad)"}"></span>Vigilante <span class="mono">duels_watch.py</span>: ${W.duels_watch ? "en marcha" : "<b style='color:var(--bad)'>parado</b>"}</span>
     <span><span class="dot ${W.duels_py ? "" : "hollow"}" style="--dc:${W.duels_py ? "var(--ok)" : "var(--faint)"}"></span>Agente <span class="mono">duels.py</span>: ${W.duels_py ? "jugando" : "no hay duelos en vivo"}</span>

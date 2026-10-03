@@ -353,7 +353,21 @@ def session_stats(ds: list) -> dict:
             "mean_rounds": round(statistics.mean(d["rounds"] or 0 for d in deals), 1) if deals else None}
 
 
-def duel_live(duels: list, clock: dict, upcoming: list, switch_rate: float = 0.7, switch_min: int = 5) -> dict:
+def avoidable(d: dict) -> bool:
+    """A no-deal we could have avoided: the rival made at least one offer inside our limit worth >= 1 to us
+    (price surplus + w x days, with w as our agent read it). Silent rivals and rivals never inside our limit don't count."""
+    if d["status"] != "no_deal" or d.get("limit") is None:
+        return False
+    w = next((e.get("w") for e in reversed(d["decisions"]) if e.get("w") is not None), 0.0) or 0.0
+    for m in d["messages"]:
+        if m["who"] == "rival" and m.get("price") is not None:
+            s = (d["limit"] - m["price"]) if d["role"] == "buyer" else (m["price"] - d["limit"])
+            if s >= 0 and s + w * (m.get("days") or 0) >= 1:
+                return True
+    return False
+
+
+def duel_live(duels: list, clock: dict, upcoming: list, switch_avoidable: int = 2) -> dict:
     """What the Live panel of the Duelos page needs: the session being played (or the last one), its scoreboard
     next to the session before, the safety switch, the duel agent's health and the next duel session."""
     tick = (clock or {}).get("tick")
@@ -363,14 +377,9 @@ def duel_live(duels: list, clock: dict, upcoming: list, switch_rate: float = 0.7
     prev = max((s for s in sessions if cur is not None and s < cur), default=None)
     board = session_stats([d for d in duels if d.get("session") == cur]) if cur is not None else None
     before = session_stats([d for d in duels if d.get("session") == prev]) if prev is not None else None
-    switch = None
     v2 = any("kind" in e for d in duels if d.get("session") == cur for e in d["decisions"])  # played by the waiting play
-    if not v2:
-        switch = None
-    elif board and board["done"] >= switch_min:
-        switch = "ok" if board["deal_rate"] >= switch_rate else "trip"
-    elif board and board["live"]:
-        switch = "wait"
+    missed = [d["id"] for d in duels if d.get("session") == cur and avoidable(d)]
+    switch = ("trip" if len(missed) >= switch_avoidable else "ok") if v2 else None
     last_dec = max((e.get("tick") or 0 for d in duels for e in d["decisions"]), default=None)
     alerts = [a for a in read_jsonl(os.path.join(log.LOG_DIR, "alerts.jsonl")) if str(a.get("level", "")).startswith("DUEL")]
     nxt = None
@@ -382,7 +391,7 @@ def duel_live(duels: list, clock: dict, upcoming: list, switch_rate: float = 0.7
             break
     return {"tick": tick, "paused": (clock or {}).get("paused"), "session": cur, "prev_session": prev,
             "live": [d["id"] for d in live], "board": board, "before": before, "switch": switch,
-            "switch_rate": switch_rate, "switch_min": switch_min, "v2": v2,
+            "switch_avoidable": switch_avoidable, "avoidable": missed, "v2": v2,
             "watch": {"duels_watch": running("duels_watch\\.py"), "duels_py": running("(^|[ /])duels\\.py"), "last_decision_tick": last_dec},
             "alerts": [{"ts": a.get("ts"), "level": a.get("level"), "text": a.get("text")} for a in alerts[-8:]],
             "next": nxt}
