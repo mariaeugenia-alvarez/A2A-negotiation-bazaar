@@ -63,8 +63,9 @@ def arm_for(duel_id, arms: list) -> float:
 
 def play(b, d: dict, tick: int, args) -> None:
     if args.policy == "v2":  # read the bot (doctrine approved 13:35): every decision, waits included, is logged
-        arm = f"v2 {args.open2['buyer']}/{args.open2['seller']}"
-        a = decide2({**d, "_start": d["deadline_tick"] - args.duel_ticks}, tick, open2=args.open2, days_sign=args.days_sign)
+        arm = f"v2 {args.open2['buyer']}/{args.open2['seller']} days:{','.join(sorted(args.day_rules)) or 'none'}"
+        a = decide2({**d, "_start": d["deadline_tick"] - args.duel_ticks}, tick, open2=args.open2, days_sign=args.days_sign,
+                    day_rules=args.day_rules)
     else:
         arm = arm_for(d["duel"], args.arms)
         a = decide(d, tick, beta=args.beta, rounds_budget=args.rounds, days_sign=args.days_sign, open_frac=arm)
@@ -101,7 +102,13 @@ def main() -> None:
     ap.add_argument("--duel-ticks", type=int, default=16, help="duel length: 16 for Duels II, 12 on Sunday")
     ap.add_argument("--open", default=f"{OPEN2['buyer']},{OPEN2['seller']}", metavar="B,S",
                     help="v2 first offer as a share of our limit, buyer,seller (tests/sim_duel2.py)")
+    ap.add_argument("--day-rules", default="best_open,hold,lc_ours", metavar="R,R",
+                    help="Duels III day rules (approved Sunday): best_open,hold,lc_ours. 'none' = exactly the Duels II code")
     args = ap.parse_args()
+    args.day_rules = frozenset() if args.day_rules.strip() in ("", "none") else frozenset(args.day_rules.split(","))
+    unknown = args.day_rules - {"best_open", "hold", "lc_ours"}
+    if unknown:
+        ap.error(f"unknown day rules: {sorted(unknown)}")
     args.arms = [float(x) for x in args.ab.split(",")] if args.ab else [OPEN_FRAC]
     ob, os_ = (float(x) for x in args.open.split(","))
     args.open2 = {"buyer": ob, "seller": os_}

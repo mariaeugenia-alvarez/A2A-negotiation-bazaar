@@ -324,15 +324,8 @@ def last_call_day(role: str, limit: float, w: float, price: int, his_day, our_da
     return None
 
 
-DAY_RULES_D3 = frozenset({"best_open", "hold", "lc_ours"})  # Duels III day rules, approved by Thameur (Sunday 4 Oct)
-# best_open  open with our best day (10 if a day gains us value, 0 if it costs), at the same opening price
-# hold       never move our day in a counter: concede on price only (Duels II: moving first gave 7.5 vs 11.8 per deal)
-# lc_ours    the last call keeps our last day when U >= 1 there (else the Duels II last-call day)
-# day_rules=frozenset() (the default here) is exactly the Duels II code: tests/test_day_rules.py proves it
-
-
 def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_COUNTERS, days_sign: int = None,
-            last_call: bool = LAST_CALL, day_rules: frozenset = frozenset()) -> dict:
+            last_call: bool = LAST_CALL) -> dict:
     """{"action": "accept" | "offer" | "wait", "price", "days", "why", "kind", ...} for one duel at one tick."""
     open2 = open2 or OPEN2
     role, limit, decay = d["role"], float(d["your_limit"]), float(d.get("decay_per_round") or 0.0)
@@ -410,9 +403,6 @@ def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_C
             if two and not retreat:  # the day must leave U >= 1 at this price: his day if it fits, else the nearest that does
                 day = last_call_day(role, limit, w, max(1, p), bot["his_days"][-1] if bot["his_days"] else None,
                                     ours[-1][2] if ours else None)
-                if "lc_ours" in day_rules and ours and ours[-1][2] is not None and \
-                        surplus(role, limit, max(1, p)) + w * ours[-1][2] >= U_FLOOR:
-                    day = int(ours[-1][2])  # keep our day in the last call
             if inside(role, limit, p) and not retreat and (day is not None or not two):
                 return {"action": "offer", "price": max(1, p), "days": day, "why": "last call near our limit",
                         "stage": "last_call", **est}
@@ -434,17 +424,13 @@ def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_C
     day, pkg = None, None
     if two:
         his_day = bot["his_days"][-1] if bot["his_days"] else None
-        hold = "hold" in day_rules and w != 0 and bool(ours) and ours[-1][2] is not None
         if not ours:  # the opening price is as before; the day is halfway between 5 and our preferred end
-            day = (10 if w > 0 else 0) if ("best_open" in day_rules and w != 0) else opening_day(w, his_day)
+            day = opening_day(w, his_day)
         else:  # a counter is a package: concessions in U, a day moved toward him is paid in price
-            # hold: his offer is read at OUR day, so the package keeps our day and concedes on price only
             pkg = package_counter(role, limit, w, (ours[-1][1], ours[-1][2]),
-                                  (r_price, ours[-1][2] if hold else r_days) if r_price is not None else None)
+                                  (r_price, r_days) if r_price is not None else None)
             if pkg:
                 price, day = pkg["price"], pkg["day"]
-        if day is None and hold:  # nothing fits: still never move our day
-            day = int(ours[-1][2])
         if day is None:  # nothing fits: the old rule (R5 "behave as today")
             base = his_day if his_day is not None else 5
             if w == 0:
