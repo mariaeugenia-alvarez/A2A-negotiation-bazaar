@@ -1,6 +1,8 @@
 # Dealers · lo que hemos aprendido
 
-Memoria del equipo entre sesiones (skill `abuela-learner`). Datos: `logs/threads/`, modelo: `logs/dealer_model.json`.
+Memoria del equipo entre sesiones (skill `abuela-learner`). Datos: `logs/threads/` y `logs/feed.jsonl`.
+**Modelo en uso: `bz/predict.py`** (`python3 -m bz.predict`; `agent.py` pone los precios con él, `--model predict`).
+El ritmo antiguo (`bz/learn.py`, `logs/dealer_model.json`) queda de reserva: `--model learn`.
 
 ## Abuela Carmen (nivel 1)
 

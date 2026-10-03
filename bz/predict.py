@@ -21,7 +21,10 @@ El Chato, a Boulware dealer with reciprocity:
   final     after 4-8 answers
 
 What we control is the same for both: how far we move each time and when we stop. `advise()` turns the
-models into the next price to send.
+models into the next price to send; `advisor()` wraps it for haggle(advise=...), which agent.py uses by default.
+
+A new dealer (Doña Pilar so far: she bid 16 and never moved) gets no model until it moves in some conversation;
+then `family_of()` picks, per kind of deal, whichever family predicts its answers best.
 """
 import collections
 import json
@@ -132,6 +135,17 @@ def _transcripts(folder: str) -> dict:
     return out
 
 
+def _seq(messages: list, dealer: str) -> list:
+    seq = []
+    for m in sorted(messages or [], key=lambda m: m.get("id") or 0):
+        price = _cash(m.get("offer"))
+        if m.get("sender") == dealer:
+            seq.append(("D", price, bool((m.get("offer") or {}).get("final"))))
+        elif price is not None:
+            seq.append(("U", price))
+    return seq
+
+
 def load_threads(feed_path: str = FEED_PATH, transcript_dir: str = THREAD_DIR, catalog_path: str = CATALOG_PATH) -> list:
     """Every dealer conversation we can see, all teams: {id, team, dealer, kind, side, seq, deal}.
 
@@ -147,16 +161,9 @@ def load_threads(feed_path: str = FEED_PATH, transcript_dir: str = THREAD_DIR, c
         dealer = t.get("with")
         if not dealer or not t.get("topic"):  # opened before the feed logger: we miss its start
             continue
-        seq = []
-        for m in t["messages"]:
-            price = _cash(m.get("offer"))
-            if m.get("sender") == dealer:
-                seq.append(("D", price, bool((m.get("offer") or {}).get("final"))))
-            elif price is not None:
-                seq.append(("U", price))
         kind = kind_of(t["topic"], t["messages"], rarity)
         out.append({"id": tid, "team": t.get("team"), "dealer": dealer, "kind": kind,
-                    "side": "sell" if kind.startswith("sell") else "buy", "seq": seq,
+                    "side": "sell" if kind.startswith("sell") else "buy", "seq": _seq(t["messages"], dealer),
                     "deal": t["deals"][-1] if t.get("deals") else None})
     return out
 
@@ -369,6 +376,72 @@ def advise(dealer: str, side: str, kind: str, opening: int, history: list, limit
 
     price = (ours + d) if ours is not None else opening - d * round(opening * 0.3)
     return {"action": "offer", "price": clip(price), "her_next": None, "why": "no model for this dealer yet: small steps"}
+
+
+MODELS = {"abuela": "midpoint", "chato": "boulware"}  # a new dealer gets the family that fits its data best
+
+
+def advisor(dealer: str, side: str, kind: str, limit: int, threads: list = None):
+    """For haggle(): a function of the live thread (API shape) giving advise()'s next move, or None if we have no
+    model for this dealer and kind. The function itself returns {"action": "wait"} while the dealer has not answered
+    our last price (never send twice), and None before her first answer (haggle() uses its own opening)."""
+    family = MODELS.get(dealer) or (family_of(dealer, threads if threads is not None else load_threads()) or {}).get(kind)
+    if family is None:
+        return None
+    model = {"midpoint": "abuela", "boulware": "chato"}[family]  # same rules, this dealer's own data
+    fitted = fit_chato([t for t in (threads or []) if t["dealer"] == dealer]) if family == "boulware" and dealer != "chato" else None
+
+    def next_move(t: dict):
+        seq = _seq(t.get("messages"), dealer)
+        if not any(e[0] == "D" and e[1] is not None for e in seq):
+            return None  # her opening is not here yet
+        if seq and seq[-1][0] == "U":
+            return {"action": "wait", "price": None, "why": "she has not answered our last price"}
+        opening, ans = answers({"seq": seq, "side": side})
+        if not ans:  # only her opening so far: our first price is haggle()'s own opening
+            return None
+        hist = [(a.ours, a.price) for a in ans]
+        return advise(model, side, kind, opening, hist, limit, fitted=fitted)
+    return next_move
+
+
+def family_of(dealer: str, threads: list) -> dict:
+    """Per kind, the family of rules that predicts this dealer's answers best: "midpoint" (Abuela) or "boulware"
+    (El Chato), scored on the same answers (each one after the dealer's first concession). None for a kind where
+    the dealer never moved: no data tells them apart yet."""
+    by_kind = collections.defaultdict(list)
+    for t in threads:
+        if t["dealer"] == dealer:
+            by_kind[t["kind"]].append(t)
+    out = {}
+    for kind, ts in by_kind.items():
+        sched = fit_chato(ts).get(kind)
+        mid = boul = n = 0
+        for t in ts:
+            opening, ans = answers(t)
+            first = next((i for i, a in enumerate(ans) if moved(a)), None)
+            if first is None:
+                continue
+            later = ans[first + 1:]
+            far, near = abuela_limit(opening, ans[first].price, t["side"])
+            mid += max(sum((abuela_next(a.ask, L, t["side"]) if moved(a) else a.ask) == a.price for a in later)
+                       for L in (far, near))
+            if sched:
+                boul += sum(hit for i, hit in enumerate(_chato_preds(ans, *sched)) if i > first)
+            n += len(later)
+        moves = sum(1 for t in ts for a in answers(t)[1] if a.conc)
+        out[kind] = None if not moves or not n else ("midpoint" if mid >= boul else "boulware")
+    return out
+
+
+def _chato_preds(ans: list, a: float, b: float) -> list:
+    """1 where the Boulware rule predicts the answer's concession exactly, else 0."""
+    out, conceded = [], 0
+    for k, x in enumerate(ans, 1):
+        room = chato_allowance(k, a, b) - conceded
+        out.append(int(max(0, room if x.step is None else min(x.step, room)) == x.conc))
+        conceded += x.conc
+    return out
 
 
 # ------------------------------------------------------------------------------------------ validation

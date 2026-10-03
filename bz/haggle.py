@@ -58,13 +58,16 @@ def close_open_threads(b, dealer: str) -> None:
 
 def haggle(b, dealer: str, topic: dict, side: str, opening: int, limit: int, *,
            step_frac: float = 0.15, accept_gap: int = 1, max_msgs: int = 40, label: str = "",
-           target: int = None, accept_at: int = None, patience: int = None) -> dict:
+           target: int = None, accept_at: int = None, patience: int = None, advise=None) -> dict:
     """Run one conversation to its end. side "buy": limit is the most we pay; "sell": the least we take.
 
     Learned from earlier conversations (bz/learn.py), all optional:
       target     where her best usually lands: we pace towards one step short of it, then move 1 P at a time
       accept_at  her best price ever: take it once she stops moving at it
       patience   our messages before she usually names her final offer: the pacing horizon
+
+    advise: bz/predict.advisor(...), the dealer's fitted model. When given, it sets every price after our opening
+    (and when to take her price); the learned pacing above is only the fallback where the model has no opinion.
     """
     buy = side == "buy"
     opening = min(opening, limit) if buy else max(opening, limit)
@@ -103,6 +106,7 @@ def haggle(b, dealer: str, topic: dict, side: str, opening: int, limit: int, *,
             + (f", target {target}, take at {accept_at}, patience {patience})" if target is not None else ")"))
     writer, ours, theirs = Writer(side, dealer), [], []
     accepted, waits, stalled, status, reason, saw_final, p_at_last_msg = None, 0, 0, "open", None, False, None
+    waited = 0  # ticks waited for her answer when the model says wait
 
     while True:
         try:
@@ -146,7 +150,26 @@ def haggle(b, dealer: str, topic: dict, side: str, opening: int, limit: int, *,
                     status, reason = "walked_by_us", f"final {p} outside limit {limit}"
                     break
 
-            nxt = next_price(p)
+            move = advise(t) if advise is not None else None
+            if move and move["action"] == "wait" and waited < 3:  # she has not answered our last price yet
+                waited += 1
+                _wait(b)
+                continue
+            waited = 0
+            if move and move["action"] == "accept" and o and p is not None and within(p):
+                b.accept(o["id"])
+                accepted = p
+                log.say(f"[{dealer}] accepted {p} ({move['why']})")
+                _wait(b)
+                continue
+            if move and move["action"] == "offer":
+                nxt = move["price"]
+                if not within(nxt) or (ours and (nxt <= ours[-1] if buy else nxt >= ours[-1])):
+                    nxt = None  # the model has nowhere to go inside our limit
+                else:
+                    log.say(f"[{dealer}] model: {move['why']}")
+            else:
+                nxt = next_price(p)
             if nxt is None:  # we are at our limit; she only moves when we do
                 stalled += 1
                 if stalled >= 2:

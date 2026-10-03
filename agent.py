@@ -7,7 +7,9 @@
     python3 agent.py abuela [--packs 1 --spares 2]   a session: spares first, then packs
     python3 agent.py learn                      save past conversations, show what we learned per dealer
 
-Every haggle uses what earlier conversations of the same kind taught us (bz/learn.py); --no-learn turns it off.
+Every haggle with Abuela or El Chato follows the dealer's fitted model (bz/predict.py: her limit from her first
+answer, his concession schedule); --model learn goes back to the pacing learned per kind (bz/learn.py), which also
+remains the fallback for dealers with no model yet. --no-learn turns both off.
 Limits come from what the item is worth to us (bz/price.py): buy up to its value minus --margin, sell never below
 what the copy is worth to us. If Abuela has never gone past our limit, we skip the haggle; --force tries anyway.
 
@@ -18,7 +20,7 @@ import os
 import sys
 
 from bazaar_sdk import Bazaar, BazaarError
-from bz import learn, log, price
+from bz import learn, log, predict, price
 from bz.haggle import haggle
 from bz.state import State
 
@@ -61,6 +63,19 @@ def learned(st: State, args, kind: str) -> dict:
         p["patience"] = args.patience
     log.say(learn.describe(args.dealer, kind, p))
     return {k: p[k] for k in ("target", "accept_at", "patience")}
+
+
+def modeled(args, side: str, kind: str, limit: int) -> dict:
+    """haggle(advise=...): the dealer's fitted model from bz/predict.py, unless --model learn or there is none."""
+    if getattr(args, "no_learn", False) or getattr(args, "model", "predict") != "predict":
+        return {}
+    pkind = kind.replace("buy:card:", "buy:").replace("buy:rarity:", "buy:")
+    adv = predict.advisor(args.dealer, side, pkind, limit)
+    if adv is None:
+        log.say(f"[{args.dealer}] {pkind}: no fitted model yet, learned pacing only (python3 -m bz.predict)")
+        return {}
+    log.say(f"[{args.dealer}] {pkind}: prices from the fitted model (bz/predict.py)")
+    return {"advise": adv}
 
 
 def skipped(side: str, label: str, why: str) -> dict:
@@ -134,7 +149,7 @@ def cmd_buy_pack(b: Bazaar, st: State, args) -> dict:
     if why:
         return skipped("buy", label, why)
     res = haggle(b, args.dealer, {"buy": {"pack": pack}}, "buy", opening, limit,
-                 step_frac=args.step, label=label, **plan)
+                 step_frac=args.step, label=label, **plan, **modeled(args, "buy", f"buy:pack:{pack}", limit))
     if res["status"] == "deal" and not args.keep:
         open_new_packs(b, st, pack)
     return res
@@ -158,7 +173,7 @@ def cmd_buy_card(b: Bazaar, st: State, args) -> dict:
     if why:
         return skipped("buy", label, why)
     return haggle(b, args.dealer, {"buy": {"card": args.card}}, "buy", args.open or round(lp * 0.5), limit,
-                  step_frac=args.step, label=label, **plan)
+                  step_frac=args.step, label=label, **plan, **modeled(args, "buy", f"buy:card:{card['rarity']}", limit))
 
 
 def cmd_sell_spares(b: Bazaar, st: State, args) -> list:
@@ -189,7 +204,7 @@ def cmd_sell_spares(b: Bazaar, st: State, args) -> list:
             out.append(skipped("sell", label, why))
             continue
         res = haggle(b, args.dealer, {"sell": {"assets": [a["id"]]}}, "sell", opening, floor,
-                     step_frac=args.step, label=label, **plan)
+                     step_frac=args.step, label=label, **plan, **modeled(args, "sell", f"sell:{rarity}", floor))
         out.append(res)
         if res["status"] == "error":
             break
@@ -221,6 +236,8 @@ def main() -> None:
         p.add_argument("--no-learn", action="store_true", help="ignore what earlier conversations taught us")
         p.add_argument("--force", action="store_true", help="haggle even if her best price ever is beyond our limit")
         p.add_argument("--margin", type=float, default=0.1, help="share of an item's value we keep as profit when buying")
+        p.add_argument("--model", choices=("predict", "learn"), default="predict",
+                       help="predict: the dealer's fitted model sets our prices (bz/predict.py); learn: the old pacing")
         p.add_argument("--patience", type=int, help="pace our concessions over this many messages (El Chato: 8 when he sells)")
         if name != "abuela":
             p.add_argument("--open", type=int, help="our first price")
