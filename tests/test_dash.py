@@ -215,6 +215,9 @@ def test_duel_live_board_switch_and_next():
                            "messages": [{"tick": 40, "from": "Rival", "price": 98, "days": 9}]}, [{"kind": "self", "w": -1.0}])
     assert not dash.avoidable(far) and not dash.avoidable(silent)  # never inside our limit / silent: not our miss
     assert not dash.avoidable(days)  # price inside, but day 9 at -1 per day makes it worth 2 - 9 < 1
+    late = dash.duel_view({"duel": 12, "session": 3, "status": "no_deal", "role": "buyer", "your_limit": 100, "deadline_tick": 50,
+                           "messages": [{"tick": 49, "from": "Rival", "price": 90}]}, k)
+    assert not dash.avoidable(late)  # offered 1 tick before the deadline: not counted (as analyze_duels.py)
     L3 = dash.duel_live([cur[0], far, silent, cur[5]], {"tick": 45, "t_hours": 11.0}, up)
     assert L3["switch"] == "ok" and L3["avoidable"] == []
 

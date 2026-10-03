@@ -361,6 +361,8 @@ def avoidable(d: dict) -> bool:
     w = next((e.get("w") for e in reversed(d["decisions"]) if e.get("w") is not None), 0.0) or 0.0
     for m in d["messages"]:
         if m["who"] == "rival" and m.get("price") is not None:
+            if d.get("deadline") is not None and m.get("tick") is not None and m["tick"] > d["deadline"] - 2:
+                continue  # same as analyze_duels.py: an offer in the last 2 ticks may not have been answerable
             s = (d["limit"] - m["price"]) if d["role"] == "buyer" else (m["price"] - d["limit"])
             if s >= 0 and s + w * (m.get("days") or 0) >= 1:
                 return True
