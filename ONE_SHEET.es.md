@@ -1,7 +1,7 @@
 # The Bazaar · Hoja de negociación (maestra, v5)
 
 Sábado 3 oct 2026, 13:05 (tick 583) · Equipo 9 · Versión en inglés: `ONE_SHEET.md` · Ciclos y experimentos: `PLAYBOOK.es.md`
-**Esta hoja es la fuente de verdad para hoy y mañana.** Estrategia aprobada por Thameur a las 13:35, salvo el día de entrega, que sigue siendo una hipótesis. Si otro documento dice otra cosa, manda esta. Corrige el
+**Esta hoja es la fuente de verdad para hoy y mañana.** Estrategia aprobada por Thameur a las 13:35, con las reglas de paquetes para el día de entrega y la regla dura U ≥ 1 añadidas el sábado por la tarde (sus números aún no tienen datos reales). Si otro documento dice otra cosa, manda esta. Corrige el
 otro documento.
 **Nota del reloj:** el juego se paró de 13:14 a 15:34, así que todas las horas vienen de `/api/schedule` a las 16:31 (hora de juego 7,6). Volver a leerlo si el juego se para otra vez.
 Fuentes: `RULES.md`, diapositivas del kickoff, Pistas del Día 2, **diapositivas de Duelos de la organización**,
@@ -180,11 +180,16 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 **Interruptor de seguridad (regla nueva, aprobada para Duelos II; se elimina la regla del 70 %):** volver a `--policy v1` solo si (1) hay al menos 2 no-tratos **evitables** — el duelo terminó sin trato aunque el rival hizo al menos una oferta dentro de nuestro límite con U ≥ 1 (U = ganancia de precio + w × día); los rivales callados y los que nunca entraron en nuestro límite no cuentan; una oferta en los 2 últimos ticks no cuenta (un margen de 1 tick no está probado) — o (2) el agente de duelos se para o falla y `duels_watch.py` no puede reiniciarlo. Comprobación: `python3 analyze_duels.py --since <primer id de duelo>`. Con Duelos I esta regla cuenta 9 no-tratos evitables de 16.
 **Riesgos que aceptamos:** algunos bots nunca hablan primero (3 duelos de Duelos I sin ningún mensaje; el paso 3 lo cubre). Solo en 12 de 64 duelos registrados habló primero el rival, así que hay pocos datos. Otros equipos pueden cambiar sus bots esta noche.
 
-### El día de entrega (Duelos II y III): una hipótesis, todavía no una regla ⚠️
+### El día de entrega (Duelos II y III): reglas de paquetes ✅ (aprobadas por Thameur el sábado por la tarde; los números NO vienen de datos reales todavía)
 - ✅ Cada parte tiene un `your_days_weight` privado (una ganancia o un coste por día). El trato vale para cada parte excedente de precio + peso × día. La organización: «da el día a quien más lo valore y cámbialo por precio».
 - **Dirección de Thameur:** usar el día como **palanca combinada con nuestro precio**, no como un empujón automático al día 0 o 10.
-- **Hipótesis a probar en Duelos II:** leer qué día pide primero y cuánto precio da cuando el día se mueve. Luego ofrecer paquetes en los que cedemos en el día que le importa y lo recuperamos en precio. Comparar el resultado por trato con y sin movimientos de día.
-- **Al abrir Duelos II (≈20:35):** comprobar que `days_meaning` se lee con el signo correcto (comprobación programada en esta sesión).
+- **Cada oferta es un paquete (precio, día)**, construido con nuestro valor total **U = excedente de precio + w × día**. Medimos toda concesión, nuestra y suya, en U. Un movimiento del día hacia nosotros cuenta como una cesión suya.
+- **Apertura:** el precio como antes (0,75 × límite al comprar, 1,30 × al vender). El día queda a medio camino entre 5 y nuestro extremo preferido: **8** si un día nos da valor, **3** si nos cuesta (las mitades suben). Con w = 0: su día si lo nombró, si no 5.
+- **Contraoferta:** U objetivo = nuestra última U − 0,4 × (nuestra última U − su U), nunca por debajo de su U y **nunca por debajo de 1**. El día se mueve a medio camino hacia el día que pidió (sin movimiento si no pidió ninguno). Un movimiento de día que **nos cuesta** valor (o w = 0) **se paga en precio**: el precio del objetivo con nuestro día sin cambiar, movido max(|w|, 1) P por día a nuestro favor, redondeado hacia arriba. Un movimiento que **nos ayuda** no se cobra y no devolvemos nada. Si el paquete no cabe (nuestro límite, nuestra última U, su U, su precio), el día se mueve menos, hasta no moverse; si nada cabe, la regla antigua de precio.
+- **Regla dura: toda oferta que enviamos tiene U ≥ 1**, además del precio dentro del límite. Motivo: un trato con U menor que 1 puntúa nada o menos. Si un paquete tiene U < 1, el día vuelve hacia nuestro lado (primero hacia nuestro último día, luego hacia nuestro extremo preferido). Si ningún día cabe, **esperamos**: no tener trato es mejor que un trato negativo. La última oferta sigue la misma regla: el día deja U ≥ 1, el suyo si cabe. Una comprobación anterior halló el mismo punto ciego en el primer código v2: 371 de 3.466 ofertas aleatorias tenían U < 1.
+- ⚠️ Las constantes (paso de 0,4, al menos 1 P por día, movimientos de día a medio camino, redondeo de las mitades hacia arriba, 8 y 3 como días de apertura) son decisiones de diseño. **Ningún dato real las respalda**: en Duelos I no había días. Duelos II son los primeros datos.
+- **Tras Duelos II, comprobar:** resultado por trato; cuántas veces su día respondió al nuestro; cuántas ofertas fueron esperas por «ningún paquete con U ≥ 1»; en un barrido aleatorio ningún paquete cabía en el 27 % de las situaciones, y ahí se usa la regla antigua. Primera comprobación hacia las 20:35: `days_meaning` se lee con el signo correcto.
+- Código: `bz/duel.py` (`package_counter`, `fix_day_for_u`, `last_call_day`). Pruebas: `tests/test_duel2.py` (62 comprobaciones, 0 ofertas con U < 1 en 20.000 paquetes, 4.000 duelos y 2.000 cadenas), `tests/test_duels_sim.py`.
 
 ### Calendario de duelos ✅ (de `/api/schedule`, hora de Madrid estimada desde el tick 583 a las 13:03)
 | Sesión | Hora real ≈ | Reloj | Decaimiento por ronda | A la vez | Temas |
@@ -254,7 +259,7 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 ### Decisiones para Thameur y Maru ahora
 1. **¿Quoter EN VIVO?** 180 P en pujas fijas por cartas de página, +79 de valor si todo se llena. La caja tiene 48 P: ¿con qué presupuesto?
 2. **Maru:** bloquear las ventas a dealers por debajo de nuestro valor y las de cartas de página. ¿Vendemos Salamanca a Pilar durante la fiebre o completamos la página?
-3. **Duelos II:** ✅ doctrina de la sección VI aprobada a las 13:35 (el día de entrega sigue siendo una hipótesis). La jugada de esperar, aprobada a las 14:00. La sesión del trader la ha hecho en `bz/duel.py` (`--policy v2`, por defecto). **Los duelos corren solo en la máquina de Thameur:** `python3 duels_watch.py`.
+3. **Duelos II:** ✅ doctrina de la sección VI aprobada a las 13:35 (las reglas de paquetes del día de entrega y la regla U ≥ 1 se añadieron el sábado por la tarde). La jugada de esperar, aprobada a las 14:00. La sesión del trader la ha hecho en `bz/duel.py` (`--policy v2`, por defecto). **Los duelos corren solo en la máquina de Thameur:** `python3 duels_watch.py`.
 4. **Mercado:** v21 está abierto. ¿Quién le pone un broker y desde cuándo? Si no, puede sacar menos que el 7,5 del puesto gratis.
 5. **Quién vigila la puntuación** durante los Duelos II (`observe.py tag D2`).
 

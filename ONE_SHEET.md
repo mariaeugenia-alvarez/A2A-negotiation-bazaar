@@ -1,7 +1,7 @@
 # The Bazaar · Negotiation One-Sheet (master, v5)
 
 Saturday 3 Oct 2026, 13:05 (tick 583) · Team 9 · Spanish version: `ONE_SHEET.es.md` · Loops and experiments: `PLAYBOOK.md`
-**This sheet is the source of truth for today and tomorrow.** Strategy approved by Thameur at 13:35, except the delivery day, which stays a hypothesis. If another document disagrees, this one wins. Fix the
+**This sheet is the source of truth for today and tomorrow.** Strategy approved by Thameur at 13:35, with the delivery-day package rules and the U ≥ 1 hard rule added on Saturday evening (their numbers have no real data yet). If another document disagrees, this one wins. Fix the
 other document.
 **Clock note:** the game paused 13:14–15:34, so every time below comes from `/api/schedule` at 16:31 (game hour 7.6). Re-read it if the game pauses again.
 Sources: `RULES.md`, kickoff slides, Day 2 Hints, **organisers' Duels slides**, `GET /api/schedule`, our logs
@@ -178,11 +178,16 @@ built so we can close in one or two rounds without losing the pie."*
 **Safety switch (new rule, approved for Duels II; the old 70% rule is dropped):** restart with `--policy v1` only if (1) at least 2 **avoidable** no-deals — the duel ended with no deal although the rival made at least one offer inside our limit with U ≥ 1 (U = price surplus + w × day); silent rivals and rivals that never came inside our limit do not count; an offer in the last 2 ticks does not count (a gap of 1 tick is untested) — or (2) the duel agent stops or crashes and `duels_watch.py` cannot restart it. Check: `python3 analyze_duels.py --since <first duel id>`. On Duels I this rule counts 9 avoidable no-deals of 16.
 **Risks we accept:** some bots never talk first (3 duels in Duels I had no message at all; step 3 covers it). Only 12 of 64 logged duels had the rival talking first, so the data is thin. Other teams may change their bots tonight.
 
-### The delivery day (Duels II and III): a hypothesis, not a rule yet ⚠️
+### The delivery day (Duels II and III): package rules ✅ (approved by Thameur on Saturday evening; the numbers come from NO real data yet)
 - ✅ Each side has a private `your_days_weight` (a gain or a cost per day). The deal is worth price surplus + weight × day to each side. The organisers: "give the day to whoever cares more, trade it for price".
 - **Thameur's direction:** use the day as **leverage combined with our price**, not as an automatic push to day 0 or 10.
-- **Hypothesis to test in Duels II:** read which day he asks for first and how much price he gives when the day moves. Then offer packages where we give ground on the day he cares about and take it back in price. Compare result per deal with and without day moves.
-- **When Duels II opens (≈20:35):** check that `days_meaning` is read with the right sign (scheduled check in this session).
+- **Every offer is a package (price, day)**, built from our total value **U = price surplus + w × day**. We measure every concession, ours and his, in U. A day move toward us counts as him conceding.
+- **Opening:** the price as before (0.75 × limit buying, 1.30 × selling). The day is halfway between 5 and our preferred end: **8** if a day gains us value, **3** if it costs us (halves round up). With w = 0: his day if he named one, else 5.
+- **Counter:** target U = our last U − 0.4 × (our last U − his U), never below his U and **never below 1**. The day moves halfway toward the day he asked (no move if he asked none). A day move that **costs us** value (or w = 0) is **paid in price**: the price at the target with our unchanged day, moved max(|w|, 1) P per day in our favour, rounded up. A move that **helps us** gets no charge and we give nothing back. If the package does not fit (our limit, our last U, his U, his price), the day moves less, down to no move; if nothing fits, the old price rule.
+- **Hard rule: every offer we send has U ≥ 1**, on top of the price inside the limit. Reason: a deal with U below 1 scores nothing or less. If a package has U < 1, the day moves back toward our side (first toward our last day, then toward our preferred end). If no day fits, we **wait**: no deal beats a negative deal. The last call follows the same rule: the day leaves U ≥ 1, his day if it fits. An older check found the same blind spot in the first v2 code: 371 of 3,466 random offers had U < 1.
+- ⚠️ The constants (0.4 step, at least 1 P per day, halfway day moves, half-up rounding, 8 and 3 as opening days) are design choices. **No real data supports them**: Duels I had no days. Duels II is the first data.
+- **After Duels II, check:** result per deal; how often his day answered ours; how many offers were waits for "no package with U ≥ 1"; in a random scan no package fitted in 27% of situations, so the old rule is used there. First check at ≈20:35: `days_meaning` is read with the right sign.
+- Code: `bz/duel.py` (`package_counter`, `fix_day_for_u`, `last_call_day`). Tests: `tests/test_duel2.py` (62 checks, 0 offers with U < 1 in 20,000 packages, 4,000 duels and 2,000 chains), `tests/test_duels_sim.py`.
 
 ### Duels calendar ✅ (from `/api/schedule`, Madrid time estimated from tick 583 at 13:03)
 | Session | Real time ≈ | Clock | Decay per round | At once | Issues |
@@ -252,7 +257,7 @@ built so we can close in one or two rounds without losing the pie."*
 ### Decisions for Thameur and Maru now
 1. **Quoter LIVE?** 180 P of standing bids for page cards, +79 of value if all fill. Cash is 48 P: with what budget?
 2. **Maru:** block dealer sales below our value and sales of page cards. Do we sell Salamanca to Pilar during the fever, or finish the page?
-3. **Duels II:** ✅ doctrine in VI approved at 13:35 (the delivery day stays a hypothesis). The waiting play approved at 14:00. Built by the trader session in `bz/duel.py` (`--policy v2`, the default). **Duels run on Thameur's machine only:** `python3 duels_watch.py`.
+3. **Duels II:** ✅ doctrine in VI approved at 13:35 (the delivery-day package rules and the U ≥ 1 rule were added on Saturday evening). The waiting play approved at 14:00. Built by the trader session in `bz/duel.py` (`--policy v2`, the default). **Duels run on Thameur's machine only:** `python3 duels_watch.py`.
 4. **Market:** v21 is open. Who runs a broker for it, from when? Otherwise it may score below the free stall's 7.5.
 5. **Who watches the score** during Duels II (`observe.py tag D2`).
 
