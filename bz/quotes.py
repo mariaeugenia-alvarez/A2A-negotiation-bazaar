@@ -76,3 +76,17 @@ def plan(missing: dict, pages: list, spares: list, value_of, rarity_of, book: di
         out.append({"side": "ask", "ref": a["ref"], "price": p, "value": v, "gain": round(p - v, 1), "asset": a["id"],
                     "ratio": round(p / book[r], 2)})
     return out[:max_quotes]
+
+
+def free_spares(by_ref: dict, listed_ids: set) -> list:
+    """Copies we may offer for sale. A card is a spare only beyond the FIRST copy, and a copy already in an open offer
+    (ours or anyone's on our key) counts as sold: with 2 copies and 1 already listed there is no spare left. Offering the
+    other copy too could sell both and break a page (RET-01, RET-08, SAL-02 at tick 1041). Lowest value first, ties by id."""
+    out = []
+    for ref, copies in by_ref.items():
+        cap = len(copies) - 1 - sum(1 for a in copies if a["id"] in listed_ids)
+        if cap <= 0:
+            continue
+        free = sorted((a for a in copies if a["id"] not in listed_ids), key=lambda a: (a.get("your_value") or 0, a["id"]))
+        out.extend(free[:cap])
+    return out

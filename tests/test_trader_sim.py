@@ -245,4 +245,12 @@ assert 11 not in [r["offer"] for r in rows if r["reason"] == "budget"], "the swa
 hb = json.load(open(trader.HEARTBEAT))
 assert hb["live"] is True and hb["cash"] == 27 and hb["tick"] >= 100 and hb["stopped"] is False, hb
 checks += 3
+# ---- H: another process on our key already lists one copy of a 2-copy card: the quoter must not list the other
+f = Fake(177, ticks=5)
+f.mine.append({"id": 9001, "maker": "t09", "to": None, "venue": "rastro", "status": "open", "expires_tick": 999,
+               "give": {"cash": 0, "assets": [{"id": 3, "kind": "card", "ref": "RET-02"}], "types": []},
+               "want": {"cash": 7, "assets": [], "types": []}})        # a foreign ask for the spare copy (id 3)
+run(f)
+sold = [c for c in f.calls if c[0] == "list" and c[1].get("assets")]
+assert not [c for c in sold if set(c[1]["assets"]) & {1, 2, 3}], f"H: no second RET-02 copy may be listed, got {sold}"; checks += 1
 print(f"test_trader_sim: {checks} checks passed")

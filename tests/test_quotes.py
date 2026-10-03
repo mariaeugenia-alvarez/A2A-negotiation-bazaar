@@ -147,4 +147,16 @@ assert trader.realized_gain(swap, {"price": 0, "fee": 2}) == (20.5, 2)
 sale = {"cash_in": 70, "cash_out": 0, "fee": 5, "surplus": 2.0}
 assert trader.realized_gain(sale, {"price": 70, "fee": 5}) == (2.0, 0)
 checks += 5
+# ---- spares: a copy already in an open offer counts as sold (RET-01 / RET-08 / SAL-02 at tick 1041)
+from bz.quotes import free_spares  # noqa: E402
+c = lambda i, ref, v=3.0: {"id": i, "ref": ref, "your_value": v}  # noqa: E731
+two = {"RET-01": [c(1, "RET-01"), c(2, "RET-01")]}
+assert [a["id"] for a in free_spares(two, set())] == [1]            # 2 copies, nothing listed: one spare (lowest id on a tie)
+assert free_spares(two, {1}) == [] and free_spares(two, {2}) == []   # one copy already listed: NO spare left, whichever copy
+assert free_spares(two, {1, 2}) == []
+three = {"X": [c(1, "X", 9.0), c(2, "X", 3.0), c(3, "X", 1.0)]}
+assert [a["id"] for a in free_spares(three, set())] == [3, 2]       # 3 copies: two spares, cheapest first
+assert [a["id"] for a in free_spares(three, {3})] == [2]            # one listed: one spare left
+assert free_spares({"Y": [c(1, "Y")]}, set()) == []                 # a single copy is never a spare
+checks += 6
 print(f"test_quotes: {checks} checks passed")

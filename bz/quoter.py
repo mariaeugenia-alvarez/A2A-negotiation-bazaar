@@ -12,7 +12,7 @@ from bazaar_sdk import BazaarError
 
 from . import log
 from .guard import Guard, STALE_TICKS, bid_budget, earmark_total
-from .quotes import plan
+from .quotes import free_spares, plan
 from .trade import wanted_refs
 
 QUOTES = os.path.join(log.LOG_DIR, "quotes.jsonl")
@@ -111,7 +111,7 @@ class Quoter:
             bb = best_bid(ref)
             if bb:
                 others[ref] = bb
-        spares = [a for a in st.spares() if a["id"] not in foreign_assets]
+        spares = free_spares(st.by_ref(), foreign_assets)
         held = set(st.by_ref())
         reserve = earmark_total(self.earmark, held)
         # an earmarked card is bought by hand (Los Pícaros sell RET-09 near 55 P): the quoter must not bid for it
