@@ -72,4 +72,16 @@ d = make(trader_counter=[{"ts": NOW - 10 * 3600}] * 9, quotes=[{"ts": ts(30), "e
                                                                    {"ts": ts(20), "event": "filled", "side": "bid", "offer": 7}])
 rep = R.analyze(d, NOW, 2)
 assert rep["counters"]["sent"] == 0 and rep["quotes"]["by_ratio"] == {"0.8-1.0": [1, 1]} and len(rep["proposals"]) <= 3, rep; checks += 3
+# 8. inbox and tape lines: leads, a hands-off lead for Maru, the busiest venue and its share of the volume
+d = make(inbox=[{"ts": ts(5), "sender": "t05", "level": "LEAD-HANDSOFF", "tags": {"RET-09": "hands-off"}, "venues": ["v10"], "prices": [70.0]},
+                {"ts": ts(4), "sender": "t13", "level": "LEAD"}, {"ts": ts(3), "sender": "t13", "level": "INFO"}],
+         market_tape=[{"ts": ts(9), "kind": "team", "venue": "rastro", "price": 24}, {"ts": ts(8), "kind": "team", "venue": "rastro", "price": 20},
+                      {"ts": ts(7), "kind": "team", "venue": "v07", "price": 10}, {"ts": ts(6), "kind": "dealer", "venue": None, "price": 57}],
+         alerts=[{"ts": ts(2), "level": "TAPE-NEED", "text": "x"}])
+rep = R.analyze(d, NOW, 2)
+assert rep["inbox"]["n"] == 3 and rep["inbox"]["leads"] == 1 and len(rep["inbox"]["handsoff"]) == 1 and rep["inbox"]["senders"][0] == ("t13", 2), rep["inbox"]
+assert rep["tape"]["team"] == 3 and rep["tape"]["dealer"] == 1 and rep["tape"]["top"] == ("rastro", 2, 81) and rep["tape"]["need_alerts"] == 1, rep["tape"]
+txt = R.render(rep)
+assert "HANDS-OFF LEAD for Maru" in txt and "busiest venue rastro (2 trades, 81 % of volume)" in txt and "1 trades of cards we still need" in txt, txt
+checks += 3
 print(f"test_trader_review: {checks} checks passed")

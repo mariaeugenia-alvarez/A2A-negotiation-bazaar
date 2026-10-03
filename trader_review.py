@@ -122,6 +122,26 @@ def analyze(logs: str, now: float, hours: float) -> dict:
                     "crossings": sum(1 for e in sg if e.get("kind") == "cross"),
                     "clearing_asks": sum(1 for e in sg if e.get("clears")),
                     "best_cross": max((e.get("net") or 0 for e in sg if e.get("kind") == "cross"), default=0)}
+    # ---- what other teams write to us, and the tape of all markets
+    ib = r("inbox")
+    senders = {}
+    for x in ib:
+        senders[x.get("sender")] = senders.get(x.get("sender"), 0) + 1
+    d["inbox"] = {"n": len(ib), "leads": sum(1 for x in ib if x.get("level") == "LEAD"),
+                  "handsoff": [x for x in ib if x.get("level") == "LEAD-HANDSOFF"][-2:],
+                  "senders": sorted(senders.items(), key=lambda kv: -kv[1])[:3]}
+    tp = [x for x in r("market_tape")]
+    team = [x for x in tp if x.get("kind") == "team"]
+    venues = {}
+    for x in team:
+        v = venues.setdefault(x.get("venue"), [0, 0])
+        v[0] += 1
+        v[1] += x.get("price") or 0
+    vol = sum(v[1] for v in venues.values())
+    top = max(venues.items(), key=lambda kv: kv[1][1], default=None)
+    d["tape"] = {"team": len(team), "dealer": len(tp) - len(team), "volume": vol,
+                 "top": (top[0], top[1][0], round(100 * top[1][1] / vol)) if top and vol else None,
+                 "need_alerts": lv.get("TAPE-NEED", 0)}
     d["proposals"] = propose(d)
     return d
 
@@ -190,6 +210,13 @@ def render(d: dict) -> str:
     if d["blocked"]:
         L.append("Missed (clear wins we could not take): " + "; ".join(
             f"{k}: {v['n']} offers, +{v['surplus']:.1f} P, cost {v['cost']} P" for k, v in sorted(d["blocked"].items())))
+    ib, tp = d["inbox"], d["tape"]
+    L.append(f"Inbox: {ib['n']} messages from other teams ({ib['leads']} leads)"
+             + (f", top senders {ib['senders']}" if ib["senders"] else "") + (" · **HANDS-OFF LEAD for Maru: " + "; ".join(
+                 f"{x.get('sender')} {x.get('tags')} {x.get('venues')} {x.get('prices')}" for x in ib["handsoff"]) + "**" if ib["handsoff"] else ""))
+    L.append(f"Tape: {tp['team']} team trades, {tp['dealer']} dealer trades, {tp['volume']} P"
+             + (f"; busiest venue {tp['top'][0]} ({tp['top'][1]} trades, {tp['top'][2]} % of volume)" if tp["top"] else "")
+             + (f"; {tp['need_alerts']} trades of cards we still need" if tp["need_alerts"] else ""))
     sg = d["signals"]
     L.append(f"Signals: {sg['asks']} asks seen, {sg['drops']} price drops ({sg['drops_clearing']} clearing our rules), "
              f"{sg['clearing_asks']} asks clearing our rules, {sg['crossings']} crossings")
