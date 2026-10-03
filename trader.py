@@ -27,6 +27,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--live", action="store_true", help="accept the best 'accept' decision each tick")
     ap.add_argument("--once", action="store_true")
+    ap.add_argument("--no-boards", dest="boards", action="store_false", help="only offers made to us, not the public boards")
     args = ap.parse_args()
     os.makedirs(log.LOG_DIR, exist_ok=True)
     lock = open(os.path.join(log.LOG_DIR, "trader.lock"), "w")
@@ -36,6 +37,7 @@ def main() -> None:
         sys.exit("another trader.py is already running (logs/trader.lock)")
     b = connect()
     st, fees, fees_at, seen = State(b), {}, -999, set()
+    active, boards_at = [], -999
     log.say(f"trader: {'LIVE' if args.live else 'shadow'}")
     while True:
         try:
@@ -45,18 +47,27 @@ def main() -> None:
             if tick - fees_at >= 20:
                 fees, fees_at = venue_fees(b), tick
             valuer, by_ref, missing = price.from_state(st), st.by_ref(), st.missing()
-            offers = (b.my_offers().get("offers") or [])
+            # offers made to us, then the public boards (the bulk of the deal flow): same rules for both
+            todo = [(o, "to_us") for o in (b.my_offers().get("offers") or []) if o.get("to") == st.me["id"]]
+            if args.boards:
+                if tick - boards_at >= 10:  # which boards hold offers: look at all of them now and then
+                    active = [v for v in fees if b.board(v).get("offers")]
+                    boards_at = tick
+                for v in active:
+                    todo += [(o, "board") for o in b.board(v).get("offers") or [] if not o.get("to")]
             decisions = []
-            for o in offers:
-                if o.get("to") != st.me["id"] or o.get("status") != "open":
+            for o, source in todo:
+                if o.get("status") != "open":
                     continue
                 d = judge(o, valuer, by_ref, st.cash, fees, missing, st.me["id"])
                 decisions.append(d)
                 key = (d["offer"], d["action"], d.get("surplus"))
-                if key not in seen:
+                if key not in seen and (source == "to_us" or d["action"] in ("accept", "counter", "human")):
                     seen.add(key)
-                    log.event("trader", tick=tick, expires=o.get("expires_tick"), live=args.live, **d)
-                    log.say(f"[t{tick}] offer {d['offer']} from {d['maker']}: {d['action'].upper()} · {d['why']}")
+                    log.event("trader", tick=tick, expires=o.get("expires_tick"), live=args.live, source=source, **d)
+                    if source == "to_us" or d["action"] in ("accept", "human"):
+                        log.say(f"[t{tick}] {source} offer {d['offer']} on {d['venue']} from {d['maker']}: "
+                                f"{d['action'].upper()} · {d['why']}")
             wins = sorted((d for d in decisions if d["action"] == "accept"), key=lambda d: -d["surplus"])
             if args.live and wins:
                 w = wins[0]

@@ -1,0 +1,445 @@
+"""Everything the dashboard shows, as one JSON-able dict (dashboard.py renders it into logs/dashboard.html).
+
+Sources, all read-only:
+  logs/threads/*.json          our haggles with dealers, full transcripts (bz/learn.py keeps them)
+  logs/haggles.jsonl           opening and limit of each haggle (bz/haggle.py), when we have it
+  logs/duels.jsonl, logs/duels/ our duel decisions and the duel transcripts (the API forgets nothing, but we keep a copy)
+  logs/feed.jsonl              every public event; the dashboard appends what /api/feed shows now
+  /api/dealers, /api/leaderboard, /api/feed ...   public, no key needed
+  our key (optional)           our score, our duels, the values behind our limits
+
+Other teams' haggles come from the public feed: it shows the dealer's words and every price, but the teams' own words
+are blank. That is enough to see how each dealer moves with everybody.
+"""
+import json
+import os
+import re
+import statistics
+import time
+import urllib.request
+from collections import Counter, defaultdict
+
+from . import learn, log, price
+from .duel import OPEN_FRAC
+from .trade import HOUSE_FEE, MIN_SHARE, MIN_SURPLUS
+
+ROOT = os.path.dirname(log.LOG_DIR)
+PUBLIC = "https://bazaar.causaprima.ai"
+FEED_PATH = os.path.join(log.LOG_DIR, "feed.jsonl")
+DUEL_DIR = os.path.join(log.LOG_DIR, "duels")
+CACHE_PATH = os.path.join(log.LOG_DIR, "public_cache.json")
+
+
+# ---------------------------------------------------------------- reading
+
+def read_jsonl(path: str) -> list:
+    out = []
+    if os.path.exists(path):
+        for line in open(path, encoding="utf-8"):
+            try:
+                out.append(json.loads(line))
+            except ValueError:
+                pass
+    return out
+
+
+def fetch_public(offline: bool = False) -> dict:
+    """The public endpoints the big screen uses. Falls back to the last copy when the network is down."""
+    names = {"dealers": "dealers", "leaderboard": "leaderboard", "levels": "levels", "schedule": "schedule",
+             "clock": "clock", "catalog": "catalog", "feed": "feed?limit=2000"}
+    out, errors = {}, []
+    if not offline:
+        for key, route in names.items():
+            try:
+                with urllib.request.urlopen(f"{PUBLIC}/api/{route}", timeout=25) as r:
+                    out[key] = json.loads(r.read().decode("utf-8"))
+            except Exception as e:  # a missing piece must not stop the dashboard
+                errors.append(f"{key}: {type(e).__name__}")
+    cached = {}
+    if os.path.exists(CACHE_PATH):
+        cached = json.load(open(CACHE_PATH, encoding="utf-8"))
+    merged = {**cached, **out}
+    if out:
+        os.makedirs(log.LOG_DIR, exist_ok=True)
+        slim = {k: v for k, v in merged.items() if k != "feed"}
+        json.dump(slim, open(CACHE_PATH, "w", encoding="utf-8"), ensure_ascii=False)
+    merged["_errors"] = errors
+    return merged
+
+
+def sync_feed(events: list) -> list:
+    """Append the events we have not stored yet (same file and format as feed_logger.py) and return all of them."""
+    have = {e["id"]: e for e in read_jsonl(FEED_PATH) if "id" in e}
+    new = sorted((e for e in events if e["id"] not in have), key=lambda e: e["id"])
+    if new:
+        os.makedirs(log.LOG_DIR, exist_ok=True)
+        with open(FEED_PATH, "a", encoding="utf-8") as f:
+            for e in new:
+                f.write(json.dumps(e, ensure_ascii=False) + "\n")
+        have.update({e["id"]: e for e in new})
+    return [have[k] for k in sorted(have)]
+
+
+def try_connect():
+    """Our key, if there is one and it works. The dashboard never needs it, it only adds our own numbers."""
+    try:
+        from agent import connect
+        b = connect()
+        b.me()
+        return b
+    except (SystemExit, Exception):
+        return None
+
+
+# ---------------------------------------------------------------- one conversation
+
+def cash_of(o: dict):
+    return learn._cash(o) if o else None
+
+
+def rows_of(t: dict, me: str) -> list:
+    """The messages of a thread as table rows: who spoke, what they said, the price they put on the table."""
+    dealer, out, last = t.get("with"), [], {}
+    for m in t.get("messages") or []:
+        o = m.get("offer") or {}
+        p = cash_of(o)
+        who = "dealer" if m.get("sender") == dealer else ("us" if m.get("sender") == me else "team")
+        row = {"tick": m.get("tick"), "who": who, "sender": m.get("sender"), "text": m.get("text"), "price": p,
+               "final": bool(o.get("final")), "status": o.get("status"), "offer": o.get("id")}
+        if p is not None:
+            row["step"] = p - last[who] if who in last else None
+            last[who] = p
+        out.append(row)
+    return out
+
+
+def infer_topic(t: dict) -> dict:
+    """The feed shows threads that opened before it started: read the topic from the offers instead."""
+    dealer = t.get("with")
+    for m in t.get("messages") or []:
+        o = m.get("offer") or {}
+        gives = o.get("give") if o.get("maker") == dealer else o.get("want")  # what the dealer hands over
+        gets = o.get("want") if o.get("maker") == dealer else o.get("give")
+        for ty in (gives or {}).get("types") or []:
+            kind, _, ref = ty.partition(":")
+            return {"buy": {"pack": ref}} if kind == "pack" else {"buy": {"card": ref}}
+        for a in (gives or {}).get("assets") or []:
+            if a.get("kind") == "card":
+                return {"buy": {"card": a.get("ref")}}
+        if (gets or {}).get("assets"):
+            return {"sell": {"assets": [a.get("id") for a in gets["assets"]]}}
+    return {}
+
+
+def finish(t: dict, me: str, cards_by_id: dict, traits: dict, deal_price=None, source="ours") -> dict:
+    """One thread, ready to draw: rows, learned features, outcome."""
+    f = learn.features(t, cards_by_id)
+    if deal_price is not None:  # the feed shows offers as they were when sent, the settlement says what was paid
+        sell = f["kind"].startswith("sell")
+        seen = f["hers"] + [deal_price]
+        f.update(deal_price=deal_price, best=max(seen) if sell else min(seen))
+    rows = rows_of(t, me)
+    ticks = [r["tick"] for r in rows if r["tick"] is not None]
+    return {
+        "id": t.get("id"), "source": source, "team": t.get("team"), "dealer": t.get("with"), "kind": f["kind"],
+        "status": "deal" if f["deal_price"] is not None else (t.get("status") or "closed"),
+        "closed_reason": t.get("closed_reason"), "tick0": t.get("created_tick", ticks[0] if ticks else None),
+        "tick1": ticks[-1] if ticks else None, "deal": f["deal_price"], "first": f["first"], "best": f["best"],
+        "hers": f["hers"], "ours": f["ours"], "final_after": f["final_after"], "moves": f["moves"],
+        "accepted_opening": f["accepted_opening"], "rows": rows,
+    }
+
+
+# ---------------------------------------------------------------- the feed: other teams' haggles
+
+def feed_threads(events: list, me: str, cards_by_id: dict, traits: dict) -> list:
+    """Dealer conversations of every team but us, rebuilt from the public feed."""
+    th = {}
+    for e in events:
+        p = e.get("payload") or {}
+        if p.get("kind") != "persona" or e["type"] not in ("thread.opened", "thread.message"):
+            continue
+        t = th.setdefault(p["thread"], {"id": p["thread"], "team": p.get("team"), "with": p.get("with"),
+                                        "messages": [], "status": "open", "kind": "persona"})
+        if e["type"] == "thread.opened":
+            t["topic"], t["created_tick"] = p.get("topic"), e["tick"]
+        else:
+            t["messages"].append({"id": p.get("message"), "tick": e["tick"], "sender": p.get("sender"),
+                                  "text": p.get("text"), "offer": p.get("offer")})
+    sett = [e["payload"] for e in events if e["type"] == "settlement" and e["payload"].get("persona")]
+    last_tick = max((e["tick"] for e in events), default=0)
+    used, out = set(), []
+    for t in sorted(th.values(), key=lambda x: x["id"]):
+        if t["team"] == me or not t["messages"]:
+            continue
+        if not t.get("topic"):
+            t["topic"] = infer_topic(t)
+        end = max(m["tick"] for m in t["messages"])
+        hit = next((s for s in sett if s["settlement"] not in used and t["team"] in s["parties"] and s["persona"] == t["with"]
+                    and end - 1 <= s["tick"] <= end + 3), None)
+        if hit:
+            used.add(hit["settlement"])
+        r = finish(t, me, cards_by_id, traits, hit["price"] if hit else None, source="feed")
+        if not hit:
+            r["status"] = "open" if last_tick - end <= 4 else "ended"
+        out.append(r)
+    return out
+
+
+# ---------------------------------------------------------------- what the dealer does, over many conversations
+
+def fit(points: list) -> dict:
+    """Least squares y = a + b x and the correlation; None when the points say nothing."""
+    if len(points) < 3:
+        return {}
+    xs, ys = [p[0] for p in points], [p[1] for p in points]
+    mx, my = statistics.mean(xs), statistics.mean(ys)
+    sxx = sum((x - mx) ** 2 for x in xs)
+    syy = sum((y - my) ** 2 for y in ys)
+    sxy = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    if sxx == 0 or syy == 0:
+        return {}
+    b = sxy / sxx
+    return {"a": round(my - b * mx, 2), "b": round(b, 2), "r": round(sxy / (sxx * syy) ** 0.5, 2), "n": len(points)}
+
+
+def summarize(threads: list) -> dict:
+    """dealer -> kind -> what we see across every team's conversations (ours flagged)."""
+    groups = defaultdict(list)
+    for t in threads:
+        if t["first"] is not None:
+            groups[(t["dealer"], t["kind"])].append(t)
+    out = {}
+    for (dealer, kind), ts in groups.items():
+        sell = kind.startswith("sell")
+        spoke = [t for t in ts if t["ours"]]
+        pts = []
+        for t in spoke:
+            if len(t["hers"]) >= 2:
+                d1 = abs(t["hers"][0] - t["hers"][1])
+                last = t["deal"] if t["deal"] is not None else t["hers"][-1]
+                pts.append({"thread": t["id"], "team": t["team"], "d1": d1, "end": last, "deal": t["deal"] is not None,
+                            "ours": t["source"] == "ours", "tick": t["tick0"]})
+        deals = [t["deal"] for t in ts if t["deal"] is not None]
+        firsts = [t["first"] for t in ts]
+        finals = [t["final_after"] for t in spoke if t["final_after"] is not None]
+        out.setdefault(dealer, {})[kind] = {
+            "threads": len(ts), "ours": sum(1 for t in ts if t["source"] == "ours"), "spoke": len(spoke),
+            "first_median": statistics.median(firsts) if firsts else None, "first_set": sorted(set(firsts)),
+            "deals": sorted(deals), "deal_median": statistics.median(deals) if deals else None,
+            "deal_best": (max(deals) if sell else min(deals)) if deals else None,
+            "final_after_median": statistics.median(finals) if finals else None,
+            "fit": fit([(p["d1"], p["end"]) for p in pts]), "points": pts,
+        }
+    return out
+
+
+def team_stats(events: list, threads: list, board: dict) -> list:
+    """The leaderboard plus what the feed shows each team doing."""
+    per = defaultdict(lambda: {"dealer_threads": 0, "dealer_deals": 0, "team_trades": 0, "offers": 0, "packs": 0,
+                               "last_tick": 0, "spent": 0})
+    for t in threads:
+        s = per[t["team"]]
+        s["dealer_threads"] += 1
+        s["dealer_deals"] += t["deal"] is not None
+        s["spent"] += (t["deal"] or 0) if t["kind"].startswith("buy") else 0
+    for e in events:
+        p = e.get("payload") or {}
+        if e["type"] == "offer.listed":
+            per[p.get("maker") or e.get("actor")]["offers"] += 1
+        elif e["type"] == "pack.opened":
+            per[p.get("team")]["packs"] += 1
+        elif e["type"] == "settlement" and not p.get("persona"):
+            for team in p.get("parties") or []:
+                per[team]["team_trades"] += 1
+        who = e.get("actor") or p.get("team") or ""
+        per[who]["last_tick"] = max(per[who]["last_tick"], e["tick"])
+    rows = []
+    for team in board.get("teams", []):
+        rows.append({**{k: team.get(k) for k in ("team", "name", "rank", "score", "negotiating", "market", "level", "deals",
+                                                  "album_filled", "album_slots", "pages_complete", "luck", "venue")},
+                     "rarest": (team.get("rarest") or {}).get("name"), **per.get(team["team"], {})})
+    return rows
+
+
+def team_trades(events: list) -> list:
+    out = []
+    for e in events:
+        p = e.get("payload") or {}
+        if e["type"] == "settlement":
+            out.append({"tick": e["tick"], "parties": p.get("parties"), "persona": p.get("persona"), "price": p.get("price"),
+                        "venue": p.get("venue"), "fee": p.get("fee"),
+                        "items": [f"{i.get('ref')} ({i.get('rarity')})" if i.get("kind") == "card" else i.get("ref") for i in p.get("items") or []]})
+    return out[-120:]
+
+
+# ---------------------------------------------------------------- duels
+
+def load_duels(b) -> list:
+    """Duels from the API when we have a key, else from the copies we kept. Finished ones are kept in logs/duels/."""
+    os.makedirs(DUEL_DIR, exist_ok=True)
+    got = {}
+    if b is not None:
+        try:
+            for done in (False, True):
+                for d in b.duels(done=done).get("duels", []):
+                    got[int(d["duel"])] = d
+        except Exception:
+            pass
+    for d in got.values():
+        if d.get("status") != "live":
+            json.dump(d, open(os.path.join(DUEL_DIR, f"{d['duel']}.json"), "w", encoding="utf-8"), ensure_ascii=False)
+    for name in os.listdir(DUEL_DIR):
+        if name.endswith(".json") and int(name[:-5]) not in got:
+            got[int(name[:-5])] = json.load(open(os.path.join(DUEL_DIR, name), encoding="utf-8"))
+    return [got[k] for k in sorted(got)]
+
+
+def duel_view(d: dict, decisions: list) -> dict:
+    msgs = d.get("messages") or []
+    rival = [m["price"] for m in msgs if m.get("from") != "you" and m.get("price") is not None]
+    mine = [m["price"] for m in msgs if m.get("from") == "you" and m.get("price") is not None]
+    lim = d.get("your_limit")
+    res = d.get("result")
+    return {
+        "id": int(d["duel"]), "session": d.get("session"), "role": d.get("role"), "item": d.get("item"),
+        "issues": d.get("issues"), "limit": lim, "limit_meaning": d.get("limit_meaning"), "rival": d.get("rival"),
+        "status": d.get("status"), "price": d.get("price"), "days": d.get("days"), "result": res,
+        "rounds": d.get("rounds"), "decay": d.get("decay_per_round"), "deadline": d.get("deadline_tick"),
+        "days_weight": d.get("your_days_weight"), "days_meaning": d.get("days_meaning"),
+        "messages": [{"tick": m.get("tick"), "who": "us" if m.get("from") == "you" else "rival", "text": m.get("text"),
+                      "price": m.get("price"), "days": m.get("days")} for m in msgs],
+        "decisions": decisions, "rival_open_share": round(rival[0] / lim, 2) if rival and lim else None,
+        "our_open_share": round(mine[0] / lim, 2) if mine and lim else None,
+        "result_share": round(res / lim, 3) if res is not None and lim else None,
+    }
+
+
+def duel_summary(duels: list) -> list:
+    out = []
+    for role in ("buyer", "seller"):
+        ds = [d for d in duels if d["role"] == role and d["status"] in ("deal", "no_deal")]
+        deals = [d for d in ds if d["status"] == "deal" and d["result"] is not None]
+        if not ds:
+            continue
+        out.append({"role": role, "duels": len(ds), "deals": len(deals), "deal_rate": round(len(deals) / len(ds), 2),
+                    "mean_share": round(statistics.mean(d["result_share"] for d in deals if d["result_share"] is not None), 3)
+                    if any(d["result_share"] is not None for d in deals) else None,
+                    "mean_rounds": round(statistics.mean(d["rounds"] or 0 for d in deals), 1) if deals else None,
+                    "rival_open": round(statistics.mean(d["rival_open_share"] for d in ds if d["rival_open_share"] is not None), 2)
+                    if any(d["rival_open_share"] is not None for d in ds) else None})
+    return out
+
+
+# ---------------------------------------------------------------- formulas and parameters
+
+def _src_default(path: str, pattern: str):
+    try:
+        m = re.search(pattern, open(os.path.join(ROOT, path), encoding="utf-8").read())
+        return float(m.group(1)) if m else None
+    except OSError:
+        return None
+
+
+def formulas(b, st, model: dict, traits: dict) -> dict:
+    """The numbers behind our limits, with today's values: what an item is worth to us, the cap or floor that follows."""
+    out = {
+        "constants": {
+            "step_frac": _src_default("agent.py", r'"--step",[^)]*default=([0-9.]+)'),
+            "margin": _src_default("agent.py", r'"--margin",[^)]*default=([0-9.]+)'),
+            "accept_gap": 1, "max_msgs": 40, "messages_per_trait_default": learn.MESSAGES_PER_TRAIT,
+            "messages_per_trait_seen": round(learn.messages_per_trait(model, traits), 2),
+            "trade_min_surplus": MIN_SURPLUS, "trade_min_share": MIN_SHARE, "house_fee_bps": HOUSE_FEE[0],
+            "house_fee_per_card": HOUSE_FEE[1], "duel_open_frac": OPEN_FRAC, "duel_beta": 2.0, "duel_rounds": 3,
+        },
+        "values": None,
+    }
+    if st is None:
+        return out
+    try:
+        v = price.from_state(st)
+        packs = [{"pack": pid, "worth": round(v.pack_value(pid), 2), "cap": price.buy_cap(v.pack_value(pid), margin=out["constants"]["margin"] or 0.1),
+                  "neutral": v.packs[pid].get("expected_book"), "slots": v.packs[pid].get("slots")} for pid in v.packs]
+        spares = [{"ref": a["ref"], "name": a.get("name"), "rarity": a.get("rarity"), "worth": round(v.copy_value(a["ref"]), 2),
+                   "floor": price.sell_floor(v.copy_value(a["ref"]))} for a in st.spares()]
+        out["values"] = {"book": v.book, "marginals": v.marginals, "affinity": st.me.get("affinity"), "packs": packs,
+                         "spares": spares[:24]}
+    except Exception:
+        pass
+    return out
+
+
+# ---------------------------------------------------------------- everything
+
+def notes() -> dict:
+    """DEALERS.md split by its '## ' headings: what we wrote down about each dealer."""
+    path = os.path.join(ROOT, "DEALERS.md")
+    if not os.path.exists(path):
+        return {}
+    parts = re.split(r"^## ", open(path, encoding="utf-8").read(), flags=re.M)
+    return {p.split("\n", 1)[0].strip(): p.split("\n", 1)[1] if "\n" in p else "" for p in parts[1:]}
+
+
+def build(offline: bool = False, key: bool = True) -> dict:
+    pub = fetch_public(offline)
+    events = sync_feed((pub.get("feed") or {}).get("events") or [])
+    b = try_connect() if key and not offline else None
+    st = None
+    if b is not None:
+        try:
+            from .state import State
+            st = State(b)
+            learn.backfill(b)
+            learn.save_traits(b)
+        except Exception:
+            st = None
+    traits = learn.load_traits() or {p["id"]: p.get("traits") or {} for p in (pub.get("dealers") or {}).get("personas", [])}
+    cards = {c["id"]: c for s in (pub.get("catalog") or {}).get("sets", []) for c in s["cards"]}
+    mine_threads = [t for t in learn.transcripts() if t.get("kind", "persona") == "persona" and t.get("with") in traits]
+    me = (st.me["id"] if st else None) or (Counter(t.get("team") for t in mine_threads).most_common(1) or [[None]])[0][0]
+    # a conversation still open is not stored yet: show it too
+    if b is not None:
+        try:
+            have = {t["id"] for t in mine_threads}
+            for th in (b.my_threads(status="open").get("threads") or []):
+                if th["id"] not in have and th.get("kind") == "persona":
+                    mine_threads.append(b.thread(th["id"]))
+        except Exception:
+            pass
+    haggle_log = {h["thread"]: h for h in read_jsonl(os.path.join(log.LOG_DIR, "haggles.jsonl")) if h.get("thread")}
+    ours = []
+    for t in sorted(mine_threads, key=lambda x: x["id"]):
+        r = finish(t, me, cards, traits)
+        h = haggle_log.get(t["id"])
+        r["params"] = {k: h.get(k) for k in ("opening", "limit", "label", "reason", "side")} if h else None
+        ours.append(r)
+    others = feed_threads(events, me, cards, traits)
+    model = learn.build_model(cards)
+    plans = {}
+    for dealer, kinds in model.items():
+        for kind in kinds:
+            p = learn.plan(dealer, kind, cards, traits=traits.get(dealer))
+            p["text"] = learn.describe(dealer, kind, p)
+            p.pop("stats", None)
+            plans.setdefault(dealer, {})[kind] = p
+    dec = defaultdict(list)
+    for e in read_jsonl(os.path.join(log.LOG_DIR, "duels.jsonl")):
+        if e.get("duel") is not None:
+            dec[int(e["duel"])].append({k: v for k, v in e.items() if k not in ("ts", "duel")})
+    duels = [duel_view(d, dec.get(int(d["duel"]), [])) for d in load_duels(b)]
+    dealers = {p["id"]: p for p in (pub.get("dealers") or {}).get("personas", [])}
+    return {
+        "built": time.strftime("%Y-%m-%d %H:%M:%S"), "offline": offline, "errors": pub.get("_errors"), "me": me,
+        "clock": pub.get("clock"), "upcoming": ((pub.get("schedule") or {}).get("upcoming") or [])[:14],
+        "levels": (pub.get("levels") or {}).get("levels"),
+        "feed_span": [events[0]["tick"], events[-1]["tick"]] if events else None, "feed_events": len(events),
+        "dealers": dealers, "traits": traits, "ours": ours, "others": others,
+        "summary": summarize(ours + others), "model": model, "plans": plans,
+        "teams": team_stats(events, ours + others, pub.get("leaderboard") or {}),
+        "rounds": (pub.get("leaderboard") or {}).get("rounds"), "trades": team_trades(events),
+        "score": (st.me.get("score") if st else None), "score_log": read_jsonl(os.path.join(log.LOG_DIR, "score.jsonl")),
+        "wallet": ({"cash": st.me.get("cash"), "level": st.me.get("level"), "collection": st.me.get("collection_value"),
+                    "album": (st.me.get("album") or {}).get("filled")} if st else None),
+        "duels": duels, "duel_summary": duel_summary(duels), "formulas": formulas(b, st, model, traits),
+        "trader": read_jsonl(os.path.join(log.LOG_DIR, "trader.jsonl"))[-40:], "notes": notes(),
+    }

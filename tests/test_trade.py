@@ -70,4 +70,13 @@ a = run(offer({"cash": 82}, {"types": ["card:MAL-10"]}, maker="t09"), held)
 assert a["action"] == "ignore", a
 a = run(offer({"cash": 82}, {"types": ["card:MAL-10"]}, status="expired"), held)
 assert a["action"] == "ignore", a; checks += 2
+# 8. a public ask for a card we miss (LAV-02 and LAV-03 absent, x1.6): +16 for 9 P on El Rastro (fee 2) clears; on a
+#    0 % venue the same card is worth more to us net, because the fee is the accepter's cost
+pub = offer({"assets": [card(61, "LAV-03")]}, {"cash": 9}, maker="m1")
+pub["to"] = None
+a = run(pub, [], missing={"LAV": ["LAV-02", "LAV-03"], "MAL": []})
+assert a["action"] == "accept" and a["fee"] == 2 and a["surplus"] == 5.0, a
+pub0 = {**pub, "venue": "v02"}
+a0 = run(pub0, [], missing={"LAV": ["LAV-02", "LAV-03"], "MAL": []})
+assert a0["fee"] == 0 and a0["surplus"] == 7.0, a0; checks += 2
 print(f"test_trade: {checks} checks passed")
