@@ -285,13 +285,12 @@ def chato_schedule(kind: str, opening: int = None, fitted: dict = None) -> tuple
 
 
 def fit_chato(threads: list) -> dict:
-    """a, b per kind: the schedule that predicts his answers exactly most often, given what each team did."""
+    """a, b per kind, from these conversations (one dealer's): the schedule that predicts his answers exactly most often, given what each team did."""
     by_kind = collections.defaultdict(list)
-    for t in threads:
-        if t["dealer"] == "chato":
-            _, ans = answers(t)
-            if ans:
-                by_kind[t["kind"]].append(ans)
+    for t in threads:  # the caller picks the dealer's conversations
+        _, ans = answers(t)
+        if ans:
+            by_kind[t["kind"]].append(ans)
     out = {}
     for kind, convs in by_kind.items():
         best = None
@@ -378,6 +377,7 @@ def advise(dealer: str, side: str, kind: str, opening: int, history: list, limit
     return {"action": "offer", "price": clip(price), "her_next": None, "why": "no model for this dealer yet: small steps"}
 
 
+MIN_MOVING = 3  # conversations where a new dealer conceded at least once, before family_of() picks its family
 MODELS = {"abuela": "midpoint", "chato": "boulware"}  # a new dealer gets the family that fits its data best
 
 
@@ -408,7 +408,7 @@ def advisor(dealer: str, side: str, kind: str, limit: int, threads: list = None)
 def family_of(dealer: str, threads: list) -> dict:
     """Per kind, the family of rules that predicts this dealer's answers best: "midpoint" (Abuela) or "boulware"
     (El Chato), scored on the same answers (each one after the dealer's first concession). None for a kind where
-    the dealer never moved: no data tells them apart yet."""
+    the dealer moved in fewer than MIN_MOVING conversations: too little data to tell them apart."""
     by_kind = collections.defaultdict(list)
     for t in threads:
         if t["dealer"] == dealer:
@@ -429,8 +429,9 @@ def family_of(dealer: str, threads: list) -> dict:
             if sched:
                 boul += sum(hit for i, hit in enumerate(_chato_preds(ans, *sched)) if i > first)
             n += len(later)
-        moves = sum(1 for t in ts for a in answers(t)[1] if a.conc)
-        out[kind] = None if not moves or not n else ("midpoint" if mid >= boul else "boulware")
+        moving = sum(1 for t in ts if any(a.conc for a in answers(t)[1]))
+        # too few conversations where it moved: no family yet (a guess would set real prices)
+        out[kind] = None if moving < MIN_MOVING or not n else ("midpoint" if mid >= boul else "boulware")
     return out
 
 

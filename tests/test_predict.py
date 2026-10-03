@@ -124,4 +124,11 @@ def chato_sim(patience, a=0.48, b=0.5, opening=97):
 
 assert [chato_sim(k) for k in (4, 5)] == [89, 85] and all(chato_sim(k) < 84 for k in (6, 7, 8, 9)); checks += 1
 
+# 13. family_of(): it recovers each known dealer's family from conversations alone, and refuses to guess
+#     with fewer than 3 conversations where the dealer moved.
+from bz.predict import family_of  # noqa: E402
+fake = [dict(c, dealer="nuevo") for c in convs]  # 4 Boulware conversations from check 10
+assert family_of("nuevo", fake) == {"buy:rare": "boulware"}, family_of("nuevo", fake)
+assert family_of("nuevo", fake[:2]) == {"buy:rare": None}; checks += 1
+
 print(f"ok: {checks} checks")
