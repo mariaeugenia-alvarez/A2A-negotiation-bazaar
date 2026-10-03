@@ -48,6 +48,17 @@ PLAIN_SELL = [
 ]
 POOLS = {"abuela": (BUY, SELL)}  # any other dealer uses the plain pool
 
+# Abuela asks "¿has comido?" and gives her little presents to those who answer warmly (feed: 17 gifts, all inside a
+# deal, nearly all after "qué amable", "qué simpático"; t13 got one after telling her about churros). Words never move
+# her price: they only change what she says, and maybe whether she adds a present.
+ATE = ("comido", "have you eaten", "eaten today", "come algo", "eat something")
+ATE_REPLIES = [
+    "Sí, Carmen, he desayunado churros con chocolate, ¡gracias por preguntar!",
+    "Ya he comido, gracias, Carmen: un cocido como el de mi abuela.",
+    "Gracias por cuidarme, Carmen: me he tomado un bocadillo de calamares.",
+]
+WARM = {"abuela": ATE_REPLIES}
+
 
 class Writer:
     def __init__(self, side: str, dealer: str = "abuela"):
@@ -55,14 +66,23 @@ class Writer:
         self.pool = list(buy if side == "buy" else sell)
         random.shuffle(self.pool)
         self.used = set()
+        self.warm = list(WARM.get(dealer, []))
+        random.shuffle(self.warm)
 
-    def line(self, price: int) -> str:
+    def line(self, price: int, heard: str = "") -> str:
+        """`heard`: the dealer's last words. If she asked whether we have eaten, we answer before the price."""
+        h = (heard or "").lower()
+        if self.warm and any(k in h for k in ATE):
+            return self.warm.pop() + " " + self._line(price)
+        return self._line(price)
+
+    def _line(self, price: int) -> str:
         for t in self.pool:
             if t not in self.used:
                 self.used.add(t)
                 return t.format(p=price)
         self.used.clear()  # every text used once: start over, the price is new anyway
-        return self.line(price)
+        return self._line(price)
 
 
 FINAL_PHRASES = ("lo tomas o te lo quedas", "take it or leave it", "última oferta", "ultima oferta", "mi última", "mi ultima")

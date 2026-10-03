@@ -56,6 +56,12 @@ def close_open_threads(b, dealer: str) -> None:
                 log.say(f"could not close thread {th['id']}: {e}")
 
 
+def _last_words(t: dict, dealer: str) -> str:
+    """The dealer's latest message in the thread, or ""."""
+    said = [m.get("text") or "" for m in t.get("messages") or [] if m.get("sender") == dealer]
+    return said[-1] if said else ""
+
+
 def haggle(b, dealer: str, topic: dict, side: str, opening: int, limit: int, *,
            step_frac: float = 0.15, accept_gap: int = 1, max_msgs: int = 40, label: str = "",
            target: int = None, accept_at: int = None, patience: int = None, advise=None) -> dict:
@@ -182,7 +188,7 @@ def haggle(b, dealer: str, topic: dict, side: str, opening: int, limit: int, *,
                 b.close_thread(tid)
                 status, reason = "walked_by_us", "max_msgs"
                 break
-            b.say(tid, writer.line(nxt), price=nxt)
+            b.say(tid, writer.line(nxt, heard=_last_words(t, dealer)), price=nxt)
             ours.append(nxt)
             p_at_last_msg = p
             log.say(f"[{dealer}] we offer {nxt}")
