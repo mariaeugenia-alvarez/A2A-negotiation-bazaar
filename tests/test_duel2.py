@@ -82,4 +82,19 @@ d = duel("buyer", 100, [m(500, "R", 160, 4)], {"price": 160, "days": 4}, deadlin
          meaning="your gain per day of delivery")
 a = decide2(d, 503)
 assert a["action"] == "offer" and a["days"] == 7, a; checks += 1
+# 9. approved by Thameur: tick 0 we send nothing even if he is silent; from tick 1 we open
+assert decide2(duel("seller", 60, [], None, deadline=516), 500)["action"] == "wait"      # start = 516 - 16 = 500
+assert decide2({**duel("seller", 60, [], None, deadline=512), "_start": 500}, 500)["action"] == "wait"   # Sunday, 12 ticks
+assert decide2({**duel("seller", 60, [], None, deadline=512), "_start": 500}, 501)["action"] == "offer"
+checks += 3
+# 10. a self-conceder inside our limit who has not moved for 2 ticks: take it now (no need to wait for deadline - 2)
+d = duel("buyer", 100, [m(500, "R", 140), m(501, "R", 120), m(502, "R", 95)], {"price": 95, "days": None}, deadline=516)
+assert decide2(d, 503)["action"] == "wait"                                              # moved last tick: let him come
+assert decide2(d, 504)["action"] == "accept"                                            # 2 ticks without a move
+checks += 2
+# 11. our opening to a silent rival is not a counter: a reciprocal rival still gets 2 real counters after it
+d = duel("buyer", 100, [m(501, "you", 75), m(502, "R", 150), m(503, "you", 85), m(504, "R", 140)], {"price": 140, "days": None},
+         deadline=516)
+a = decide2(d, 505)
+assert a["action"] == "offer" and a["counters"] == 1, a; checks += 1
 print(f"test_duel2: {checks} checks passed (4000 random duels for the hard rules)")

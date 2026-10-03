@@ -172,6 +172,7 @@ MAX_COUNTERS = 2
 GOOD = 0.10            # his offer leaves us at least this share of our limit: "inside with a good surplus"
 STEP_AFTER_OURS = 6.0  # his mean step after a message of ours (Duels I), used until we see his own
 LAST_CALL = True       # tests/sim_duel2.py decides
+DUEL_TICKS = 16        # Duels II length; duels.py passes the real start as d["_start"] (Sunday: 12)
 
 
 def _toward_us(role: str, prev: float, cur: float) -> float:
@@ -214,6 +215,10 @@ def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_C
     ours, his, k, awaiting = history(d)
     left = d["deadline_tick"] - tick
     bot = read_bot(d)
+    start = d.get("_start", d["deadline_tick"] - DUEL_TICKS)
+    priced = [m for m in d.get("messages") or [] if m.get("price") is not None]
+    we_opened = bool(priced) and priced[0].get("from") == "you"
+    counters = len(ours) - (1 if we_opened else 0)  # our opening to a silent rival is not a counter
 
     def U(price, days):
         return surplus(role, limit, price) + (w * (days or 0) if two else 0.0)
@@ -228,7 +233,7 @@ def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_C
     exp_step = (sum(s for s in bot["answered"] if s > 0) / max(1, sum(1 for s in bot["answered"] if s > 0))
                 if any(s > 0 for s in bot["answered"]) else STEP_AFTER_OURS)
     est = {"kind": bot["kind"], "u_his": None if u_his is None else round(u_his, 1), "exp_step": round(exp_step, 1),
-           "left": left, "k": k, "counters": len(ours), "w": w, "w_how": w_how, "his_days": bot["his_days"],
+           "left": left, "k": k, "counters": counters, "we_opened": we_opened, "w": w, "w_how": w_how, "his_days": bot["his_days"],
            "solo": bot["solo"][-3:], "answered": bot["answered"][-3:]}
 
     # 1. accept
@@ -239,12 +244,12 @@ def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_C
             return {"action": "wait", "why": "waiting: self-conceder (his offer is inside, he is still moving)", **est}
         if (u_his + exp_step) * (1 - decay) <= u_his:
             return {"action": "accept", "why": f"one more round (~{exp_step:.1f}) cannot beat the {decay:.0%} decay", **est}
-        if len(ours) >= max_counters:
-            return {"action": "accept", "why": f"{len(ours)} counters used: take the in-limit offer", **est}
-        if ours and u_his >= GOOD * limit:
+        if bot["kind"] == "self" and last_his is not None and (tick - last_his >= 2 or bot["solo"][-1] <= 0):
+            return {"action": "accept", "why": "self-conceder stopped (no move for 2 ticks): take his in-limit offer", **est}
+        if counters >= max_counters:
+            return {"action": "accept", "why": f"{counters} counters used: take the in-limit offer", **est}
+        if counters >= 1 and u_his >= GOOD * limit:
             return {"action": "accept", "why": "inside with a good surplus after our counter", **est}
-        if bot["kind"] == "self" and bot["solo"] and bot["solo"][-1] <= 0:
-            return {"action": "accept", "why": "his solo steps stopped: take the best in-limit offer", **est}
 
     # 2. wait
     if awaiting and left > 2:
@@ -257,7 +262,9 @@ def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_C
             return {"action": "wait", "why": f"waiting: self-conceder (needs ~{need / pace:.0f} of {left} ticks)", **est}
     if his and not ours and last_his is not None and tick - his[0][0] < 2 and left > 4:
         return {"action": "wait", "why": "waiting: watching his first moves", **est}
-    if len(ours) >= max_counters:
+    if not his and not ours and tick - start < 1:  # rivals who speak first do it at tick 0: let him open
+        return {"action": "wait", "why": "tick 0: letting him open", **est}
+    if counters >= max_counters:
         if last_call and left <= 3 and not his_ok:  # no deal scores 0 for both: one final offer near our limit
             margin = max(1, round(0.03 * limit))
             p = int(limit) - margin if role == "buyer" else int(-(-limit // 1)) + margin
@@ -301,4 +308,4 @@ def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_C
     if not inside(role, limit, price):
         return {"action": "wait", "why": "no offer inside our limit", **est}
     return {"action": "offer", "price": price, "days": day,
-            "why": ("opening" if not ours else f"real step {len(ours) + 1}/{max_counters}") + f" vs a {bot['kind']} bot", **est}
+            "why": ("opening" if not ours else f"real step {counters + 1}/{max_counters}") + f" vs a {bot['kind']} bot", **est}

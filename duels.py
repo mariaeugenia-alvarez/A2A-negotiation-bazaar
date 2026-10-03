@@ -1,8 +1,19 @@
 """Duels agent: every decision comes from bz/duel.py (code decides), the words only carry it politely.
 
-    python3 duels.py                         # plays every live duel until none is left
+    python3 duels.py                         # plays every live duel until none is left (v2, approved by Thameur on Saturday)
     python3 duels.py --dry                   # prints the decisions, sends nothing
-    python3 duels.py --rounds 3 --beta 2.0 --days-sign -1   # force: your_days_weight is a cost per day
+    python3 duels.py --duel-ticks 12         # Sunday: duels last 12 ticks
+    python3 duels.py --policy v1             # FALLBACK: the Duels I logic
+    Run it through the supervisor, on ONE machine only (Thameur's): python3 duels_watch.py
+
+v2 (bz/duel.decide2, the waiting strategy approved by Thameur): tick 0 we send nothing; if the rival is still silent at
+tick 1 we open at 0.75 x our limit (buyer) / 1.30 x (seller), then go quiet and re-read him. A self-conceder is left to
+come to us; we take his best in-limit offer when he has not moved for 2 ticks, or at deadline - 2. A reciprocal rival
+gets real steps, at most 2 counters, and we accept when one more round cannot beat the decay. Our limit is never
+crossed. Days are sent with every offer; leaning toward our side is a hypothesis, his day asks are logged.
+
+SAFETY SWITCH: if after the first wave of Duels II fewer than 70 % of our duels close, or rivals stop conceding on their
+own, restart with --policy v1:   python3 analyze_duels.py --since <first duel id of the session>   to check the rate.
 """
 import argparse
 import fcntl
@@ -32,7 +43,7 @@ def arm_for(duel_id, arms: list) -> float:
 def play(b, d: dict, tick: int, args) -> None:
     if args.policy == "v2":  # read the bot (doctrine approved 13:35): every decision, waits included, is logged
         arm = f"v2 {args.open2['buyer']}/{args.open2['seller']}"
-        a = decide2(d, tick, open2=args.open2, days_sign=args.days_sign)
+        a = decide2({**d, "_start": d["deadline_tick"] - args.duel_ticks}, tick, open2=args.open2, days_sign=args.days_sign)
     else:
         arm = arm_for(d["duel"], args.arms)
         a = decide(d, tick, beta=args.beta, rounds_budget=args.rounds, days_sign=args.days_sign, open_frac=arm)
@@ -64,9 +75,9 @@ def main() -> None:
     ap.add_argument("--ab", default=None, metavar="A,B",
                     help="split test: opening shares to alternate by duel id, e.g. 0.45,0.25 (share of our limit we ask as "
                          f"surplus; default {OPEN_FRAC} for every duel). Score the result with analyze_duels.py")
-    ap.add_argument("--policy", choices=("v1", "v2"), default="v1",
-                    help="v1 (default): the Duels I logic, bz/duel.decide. v2: read the bot, bz/duel.decide2 "
-                         "(NOT approved for live play yet: Thameur studies the waiting strategy first)")
+    ap.add_argument("--policy", choices=("v1", "v2"), default="v2",
+                    help="v2 (default, approved): read the bot, bz/duel.decide2. v1: the Duels I logic, the fallback")
+    ap.add_argument("--duel-ticks", type=int, default=16, help="duel length: 16 for Duels II, 12 on Sunday")
     ap.add_argument("--open", default=f"{OPEN2['buyer']},{OPEN2['seller']}", metavar="B,S",
                     help="v2 first offer as a share of our limit, buyer,seller (tests/sim_duel2.py)")
     args = ap.parse_args()
