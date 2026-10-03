@@ -7,6 +7,7 @@ kind (new / drop / raise / same), the previous price, the drop size, drops in a 
 whether we would take it (clears / near / gap / gain). Alerts on the screen and in logs/alerts.jsonl:
   DROP-TAKE  a dropped ask for a card we need that clears our rules NOW (trader.py --live-boards takes it if it runs)
   DROP-NEAR  a dropped ask within 25 % above the most we would pay (one more drop would clear it)
+  CROSS      a public ask and a public bid for the same card that leave +5 P or more after both fees (rare: one in 11 hours)
 Why it exists: tests whether a price drop is a signal. Read the result later with:  python3 signals_watch.py --report
 """
 import argparse
@@ -18,7 +19,7 @@ import time
 from agent import connect
 from bazaar_sdk import BazaarError
 from bz import log
-from bz.signals import AskTracker, assess
+from bz.signals import AskTracker, assess, crossings
 from bz.state import State
 from bz.trade import fee_for
 
@@ -49,7 +50,7 @@ def main() -> None:
     b = connect()
     st = State(b)
     tracker, fees, fees_at, active, active_at = AskTracker(), {}, -999, [], -999
-    value_cache = {}
+    value_cache, told = {}, set()
     log.say("signals_watch: read-only; logs/signals.jsonl")
     while True:
         try:
@@ -62,7 +63,7 @@ def main() -> None:
             if tick - active_at >= 10:
                 active = [v for v in fees if b.board(v).get("offers")]
                 active_at = tick
-            asks = []
+            asks, bids = [], []
             for v in active:
                 for o in b.board(v).get("offers") or []:
                     g, w = o.get("give") or {}, o.get("want") or {}
@@ -70,6 +71,10 @@ def main() -> None:
                             and (g["assets"][0].get("kind") == "card"):
                         asks.append({"id": o["id"], "maker": o.get("maker"), "ref": g["assets"][0]["ref"],
                                      "price": int(w["cash"]), "venue": v})
+                    elif g.get("cash") and not g.get("assets") and not o.get("to"):
+                        refs = [t.partition(":")[2] for t in (w.get("types") or [])] + list(w.get("cards") or [])
+                        if len(refs) == 1:
+                            bids.append({"id": o["id"], "maker": o.get("maker"), "ref": refs[0], "price": int(g["cash"]), "venue": v})
             needed = {r for refs in st.missing().values() for r in refs}
             for ev in tracker.update(tick, asks):
                 if ev["ref"] in needed:
@@ -85,6 +90,14 @@ def main() -> None:
                 elif ev["kind"] == "drop" and ev.get("near"):
                     log.say(f"ALERT DROP-NEAR: {ev['ref']} ask {ev['last']} -> {ev['price']} ({ev['pct']:.0%}) on {ev['venue']}: "
                             f"we would pay at most {ev['max_price']}")
+            for c in crossings(asks, bids, fees):
+                key = (c["ask_id"], c["bid_id"])
+                if key not in told:
+                    told.add(key)
+                    log.event("signals", kind="cross", tick=tick, **c)
+                    log.event("alerts", level="CROSS", text=f"{c['ref']} ask {c['ask']} on {c['ask_venue']} vs bid {c['bid']} on {c['bid_venue']}")
+                    log.say(f"ALERT CROSS: {c['ref']} ask {c['ask']} on {c['ask_venue']} vs bid {c['bid']} on {c['bid_venue']}: "
+                            f"net +{c['net']} after both fees (two accepts, ask first). Decide by hand.")
             b.wait_tick()
         except BazaarError as e:
             log.say(f"signals_watch: {e}")

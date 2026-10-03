@@ -38,4 +38,14 @@ assert not a["clears"] and not a["near"], a
 a = assess({"price": 20}, 27.5, 0)                                             # SAL-06 on a 0 % venue: 27.5 - 2.75 margin
 assert a["clears"] and a["max_price"] == 24, a
 checks += 4
+# crossing pair: RET-02 ask 10 on v02 (0 %) and a 49 P bid on El Rastro (5 % + 1 P = 4 P): net 35
+from bz.signals import crossings  # noqa: E402
+FEES = {"rastro": (500, 1), "v02": (0, 0)}
+bid = lambda i, p, venue="rastro", maker="m9", ref="RET-02": {"id": i, "maker": maker, "ref": ref, "price": p, "venue": venue}  # noqa: E731
+c = crossings([ask(1, 10, maker="m1", ref="RET-02", venue="v02")], [bid(2, 49)], FEES)
+assert len(c) == 1 and c[0]["net"] == 35 and c[0]["bid_venue"] == "rastro", c
+assert crossings([ask(1, 10, maker="m1", ref="RET-02", venue="v02")], [bid(2, 11)], FEES) == []        # spread eaten by the fee
+assert crossings([ask(1, 10, maker="m1", ref="RET-02", venue="v02")], [bid(2, 49, maker="m1")], FEES) == []  # same maker
+assert crossings([ask(1, 10, maker="m1", ref="RET-03", venue="v02")], [bid(2, 49)], FEES) == []        # other card
+checks += 4
 print(f"test_signals: {checks} checks passed")

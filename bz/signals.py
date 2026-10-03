@@ -57,3 +57,21 @@ def assess(ev: dict, value: float, fee: int) -> dict:
     gap = ev["price"] - max_price
     return {"max_price": max_price, "gap": gap, "clears": gap <= 0,
             "near": 0 < gap <= NEAR * ev["price"], "gain": round(value - ev["price"] - fee, 1)}
+
+
+def crossings(asks: list, bids: list, fees: dict, min_net: int = 5) -> list:
+    """Same card, a public ask and a public bid with bid >= ask + both fees + min_net. We would accept both (the accepter
+    pays the fee each time), the ask first: the card reaches us a tick later, then we accept the bid. In 656 ticks of
+    Saturday's feed there was ONE such pair worth taking (RET-02: ask 10 on v02, bid 49 on rastro, net +35; both sides were
+    taken by other teams within 60 ticks), so this is rare. asks/bids: [{"id","maker","ref","price","venue"}]."""
+    from .trade import fee_for
+    out = []
+    for a in asks:
+        for b in bids:
+            if a["ref"] != b["ref"] or a["maker"] == b["maker"]:
+                continue
+            net = b["price"] - a["price"] - fee_for(fees, a["venue"], a["price"], 1) - fee_for(fees, b["venue"], b["price"], 1)
+            if net >= min_net:
+                out.append({"ref": a["ref"], "ask": a["price"], "ask_venue": a["venue"], "ask_id": a["id"],
+                            "bid": b["price"], "bid_venue": b["venue"], "bid_id": b["id"], "net": net})
+    return sorted(out, key=lambda x: -x["net"])
