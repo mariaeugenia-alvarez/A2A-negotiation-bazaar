@@ -1,7 +1,7 @@
 # The Bazaar · Negotiation One-Sheet (master, v5)
 
 Saturday 3 Oct 2026, 13:05 (tick 583) · Team 9 · Spanish version: `ONE_SHEET.es.md` · Loops and experiments: `PLAYBOOK.md`
-**This sheet is the source of truth for today and tomorrow.** If another document disagrees, this one wins. Fix the
+**This sheet is the source of truth for today and tomorrow.** Strategy approved by Thameur at 13:35, except the delivery day, which stays a hypothesis. If another document disagrees, this one wins. Fix the
 other document.
 Sources: `RULES.md`, kickoff slides, Day 2 Hints, **organisers' Duels slides**, `GET /api/schedule`, our logs
 (`logs/score.jsonl`, `logs/duels/`, `TRADES.md`, `DEALERS.md`).
@@ -136,21 +136,36 @@ built so we can close in one or two rounds without losing the pie."*
 | Rivals often open **inside our limit** | 2338, 2549, 2325: taking it fast scored 12–31 |
 | Rivals reciprocate | A real step from us earns a real step. 1 P steps earn 1 P steps and burn rounds |
 
-### The rules for Duels II, III and the Final
-1. **Answer every duel, from its first tick.** No silence. Run `python3 duels_watch.py` (built, b5b9c13): it starts `duels.py` when duels go live, restarts it after a crash or when a live duel has waited 3 ticks for us, and alerts DUEL_START / DUEL_SILENT / DUEL_CRASH in `logs/alerts.jsonl`. **Only ONE machine runs it** (Thameur's or Maru's), or two agents would talk in the same duels ❓ who ran Duels I.
-2. **Open with an offer the other side can take** (organisers' slide). Not an extreme anchor: each round now costs 8% (Duels II) or 10% (Sunday).
-3. **Accept rule:** accept his offer if it is inside our limit and the extra we could win in one more round is **less than the decay** (8% or 10% of the surplus on the table), or if fewer than 3 ticks remain.
-4. **At most 2 counters**, each a **real step** (no 1 P steps). Then take the best offer inside our limit.
-5. **Never cross our limit** (hard rule 1). If his offers never come inside it, a no-deal is correct (duel 2487).
-6. **Every priced message in Duels II/III includes `days`** (otherwise `400 missing_days`) ✅.
+### The rules for Duels II, III and the Final (approved by Thameur, 13:35)
+1. **Answer every duel, from its first tick.** No silence by accident. Run `python3 duels_watch.py` (built, b5b9c13): it starts `duels.py` when duels go live, restarts it after a crash or when a live duel has waited 3 ticks for us, and alerts DUEL_START / DUEL_SILENT / DUEL_CRASH in `logs/alerts.jsonl`. **Only ONE machine runs it** (Thameur's or Maru's), or two agents would talk in the same duels ❓ who ran Duels I.
+2. **Our limit is firm.** As seller never below our cost, as buyer never above our value. Everything else adapts.
+3. **First offer: ambitious, but one the rival can accept.** Not an extreme anchor. Where Duels I deals landed ✅: as buyer 0.69–0.99 of our limit (median ≈ 0.87), as seller 1.04–1.46 (median ≈ 1.22). Our code opened at 0.55 / 1.45, outside that zone. **Proposed start, to check in simulation:** buyer ≈ 0.75 × limit, seller ≈ 1.30 × limit ⚠️.
+4. **Read the bot in front of us, then adapt in real time** (next block). This is where the extra price comes from.
+5. **Accept rule:** accept his offer if it is inside our limit and the extra we can still win is **less than what one more round costs** (8% or 10% of the surplus on the table), or if fewer than 3 ticks remain.
+6. **At most 2 counters**, each a **real step** (no 1 P steps). Then take the best offer inside our limit.
+7. **If his offers never come inside our limit, no deal is correct** (duel 2487).
+8. **Every priced message in Duels II/III includes `days`** (otherwise `400 missing_days`) ✅.
 
-### The delivery day: how to grow the pie ✅ (organisers' slide) + ⚠️ (our reading)
-- Each side has a private `your_days_weight`, a gain or a cost per day. **The deal is worth price surplus + weight × day to each side.**
-- Because each weight is per day, **the best day for the pair is always an end: day 0 or day 10** ⚠️. The day goes to whichever side cares more. The other side gets paid in price.
-- **His first day offer shows which end he prefers. His trades of day for price show how much he cares** (`bz/duel.py` estimates this already).
-- **Same end preferred:** offer that day at once. It is free value for both.
-- **Opposite ends:** if our weight is bigger, keep our day and pay up to (his weight × 10) in price. If his is bigger, give him his day and ask for up to (our weight × 10) in price.
-- **Before 18:30:** run `duels.py --dry` on a two-issue duel and check that `days_meaning` is read with the right sign.
+### Read the bot: what Duels I and practice show ✅ (61 duels, `logs/duels/`)
+- **A round is an exchange, not a tick.** A round counts only when he answers one of our offers. When only he talks, the round counter stays at 0 (duel 286: 12 messages from him, 0 rounds; duel 2485: he climbed 53 → 106, 0 rounds).
+- **Bots concede even when we stay silent:** in 89 of 104 cases his next offer moved our way with no message from us, by **4.2 P** on average. After a message from us he moved **6.0 P** on average.
+- **About half of the bots open already inside our limit** (12 of 25 when we buy, 9 of 25 when we sell).
+- **Aliases are not teams.** The same 8 names (Rival Oro, Plata, Rojo…) appear across many duels. We cannot remember a team by its alias.
+
+**How we adapt, per bot (decided from his first 1–3 messages):**
+| What the bot does | What we do |
+|---|---|
+| **Opens inside our limit with a good surplus** | One real counter at most to test him, then accept. Don't burn a round for little |
+| **Keeps conceding on his own while we are silent** (time-driven) | **Stay silent and let him come to us.** It costs no round. Accept the best offer inside our limit when his steps stop or 2–3 ticks before the deadline |
+| **Moves only when we move** (reciprocal) | Real steps from us: he answers in proportion (practice: our 1–5 P steps earned 5–14 P from Rival Rojo). Up to 2 counters, then accept |
+| **Barely moves, or stays outside our limit** (hard) | One real step to test him. If he still does not come inside our limit, a no-deal is correct |
+| **Answers our words** (mirrors, labels, asks) | Log it. Words ride with the price and never change our limit |
+
+### The delivery day (Duels II and III): a hypothesis, not a rule yet ⚠️
+- ✅ Each side has a private `your_days_weight` (a gain or a cost per day). The deal is worth price surplus + weight × day to each side. The organisers: "give the day to whoever cares more, trade it for price".
+- **Thameur's direction:** use the day as **leverage combined with our price**, not as an automatic push to day 0 or 10.
+- **Hypothesis to test in Duels II:** read which day he asks for first and how much price he gives when the day moves. Then offer packages where we give ground on the day he cares about and take it back in price. Compare result per deal with and without day moves.
+- **Before 18:30:** `duels.py --dry` on a two-issue duel, check that `days_meaning` is read with the right sign.
 
 ### Duels calendar ✅ (from `/api/schedule`, Madrid time estimated from tick 583 at 13:03)
 | Session | Real time ≈ | Clock | Decay per round | At once | Issues |
@@ -176,7 +191,7 @@ built so we can close in one or two rounds without losing the pie."*
 
 ### Market ✅
 - Free stall: efficiency 0.933, market 7.5. Top teams 10.6–12.1.
-- Maru built a broker (commit c9d2ea1). **Decision before the hard Market Test (≈21:30):** test it, or keep the free stall.
+- ✅ **At tick 575 someone on our key opened our own venue v21** (board, 0% fee, 270 P with a 250 P bond that comes back later). The free stall v12 closed. Cash fell to 75 P. No broker runs for v21 on Thameur's machine. A board without a broker scored 3.33 in Market Test 1 (Team 13). ❓ Who opened it, and does Maru's broker (`broker.py`, c9d2ea1) run for it before Market Test 3 (≈13:50)?
 - Market Tests at ≈13:50, 15:50, 17:50, 19:50, **21:30 (hard: firmer, more impatient traders)**, 21:50. Sunday every 2 h from ≈10:00.
 
 ---
@@ -220,8 +235,8 @@ built so we can close in one or two rounds without losing the pie."*
 ### Decisions for Thameur and Maru now
 1. **Quoter LIVE?** 180 P of standing bids for page cards, +79 of value if all fill.
 2. **Maru:** block dealer sales below our value and sales of page cards. Do we sell Salamanca to Pilar during the fever, or finish the page?
-3. **Duels II:** approve the doctrine in VI (fast deals, at most 2 counters, the delivery day rule). Thameur and the trader session turn it into `bz/duel.py` after the market work. **And: which machine ran `duels.py` in Duels I? Only one may run `duels_watch.py`.**
-4. **Market:** test Maru's broker before 21:30, or keep the free stall?
+3. **Duels II:** ✅ doctrine in VI approved at 13:35 (the delivery day stays a hypothesis). The trader session turns it into `bz/duel.py` and tests it in simulation before 18:00. **And: which machine ran `duels.py` in Duels I? Only one may run `duels_watch.py`.**
+4. **Market:** v21 is open. Who runs a broker for it, from when? Otherwise it may score below the free stall's 7.5.
 5. **Who watches the score** during Duels II (`observe.py tag D2`).
 
 ### Open questions ❓

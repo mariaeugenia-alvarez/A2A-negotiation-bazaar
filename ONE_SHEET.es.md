@@ -1,7 +1,7 @@
 # The Bazaar · Hoja de negociación (maestra, v5)
 
 Sábado 3 oct 2026, 13:05 (tick 583) · Equipo 9 · Versión en inglés: `ONE_SHEET.md` · Ciclos y experimentos: `PLAYBOOK.es.md`
-**Esta hoja es la fuente de verdad para hoy y mañana.** Si otro documento dice otra cosa, manda esta. Corrige el
+**Esta hoja es la fuente de verdad para hoy y mañana.** Estrategia aprobada por Thameur a las 13:35, salvo el día de entrega, que sigue siendo una hipótesis. Si otro documento dice otra cosa, manda esta. Corrige el
 otro documento.
 Fuentes: `RULES.md`, diapositivas del kickoff, Pistas del Día 2, **diapositivas de Duelos de la organización**,
 `GET /api/schedule`, nuestros registros (`logs/score.jsonl`, `logs/duels/`, `TRADES.md`, `DEALERS.md`).
@@ -138,20 +138,35 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 | Los rivales abren a menudo **dentro de nuestro límite** | 2338, 2549, 2325: aceptar rápido dio 12–31 |
 | Los rivales corresponden | Un paso real nuestro trae un paso real suyo. Pasos de 1 P traen pasos de 1 P y queman rondas |
 
-### Las reglas para Duelos II, III y la Final
-1. **Contestar cada duelo desde su primer tick.** Sin silencios. Ejecutar `python3 duels_watch.py` (hecho, b5b9c13): arranca `duels.py` cuando hay duelos en vivo, lo reinicia si se cae o si un duelo lleva 3 ticks esperándonos, y avisa con DUEL_START / DUEL_SILENT / DUEL_CRASH en `logs/alerts.jsonl`. **Solo UNA máquina lo ejecuta** (la de Thameur o la de Maru), o dos agentes hablarían en los mismos duelos ❓ quién ejecutó los Duelos I.
-2. **Abrir con una oferta que la otra parte pueda aceptar** (diapositiva de la organización). Nada de anclas extremas: cada ronda cuesta ahora un 8 % (Duelos II) o un 10 % (domingo).
-3. **Regla de aceptar:** aceptar su oferta si está dentro de nuestro límite y lo que podríamos ganar en una ronda más es **menos que el decaimiento** (8 % o 10 % del excedente en la mesa), o si quedan menos de 3 ticks.
-4. **Como mucho 2 contraofertas**, cada una un **paso real** (nada de pasos de 1 P). Después, aceptar la mejor oferta dentro de nuestro límite.
-5. **Nunca cruzar nuestro límite** (regla fija 1). Si sus ofertas nunca entran en él, no cerrar es lo correcto (duelo 2487).
-6. **Cada mensaje con precio en Duelos II/III incluye `days`** (si no, `400 missing_days`) ✅.
+### Las reglas para Duelos II, III y la Final (aprobadas por Thameur, 13:35)
+1. **Contestar cada duelo desde su primer tick.** Ningún silencio por accidente. Ejecutar `python3 duels_watch.py` (hecho, b5b9c13): arranca `duels.py` cuando hay duelos en vivo, lo reinicia si se cae o si un duelo lleva 3 ticks esperándonos, y avisa con DUEL_START / DUEL_SILENT / DUEL_CRASH en `logs/alerts.jsonl`. **Solo UNA máquina lo ejecuta** (la de Thameur o la de Maru), o dos agentes hablarían en los mismos duelos ❓ quién ejecutó los Duelos I.
+2. **Nuestro límite es firme.** Como vendedor, nunca por debajo de nuestro coste; como comprador, nunca por encima de nuestro valor. Todo lo demás se adapta.
+3. **Primera oferta: ambiciosa, pero que el rival pueda aceptar.** Nada de anclas extremas. Dónde cerraron los tratos de Duelos I ✅: como comprador, entre 0,69 y 0,99 de nuestro límite (mediana ≈ 0,87); como vendedor, entre 1,04 y 1,46 (mediana ≈ 1,22). Nuestro código abría a 0,55 / 1,45, fuera de esa zona. **Punto de partida propuesto, a comprobar en simulación:** comprador ≈ 0,75 × límite, vendedor ≈ 1,30 × límite ⚠️.
+4. **Leer al bot que tenemos delante y adaptarnos en tiempo real** (bloque siguiente). De ahí sale el precio extra.
+5. **Regla de aceptar:** aceptar su oferta si está dentro de nuestro límite y lo que aún podemos ganar es **menos de lo que cuesta una ronda más** (8 % o 10 % del excedente en la mesa), o si quedan menos de 3 ticks.
+6. **Como mucho 2 contraofertas**, cada una un **paso real** (nada de pasos de 1 P). Después, aceptar la mejor oferta dentro de nuestro límite.
+7. **Si sus ofertas nunca entran en nuestro límite, no cerrar es lo correcto** (duelo 2487).
+8. **Cada mensaje con precio en Duelos II/III incluye `days`** (si no, `400 missing_days`) ✅.
 
-### El día de entrega: cómo hacer crecer la tarta ✅ (diapositiva de la organización) + ⚠️ (nuestra lectura)
-- Cada parte tiene un `your_days_weight` privado, una ganancia o un coste por día. **El trato vale para cada parte excedente de precio + peso × día.**
-- Como cada peso es por día, **el mejor día para la pareja es siempre un extremo: día 0 o día 10** ⚠️. El día se lo queda quien más lo valora; al otro se le paga con precio.
-- **Su primera oferta de día dice qué extremo prefiere. Sus cambios de día por precio dicen cuánto le importa** (`bz/duel.py` ya lo estima).
-- **Si preferimos el mismo extremo:** ofrecer ese día enseguida. Es valor gratis para los dos.
-- **Si preferimos extremos opuestos:** si nuestro peso es mayor, quedarnos nuestro día y pagar hasta (su peso × 10) en precio. Si el suyo es mayor, darle su día y pedir hasta (nuestro peso × 10) en precio.
+### Leer al bot: lo que muestran los Duelos I y la práctica ✅ (61 duelos, `logs/duels/`)
+- **Una ronda es un intercambio, no un tick.** Solo cuenta cuando él contesta a una oferta nuestra. Si solo habla él, el contador de rondas sigue en 0 (duelo 286: 12 mensajes suyos, 0 rondas; duelo 2485: subió de 53 a 106, 0 rondas).
+- **Los bots ceden aunque nos callemos:** en 89 de 104 casos su siguiente oferta se movió a nuestro favor sin mensaje nuestro, **4,2 P** de media. Tras un mensaje nuestro se movió **6,0 P** de media.
+- **Más o menos la mitad de los bots abre ya dentro de nuestro límite** (12 de 25 cuando compramos, 9 de 25 cuando vendemos).
+- **Los alias no son equipos.** Los mismos 8 nombres (Rival Oro, Plata, Rojo…) salen en muchos duelos. No podemos recordar a un equipo por su alias.
+
+**Cómo nos adaptamos a cada bot (lo decidimos con sus 1–3 primeros mensajes):**
+| Qué hace el bot | Qué hacemos |
+|---|---|
+| **Abre dentro de nuestro límite con buen excedente** | Como mucho una contraoferta real para probarle, luego aceptar. No quemar una ronda por poco |
+| **Sigue cediendo solo mientras nos callamos** (va por tiempo) | **Callar y dejar que venga.** No cuesta ninguna ronda. Aceptar la mejor oferta dentro de nuestro límite cuando dejen de llegar pasos o 2–3 ticks antes del plazo |
+| **Solo se mueve cuando nos movemos** (recíproco) | Pasos reales nuestros: responde en proporción (práctica: nuestros pasos de 1–5 P trajeron 5–14 P de Rival Rojo). Hasta 2 contraofertas, luego aceptar |
+| **Casi no se mueve o sigue fuera de nuestro límite** (duro) | Un paso real para probarle. Si sigue sin entrar en nuestro límite, no cerrar es lo correcto |
+| **Responde a nuestras palabras** (repite, etiqueta, pregunta) | Anotarlo. Las palabras van con el precio y nunca cambian nuestro límite |
+
+### El día de entrega (Duelos II y III): una hipótesis, todavía no una regla ⚠️
+- ✅ Cada parte tiene un `your_days_weight` privado (una ganancia o un coste por día). El trato vale para cada parte excedente de precio + peso × día. La organización: «da el día a quien más lo valore y cámbialo por precio».
+- **Dirección de Thameur:** usar el día como **palanca combinada con nuestro precio**, no como un empujón automático al día 0 o 10.
+- **Hipótesis a probar en Duelos II:** leer qué día pide primero y cuánto precio da cuando el día se mueve. Luego ofrecer paquetes en los que cedemos en el día que le importa y lo recuperamos en precio. Comparar el resultado por trato con y sin movimientos de día.
 - **Antes de las 18:30:** `duels.py --dry` en un duelo de dos temas, y comprobar que `days_meaning` se lee con el signo correcto.
 
 ### Calendario de duelos ✅ (de `/api/schedule`, hora de Madrid estimada desde el tick 583 a las 13:03)
@@ -178,7 +193,7 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 
 ### Mercado ✅
 - Puesto gratis: eficiencia 0,933, mercado 7,5. Los mejores equipos: 10,6–12,1.
-- Maru ha hecho un broker (commit c9d2ea1). **Decisión antes del Market Test duro (≈21:30):** probarlo o seguir con el puesto gratis.
+- ✅ **En el tick 575 alguien abrió con nuestra clave un puesto propio, v21** (tablón, 0 % de comisión, 270 P con una fianza de 250 P que se recupera más tarde). El puesto gratis v12 se cerró. La caja bajó a 75 P. En la máquina de Thameur no corre ningún broker para v21. Un tablón sin broker sacó 3,33 en el Market Test 1 (Equipo 13). ❓ ¿Quién lo abrió, y corre el broker de Maru (`broker.py`, c9d2ea1) antes del Market Test 3 (≈13:50)?
 - Market Tests a las ≈13:50, 15:50, 17:50, 19:50, **21:30 (duro: traders más firmes e impacientes)**, 21:50. El domingo, cada 2 h desde ≈10:00.
 
 ---
@@ -222,8 +237,8 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 ### Decisiones para Thameur y Maru ahora
 1. **¿Quoter EN VIVO?** 180 P en pujas fijas por cartas de página, +79 de valor si todo se llena.
 2. **Maru:** bloquear las ventas a dealers por debajo de nuestro valor y las de cartas de página. ¿Vendemos Salamanca a Pilar durante la fiebre o completamos la página?
-3. **Duelos II:** aprobar la doctrina de la sección VI (tratos rápidos, como mucho 2 contraofertas, la regla del día de entrega). Thameur y la sesión del trader la pasan a `bz/duel.py` después del trabajo de mercado. **Y: ¿qué máquina ejecutó `duels.py` en los Duelos I? Solo una puede ejecutar `duels_watch.py`.**
-4. **Mercado:** ¿probar el broker de Maru antes de las 21:30 o seguir con el puesto gratis?
+3. **Duelos II:** ✅ doctrina de la sección VI aprobada a las 13:35 (el día de entrega sigue siendo una hipótesis). La sesión del trader la pasa a `bz/duel.py` y la prueba en simulación antes de las 18:00. **Y: ¿qué máquina ejecutó `duels.py` en los Duelos I? Solo una puede ejecutar `duels_watch.py`.**
+4. **Mercado:** v21 está abierto. ¿Quién le pone un broker y desde cuándo? Si no, puede sacar menos que el 7,5 del puesto gratis.
 5. **Quién vigila la puntuación** durante los Duelos II (`observe.py tag D2`).
 
 ### Preguntas abiertas ❓

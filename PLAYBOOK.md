@@ -31,7 +31,7 @@ them spend the same cash, so tell each other before a big purchase or before pos
 | L3 | **Duels** | each session | Deal rate, result per deal, rounds, unanswered duels | **Duels I baseline:** 18 deals of 30, result 13.3 per deal, deals in ≤ 2 rounds 20.4 vs ≥ 4 rounds 5.7, **8 duels lost to our silence**. Duels II target: 0 unanswered, ≥ 80% deals, median ≤ 2 rounds, ≥ 18 per deal. If the result per deal is lower with fewer rounds → go back to the Duels I logic for Sunday | `duels_watch.py` on one machine, `observe.py tag D2`, then `analyze_duels.py` |
 | L4 | **Quoter** | every tick once LIVE | Fills, `neg_points`, alerts | Each fill must raise `neg_points`. If a fill lowers it, or a STALE / FOREIGN alert appears, pause (`touch logs/trader.pause`) and look | `trader.py --quotes --live` after your OK |
 | L5 | **Dealers** | per dealer | Thread logs, `ladder_points`, `neg_points` | Dealer score is tiny (0.14). Deal only for value: page cards below value, spares above it. **No sale below our value, no page card** | Maru's scripts, `--model predict` |
-| L6 | **Market Test** | every 2 h | `bench_efficiency`, `market` for us and the best team | Free stall now 0.933 → market 7.5, best team 12.06. If Maru's broker beats 0.933 in a dry replay of the Market Test book → try it before the hard test (≈21:30). Otherwise keep the free stall | Read only until decided |
+| L6 | **Market Test** | every 2 h | `bench_efficiency`, `market` for us and the best team | Free stall gave 0.933 → market 7.5. **Since tick 575 our own venue v21 replaces it** (no broker seen yet). If v21 scores below 7.5 in Market Test 3 → a broker for it becomes the top market task | Read only |
 | L7 | **Words** | team trades first | Reply rate and price reached, per wording | Two wordings (plain vs label + one calibrated question), alternated, at least 10 each. Keep the one with the higher reply rate, then the better price. Never on El Chato | After L2 sends counters |
 
 ## 3. Timeline (Madrid, estimated from `/api/schedule` at tick 583, 13:03)
@@ -48,7 +48,7 @@ them spend the same cash, so tell each other before a big purchase or before pos
 
 ## 4. Build list (in this order)
 
-1. **Duel decision logic for Duels II** (`bz/duel.py`, Thameur + trader session): the doctrine in `ONE_SHEET.md` section VI. Accept when one more round can't beat the decay, at most 2 real counters, the delivery day goes to whoever cares more. Test it in simulation first.
+1. **Duel decision logic for Duels II** (`bz/duel.py`, trader session, approved 13:35): `ONE_SHEET.md` section VI. Firm limit, an ambitious first offer the rival can accept, read the bot and adapt (stay silent while he concedes on his own), accept when one more round can't beat the decay, at most 2 real counters. Delivery day: hypothesis only. Test in simulation before 18:00.
 2. **Dealer guard** (Maru): refuse any sale below our value and any card we need for a page.
 3. **Quoter LIVE** with your OK (180 P of bids, +79 of value if all fill).
 4. **Broker:** only if L6 says so.

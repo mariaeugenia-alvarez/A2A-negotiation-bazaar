@@ -32,7 +32,7 @@ máquina**. Todos gastan la misma caja, así que hay que avisarse antes de una c
 | L3 | **Duelos** | cada sesión | Tasa de tratos, resultado por trato, rondas, duelos sin respuesta | **Base de Duelos I:** 18 tratos de 30, 13,3 por trato; tratos en ≤ 2 rondas 20,4 frente a ≥ 4 rondas 5,7; **8 duelos perdidos por nuestro silencio**. Objetivo Duelos II: 0 sin respuesta, ≥ 80 % de tratos, mediana ≤ 2 rondas, ≥ 18 por trato. Si con menos rondas el resultado por trato baja → volver a la lógica de Duelos I para el domingo | `duels_watch.py` en una máquina, `observe.py tag D2`, luego `analyze_duels.py` |
 | L4 | **Quoter** | cada tick cuando esté EN VIVO | Ventas/compras llenadas, `neg_points`, avisos | Cada compra o venta llenada debe subir `neg_points`. Si una lo baja, o aparece un aviso STALE / FOREIGN, pausar (`touch logs/trader.pause`) y mirar | `trader.py --quotes --live` tras tu visto bueno |
 | L5 | **Dealers** | por dealer | Hilos, `ladder_points`, `neg_points` | Los dealers dan muy poca puntuación (0,14). Tratar solo por valor: cartas de página por debajo de su valor, repetidas por encima. **Ninguna venta por debajo de nuestro valor, ninguna carta de página** | Scripts de Maru, `--model predict` |
-| L6 | **Market Test** | cada 2 h | `bench_efficiency`, `market` nuestro y del mejor equipo | Puesto gratis ahora 0,933 → mercado 7,5; mejor equipo 12,06. Si el broker de Maru supera 0,933 repitiendo en seco el libro del Market Test → probarlo antes del test duro (≈21:30). Si no, seguir con el puesto gratis | Solo lectura hasta decidir |
+| L6 | **Market Test** | cada 2 h | `bench_efficiency`, `market` nuestro y del mejor equipo | El puesto gratis dio 0,933 → mercado 7,5. **Desde el tick 575 lo sustituye nuestro puesto propio v21** (sin broker visto aún). Si v21 saca menos de 7,5 en el Market Test 3 → ponerle un broker pasa a ser la primera tarea de mercado | Solo lectura |
 | L7 | **Palabras** | primero en tratos con equipos | Tasa de respuesta y precio logrado, por redacción | Dos redacciones (simple frente a etiqueta + una pregunta calibrada), alternadas, al menos 10 de cada. Quedarse con la de más respuestas y luego mejor precio. Nunca con El Chato | Cuando L2 envíe contraofertas |
 
 ## 3. Calendario (Madrid, estimado desde `/api/schedule` en el tick 583, a las 13:03)
@@ -49,7 +49,7 @@ máquina**. Todos gastan la misma caja, así que hay que avisarse antes de una c
 
 ## 4. Lista de trabajo (en este orden)
 
-1. **Lógica de decisión de los Duelos II** (`bz/duel.py`, Thameur + sesión del trader): la doctrina de la sección VI de `ONE_SHEET.es.md`. Aceptar cuando una ronda más no pueda superar el decaimiento, como mucho 2 contraofertas reales, el día de entrega para quien más lo valore. Probarla antes en simulación.
+1. **Lógica de decisión de los Duelos II** (`bz/duel.py`, sesión del trader, aprobada a las 13:35): sección VI de `ONE_SHEET.es.md`. Límite firme, primera oferta ambiciosa que el rival pueda aceptar, leer al bot y adaptarse (callar mientras cede solo), aceptar cuando una ronda más no pueda superar el decaimiento, como mucho 2 contraofertas reales. Día de entrega: solo hipótesis. Probar en simulación antes de las 18:00.
 2. **Guardián de dealers** (Maru): rechazar cualquier venta por debajo de nuestro valor y cualquier carta que nos falte para una página.
 3. **Quoter EN VIVO** con tu visto bueno (180 P en pujas, +79 de valor si todo se llena).
 4. **Broker:** solo si L6 lo pide.
