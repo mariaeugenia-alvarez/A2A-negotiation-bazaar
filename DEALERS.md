@@ -193,6 +193,28 @@ nuestros 712, 778, 783 y 794):**
 paciencia (Abuela 0,85 → 5-7; El Chato 0,35 → 3 observado, 2 con el prior). `learn.messages_per_trait` lo calcula con
 los dealers que ya conocemos, y un hilo real sustituye al prior.
 
+## Los Pícaros (nivel 4, «trickster») · estudio del feed, sábado t ≈ 8,45 h
+Rasgos: paciencia 0,4, generosidad 0,6, astucia 0,7, memoria 0,3, rigor 0,1, charla 0,8. Para t09 ya están
+desbloqueados (2 tratos con Pilar); abren a todos en t = 8,67 h. Venden raras (lista 63) y épicas (lista 162);
+compran comunes y poco comunes. 6 tratos por hora. Datos: 27 hilos del feed (ticks 803-856), 5 liquidaciones.
+
+**Comprarles una rara: es donde ganamos.**
+| Hilo | Carta | Ellos | El otro equipo | Cierre |
+|---|---|---|---|---|
+| 1183 t14 | RET-09 | 73 → 65 → 60 → 56 | 45 → 49 → 53 → 57 | 57 (t14 pagó 1 de más: ellos ya pedían 56) |
+| 1169 t08 | SAL-10 | 73 → 66 → 62 → 62 | 50 → 55 → 55 | 62 (al repetir 55, no se movieron) |
+- Siempre abren en 73. Ceden ~30 % de lo que queda hasta nuestra oferta, y nada si repetimos el precio.
+- Cierres a 56-62, contra 84-89 de El Chato por una rara.
+- **Las cartas son reales** (liquidaciones 799 y 809: SAL-10 y RET-09, rare, print_run 30). Lo de pícaros está en
+  las palabras: plazos falsos («the van is leaving»), «last one in all Madrid» (MAL-09 ofrecida 3 veces) y «otro
+  equipo paga más». Ignorarlas. Casi nunca usan `final: true`.
+- Épicas: 187 → 145 en 4 respuestas (t14 ofrecía 95-104).
+- `bz.predict`: buy:rare con solo 2 hilos en los que se movieron, pocos datos y sin modelo → `--model learn`.
+- **Jugada:** abrir en 45 y subir +4 sin repetir (49, 53, 55/56), con límite 60. Aceptar su precio en cuanto sea ≤ nuestra
+  siguiente oferta. Si no hay trato, reabrir el hilo (memoria 0,3).
+
+**Venderles: no.** Común: pujan 4 (5 como mucho). Poco común: pujan 10, +1 por movimiento, hasta 11-12. Abuela y Pilar pagan más.
+
 ## Puntuación: experimentos con `neg_points` (viernes 22:00–22:22)
 La clasificación (y el `score` de `/api/me`) se recalcula cada 5 ticks (`snapshot_tick`, `next_refresh_tick`).
 
