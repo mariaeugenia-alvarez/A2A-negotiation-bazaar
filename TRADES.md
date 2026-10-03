@@ -14,6 +14,12 @@ offers ("settled") and each card's history (`GET /api/cards/{id}`). Value = what
 | 380 | Bought SAL-08 from Team 2 (El Rastro) | 20 | 2, by them | 27.5 | **+7.5** | our standing bid | |
 | 381 | Bought MAL-04 from Team 6 (El Rastro) | 8 | 2, by them | 9 | **+1** | our standing bid | |
 | 383 | Bought SAL-05 from Team 12 (El Rastro) | 8 | by them | 11 | **+3** | our standing bid | |
+| 591 | Bought RET-05 from Team 14 (v02) | 9 | 0 | 13 (first copy) | **+4** | settlement 579 | Found by the research session; who accepted is unknown |
+| 593 | Bought RET-03 from Team 14 (v02) | 9 | 0 | 13 (first copy) | **+4** | settlement 583 | |
+| 598 | Bought RET-04 from Team 14 (v02) | 9 | 0 | 13 (first copy) | **+4** | settlement 590 | |
+| 655 → 656 | **Sold RET-06** (our only copy) to `mab2c6e8b` (El Rastro bid 8729) | 26 | by them | **32.5** (asset); b.value said 8.1 | **−6.5** | negociaciones2 session, by hand | ⚠️ Checked with b.value (one more copy, 25 %) instead of the asset's your_value: broke the floor rule |
+| 681 → 682 | Bought RET-02 from `m5e679080` (El Rastro ask 9642) | 9 | 1, by us | 13 (b.value) | **+3** | negociaciones2, by hand | |
+| 682 → 683 | Bought RET-06 from `mce61e614` (v07 ask 9605) | 28 | 0 | 32.5 (b.value) | **+4.5** | negociaciones2, by hand | Buys back what we sold at 656 (2.0 P worse) |
 
 ### Standing bids (posted on our key at ticks 378–379)
 
@@ -53,6 +59,10 @@ offers ("settled") and each card's history (`GET /api/cards/{id}`). Value = what
 | 337 → 347 | Abuela deals | 4.0 | 0.012 → 0.049 |
 | 353 | LAV-04 bought from Team 18 (+ LAV-10 from El Chato) | **7.2** | 0.068 |
 | 362 | LAV-09 from El Chato | 7.2 | 0.077 |
+| ≤ 645 | (several trades, see above; a 24.2 → 19.1 drop is not explained yet) | 19.1 | 0.208 |
+| 656 | RET-06 sold at 26 (worth 32.5, gain −6.5) | **13.0** (−6.1) | 0.208 |
+| 682 | RET-02 bought at 9 + 1 (worth 13, gain +3) | **14.2** (+1.2) | 0.208 |
+| 683 → 689 | RET-06 bought at 28 (worth 32.5, gain +4.5) | 14.2 (not reflected yet at 689) | 0.208 |
 
 ## Verified rules (use these, not the older notes)
 
