@@ -18,6 +18,11 @@ Sources: `RULES.md`, kickoff slides, **Day 2 Hints**, the desk, our own data and
 - **Confirmed:** the desk said a silent duel rival means zero for both sides. They would not tell us how the 30 points split. We find out by experiment.
 - **New from the hints:** a deal above your own value costs points. Open duels with an offer the other side can take. Read `GET /api/me/offers` every tick. Post standing bids and swaps with `expires_in_ticks`.
 - **New in our data:** we have a free stall (`v12`). Market Test 1 gave it 89.9% efficiency and a market score of 4.8. The game runs about 30 minutes behind the plan.
+- **Verified in play by 11:30 (details and every trade in `TRADES.md`):**
+  - **Team trades move `neg_points`; dealer deals move `ladder_points`.** Selling MAL-10 to Team 13 took `neg_points` from 0 to 4.0. Five dealer deals left it unchanged.
+  - **The side that accepts pays the fee.** If they accept our offer, we receive the full price.
+  - **Page bonus = 25% of the page's total value, added to every card of the complete page.** Lavapiés is complete: each of its cards gained 106 P of value. Never sell one of them.
+  - **Who does what:** the dealer scripts (teammate) handle Abuela, El Chato and Pilar. `trader.py` handles other teams only. Nothing live starts without Thameur's OK.
 
 ### 1. Where the points are ✅
 - 100 points: **Negotiating 30**, **Market 30**, **Judges 40**.
@@ -41,8 +46,8 @@ Sources: `RULES.md`, kickoff slides, **Day 2 Hints**, the desk, our own data and
 - **Copy factor:** 1st copy 1.0, 2nd 0.25, 3rd and later 0.1. So spares are worth little to us and a lot to a team that misses the card.
 - **Our private set multipliers:** Lavapiés 1.6, El Retiro 1.3, Salamanca 1.1, Malasaña 0.9, Chamberí 0.7, La Latina 0.5. Our best page to finish is Lavapiés.
 - **Never pay above your own value.** Sell spares first, never below what the copy is worth to us.
-- ❓ **Page bonus** (25% in the catalog, 10% for the master) is **not** in `your_value`. How it is counted is unknown. Until we measure it, a card that completes a page goes to a person, not to the automatic rules.
-- ✅ **Fees:** the side that accepts an offer pays the venue fee (SDK). El Rastro charges 5% + 1 P per card. Posting our offer and letting them accept can save us the fee ⚠️.
+- ✅ **Page bonus:** a complete page adds 25% of the page's total value to every card of that page, and the game's `your_value` includes it. Our formula does not, so the trader reads values from the game. The master bonus (10%) is not measured yet. A card that would complete a page still goes to a person.
+- ✅ **Fees:** the side that accepts pays the venue fee (checked on our trades). El Rastro charges 5% + 1 P per card. When we post the offer and they accept, they pay it.
 
 ### 4. The experiments (one action, one number to watch)
 All our scores are 0.0 now, so every change today is clean. Our numbers are in `GET /api/me` → `score` and refresh about every 5 ticks. Write down the number **before** and **after**.
@@ -56,7 +61,7 @@ All our scores are 0.0 now, so every change today is clean. Our numbers are in `
 - **One thing at a time.** Two actions together hide which one moved the number.
 - **Real trades cost primas.** Theory first, free simulation next, then real trades **only with your approval.**
 
-### 5. The auto-negotiator for offers sent to us (plan, not built yet)
+### 5. The auto-negotiator for offers from other teams (built: `trader.py`; fixed after the morning's mistakes, see `TRADES.md`)
 - **Reads the structure only** (`give` and `want`), never the words. The rules say: check the offer, not the message.
 - **Buy:** accept only if (value we receive) − (cash we pay) − (fee) clears a margin.
 - **Sell:** never below the value of the copy we give. Spares first.
@@ -90,7 +95,7 @@ Check `GET /api/schedule` for the real times. Tomorrow: ticks of 15 s, Duels III
 ### 8. Markets (30 points) ✅
 - **Three kinds of market:** the house (El Rastro: 5% + 1 P per card, posted offers, no broker), a `board` venue (its owner's broker matches offers: keep it running), an `auto` venue (the engine matches best bid and best ask every tick).
 - **Fees never score.** What scores: the Market Test (same synthetic book for every venue, every 2 h) and value created between other teams on your venue.
-- **We already have a free stall:** `v12`, auto, 3% fee, no bond, opened at tick 201. Full points go to the mean of the top three venues.
+- **We already have a free stall:** `v12`, auto, no bond, opened at tick 201. Its fee was 3%; we set it to **0%** at tick 330, because fees never score and can block matches. Full points go to the mean of the top three venues.
 - **Market Test 1 result (ticks 201–217) ✅:** our stall realised **89.9%** of the possible gains and got **0.5 bench points**. After the score refresh (tick 220) our market score is **4.8**. Teams 14 and 18 show the same 4.8, as expected for identical free stalls.
 - **The best market score is Team 12 with 8.01** (a `board` venue, 0% fee). That is about **+3.2 over the free stall** after one session ⚠️. It had 1 trade of 7 P, so most of it is probably the Market Test, not trades. How they matched is unknown. Each later session counts separately and the round averages them.
 - **18 venues are open,** 7 opened by teams, almost all at 0% fee. Our own agent cannot trade on our own venue.

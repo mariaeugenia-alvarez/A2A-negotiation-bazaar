@@ -4,13 +4,14 @@ Saturday 3 Oct 2026 · Team 9 · Spanish version: `PLAYBOOK.es.md` · Strategy: 
 
 **Rule for every loop: one change, one number to watch, and the decision rule written down BEFORE we look at the result.**
 Real trades cost primas: nothing below sends anything unless it says LIVE, and LIVE needs your approval.
+**Who does what:** the dealer scripts (`agent.py`, `bz/haggle.py`: teammate) handle Abuela, El Chato and Pilar. `trader.py` handles other teams only. Both spend the same cash, so tell each other before a big purchase.
 
 ## 1. What is built now (all read-only, tested)
 
 | Tool | What it does | Command |
 |---|---|---|
 | `observe.py` | Records our score numbers whenever one changes. Stores the experiment tag, plus the leader's and the median's negotiating score, to tell our change from a drift of the whole field. | `python3 observe.py` · `python3 observe.py tag E1` |
-| `trader.py` | Every tick judges each offer made to us, by structure only (`bz/trade.py`). **Shadow:** prints and logs ACCEPT / COUNTER / IGNORE / HUMAN, sends nothing. | `python3 trader.py` |
+| `trader.py` | Every tick judges offers from **other teams only**, by structure only, with values from the game (`bz/trade.py`). Shadow by default. `--live` accepts clear wins and counters. `--live-boards` also accepts public asks (40 P cap). Never two open offers for one card, never below the best recent bid. `touch logs/trader.pause` stops it. Every trade: `TRADES.md`. | `python3 trader.py [--live [--live-boards]]` |
 | `duels.py --ab` | Split test of the duel opening: alternates two openings by duel id. Without `--ab` it behaves as before. | `python3 duels.py --ab 0.45,0.25` |
 | `analyze_duels.py` | Reads the split test per arm and per role. | `python3 analyze_duels.py --since <first duel id>` |
 | Tests | 13 trade checks, analyzer checks, the older duel and price checks. | `python3 tests/test_trade.py` and the other files in `tests/` |

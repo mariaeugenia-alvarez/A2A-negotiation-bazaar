@@ -18,6 +18,11 @@ Fuentes: `RULES.md`, diapositivas del kickoff, **Pistas del Día 2**, el mostrad
 - **Confirmado:** el mostrador dijo que un rival callado en un duelo significa cero para los dos. No quiso decirnos cómo se reparten los 30 puntos. Lo descubrimos con experimentos.
 - **Nuevo en las pistas:** un trato por encima de tu propio valor cuesta puntos. Abrir los duelos con una oferta que la otra parte pueda aceptar. Leer `GET /api/me/offers` en cada tick. Publicar pujas y cambios con `expires_in_ticks`.
 - **Nuevo en nuestros datos:** tenemos un puesto gratis (`v12`). El Market Test 1 le dio un 89,9 % de eficiencia y una puntuación de mercado de 4,8. El juego va unos 30 minutos por detrás del plan.
+- **Comprobado en juego hacia las 11:30 (detalles y cada trato en `TRADES.md`):**
+  - **Los tratos con equipos mueven `neg_points`; los tratos con dealers mueven `ladder_points`.** Vender MAL-10 al equipo 13 llevó `neg_points` de 0 a 4,0. Cinco tratos con dealers no lo movieron.
+  - **Paga la comisión quien acepta.** Si aceptan nuestra oferta, recibimos el precio completo.
+  - **Bono de página = 25 % del valor total de la página, sumado a cada carta de la página completa.** Lavapiés está completa: cada una de sus cartas ganó 106 P de valor. No vender ninguna.
+  - **Quién hace qué:** los scripts de dealers (compañera) llevan Abuela, El Chato y Pilar. `trader.py` lleva solo a los otros equipos. Nada en vivo arranca sin el OK de Thameur.
 
 ### 1. Dónde están los puntos ✅
 - 100 puntos: **Negociar 30**, **Mercado 30**, **Jurado 40**.
@@ -41,8 +46,8 @@ Fuentes: `RULES.md`, diapositivas del kickoff, **Pistas del Día 2**, el mostrad
 - **Factor de copia:** 1.ª copia 1,0, 2.ª 0,25, 3.ª y siguientes 0,1. Por eso los repetidos nos valen poco y a un equipo al que le falta la carta le valen mucho.
 - **Nuestros multiplicadores privados:** Lavapiés 1,6, El Retiro 1,3, Salamanca 1,1, Malasaña 0,9, Chamberí 0,7, La Latina 0,5. Nuestra mejor página para completar es Lavapiés.
 - **Nunca pagar por encima de tu propio valor.** Vender primero los repetidos, nunca por debajo de lo que vale la copia para nosotros.
-- ❓ El **bono de página** (25 % en el catálogo, 10 % el de maestro) **no** está en `your_value`. No sabemos cómo se cuenta. Hasta medirlo, una carta que completa una página va a una persona, no a las reglas automáticas.
-- ✅ **Comisiones:** quien acepta una oferta paga la comisión del mercado (SDK). El Rastro cobra 5 % + 1 P por carta. Publicar nuestra oferta y dejar que la acepten puede ahorrarnos la comisión ⚠️.
+- ✅ **Bono de página:** una página completa suma el 25 % del valor total de la página a cada una de sus cartas, y el `your_value` del juego lo incluye. Nuestra fórmula no, así que el trader lee los valores del juego. El bono de maestro (10 %) aún no está medido. Una carta que completaría una página sigue yendo a una persona.
+- ✅ **Comisiones:** paga la comisión quien acepta (comprobado en nuestros tratos). El Rastro cobra 5 % + 1 P por carta. Si publicamos la oferta y la aceptan ellos, la pagan ellos.
 
 ### 4. Los experimentos (una acción, un número que mirar)
 Todas nuestras puntuaciones están ahora a 0,0, así que cualquier cambio de hoy es limpio. Nuestros números están en `GET /api/me` → `score` y se actualizan cada 5 ticks más o menos. Apuntar el número **antes** y **después**.
@@ -56,7 +61,7 @@ Todas nuestras puntuaciones están ahora a 0,0, así que cualquier cambio de hoy
 - **Una cosa cada vez.** Dos acciones juntas esconden cuál movió el número.
 - **Los tratos reales cuestan primas.** Primero teoría, luego simulación gratis, y los tratos reales **solo con tu aprobación.**
 
-### 5. El negociador automático para ofertas que nos llegan (plan, aún sin construir)
+### 5. El negociador automático para ofertas de otros equipos (construido: `trader.py`; arreglado tras los errores de la mañana, ver `TRADES.md`)
 - **Lee solo la estructura** (`give` y `want`), nunca las palabras. Las reglas dicen: mirar la oferta, no el mensaje.
 - **Comprar:** aceptar solo si (valor que recibimos) − (dinero que pagamos) − (comisión) supera un margen.
 - **Vender:** nunca por debajo del valor de la copia que damos. Primero los repetidos.
@@ -90,7 +95,7 @@ Mirar `GET /api/schedule` para las horas reales. Mañana: ticks de 15 s, Duelos 
 ### 8. Mercados (30 puntos) ✅
 - **Tres tipos de mercado:** la casa (El Rastro: 5 % + 1 P por carta, ofertas publicadas, sin broker), un mercado `board` (el broker de su dueño empareja ofertas: hay que mantenerlo en marcha) y un mercado `auto` (el motor empareja la mejor compra y la mejor venta en cada tick).
 - **Las comisiones nunca puntúan.** Lo que puntúa: el Market Test (el mismo libro sintético para todos, cada 2 h) y el valor creado entre otros equipos en tu mercado.
-- **Ya tenemos un puesto gratis:** `v12`, auto, 3 % de comisión, sin fianza, abierto en el tick 201. Los puntos completos van a la media de los tres mejores mercados.
+- **Ya tenemos un puesto gratis:** `v12`, auto, sin fianza, abierto en el tick 201. Su comisión era del 3 %; la pusimos al **0 %** en el tick 330, porque las comisiones nunca puntúan y pueden bloquear emparejamientos. Los puntos completos van a la media de los tres mejores mercados.
 - **Resultado del Market Test 1 (ticks 201–217) ✅:** nuestro puesto realizó el **89,9 %** de las ganancias posibles y recibió **0,5 puntos del test**. Tras la actualización de puntuación (tick 220), nuestra puntuación de mercado es **4,8**. Los equipos 14 y 18 muestran el mismo 4,8, como se espera de puestos gratis idénticos.
 - **La mejor puntuación de mercado es la del equipo 12 con 8,01** (un mercado `board`, 0 % de comisión). Son unos **+3,2 sobre el puesto gratis** tras una sesión ⚠️. Hizo 1 trato de 7 P, así que casi todo será del Market Test, no de tratos. No sabemos cómo emparejó. Cada sesión siguiente cuenta por separado y la ronda hace la media.
 - **Hay 18 mercados abiertos,** 7 abiertos por equipos, casi todos con 0 % de comisión. Nuestro propio agente no puede tratar en nuestro propio mercado.

@@ -110,11 +110,19 @@ def backfill(b) -> int:
     return n
 
 
+# Threads the haggle logic did not close on its own: on Saturday morning trader.py accepted Abuela's offer in 503
+# (trade #4939). Its closing price says nothing about her limits. In 492 and 518 trader.py sent extra offers that did
+# not settle (the deals are trades #4869 and #5116, from the thread), so those two stay in. See TRADES.md.
+EXCLUDE = {503}
+
+
 def transcripts() -> list:
     if not os.path.isdir(THREAD_DIR):
         return []
     out = []
     for name in sorted(os.listdir(THREAD_DIR), key=lambda n: int(n.split(".")[0]) if n[0].isdigit() else 0):
+        if name.split(".")[0].isdigit() and int(name.split(".")[0]) in EXCLUDE:
+            continue
         with open(os.path.join(THREAD_DIR, name), encoding="utf-8") as f:
             out.append(json.load(f))
     return out

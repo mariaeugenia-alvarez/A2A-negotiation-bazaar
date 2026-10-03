@@ -4,13 +4,14 @@ Sábado 3 oct 2026 · Equipo 9 · Versión en inglés: `PLAYBOOK.md` · Estrateg
 
 **Regla de cada ciclo: un cambio, un número que mirar, y la regla de decisión escrita ANTES de ver el resultado.**
 Los tratos reales cuestan primas: nada de lo siguiente envía algo salvo que ponga LIVE, y LIVE necesita tu aprobación.
+**Quién hace qué:** los scripts de dealers (`agent.py`, `bz/haggle.py`: compañera) llevan Abuela, El Chato y Pilar. `trader.py` lleva solo a los otros equipos. Los dos gastan la misma caja, así que hay que avisarse antes de una compra grande.
 
 ## 1. Lo que ya está construido (todo de solo lectura, con pruebas)
 
 | Herramienta | Qué hace | Comando |
 |---|---|---|
 | `observe.py` | Registra nuestras puntuaciones cada vez que cambia una. Guarda la etiqueta del experimento y la puntuación de negociar del líder y de la mediana, para distinguir un cambio nuestro de una deriva de todo el campo. | `python3 observe.py` · `python3 observe.py tag E1` |
-| `trader.py` | En cada tick juzga cada oferta que nos hacen, solo por la estructura (`bz/trade.py`). **Sombra:** muestra y guarda ACCEPT / COUNTER / IGNORE / HUMAN, no envía nada. | `python3 trader.py` |
+| `trader.py` | En cada tick juzga ofertas **solo de otros equipos**, solo por la estructura, con valores del juego (`bz/trade.py`). En sombra por defecto. `--live` acepta ganancias claras y contraoferta. `--live-boards` también acepta ofertas públicas (tope 40 P). Nunca dos ofertas abiertas por una carta, nunca por debajo de la mejor puja reciente. `touch logs/trader.pause` lo para. Cada trato: `TRADES.md`. | `python3 trader.py [--live [--live-boards]]` |
 | `duels.py --ab` | Prueba dividida de la apertura en duelos: alterna dos aperturas según el id del duelo. Sin `--ab` se comporta como antes. | `python3 duels.py --ab 0.45,0.25` |
 | `analyze_duels.py` | Lee la prueba dividida por brazo y por rol. | `python3 analyze_duels.py --since <primer id de duelo>` |
 | Pruebas | 13 comprobaciones de tratos, las del analizador y las antiguas de duelos y precios. | `python3 tests/test_trade.py` y los demás archivos de `tests/` |
