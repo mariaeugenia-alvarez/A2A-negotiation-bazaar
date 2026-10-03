@@ -23,6 +23,7 @@ from agent import connect
 from bazaar_sdk import BazaarError
 from bz import log
 from bz.state import State
+from bz.quoter import Quoter
 from bz.trade import GameValues, anchor, cost, counter_body, is_lowball, judge, wanted_refs
 
 PAUSE = os.path.join(log.LOG_DIR, "trader.pause")
@@ -97,6 +98,10 @@ def main() -> None:
     ap.add_argument("--budget", type=int, default=BOARD_BUDGET, help="most we spend on public-board accepts (cash + fee)")
     ap.add_argument("--cancel-stale-bids", action="store_true",
                     help="with --live: cancel our open bid for a card we already hold (off: only warn)")
+    ap.add_argument("--quotes", action="store_true",
+                    help="keep standing bids for missing page cards and asks for spares (bz/quoter.py); posts only with --live")
+    ap.add_argument("--quote-budget", type=int, default=180, help="most cash our standing bids may promise at once")
+    ap.add_argument("--notify", action="store_true", help="macOS notifications for STOP, WIN, PAGE and FOREIGN alerts")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--no-boards", dest="boards", action="store_false", help="do not scan the public boards")
     args = ap.parse_args()
@@ -114,7 +119,8 @@ def main() -> None:
     bids = {}       # card -> [(tick, cash)] bids seen from anyone
     check = None    # (decision, offer, tick) of the last accept, to read its settlement
     value_cache, holdings = {}, None
-    log.say(f"trader: {'LIVE' if args.live else 'shadow'}"
+    quoter = Quoter(b, args.quote_budget, notify=args.notify) if args.quotes else None
+    log.say(f"trader: {'LIVE' if args.live else 'shadow'}" + (f" + quotes (budget {args.quote_budget} P)" if quoter else "")
             + (f" + boards (budget {args.budget} P, {spent_on_boards()} P already spent)" if args.live and args.live_boards else ""))
     while True:
         try:
@@ -188,6 +194,13 @@ def main() -> None:
             acting = args.live and not os.path.exists(PAUSE)
             if args.live and not acting and tick % 10 == 0:
                 log.say("trader: paused (logs/trader.pause)")
+            if quoter:
+                try:
+                    quoter.step(tick, st, mine, values, best_bid, settlement_for, PAUSE, acting)
+                except BazaarError as e:
+                    quoter.guard.error(tick, e.code)
+                    log.say(f"quoter: {e}")
+                acting = args.live and not os.path.exists(PAUSE)  # a guard stop pauses everything at once
             if acting:
                 if args.cancel_stale_bids:
                     for o in stale:
