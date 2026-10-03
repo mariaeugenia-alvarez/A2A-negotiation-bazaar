@@ -11,9 +11,18 @@ tick 1 we open at 0.75 x our limit (buyer) / 1.30 x (seller), then go quiet and 
 come to us; we take his best in-limit offer when he has not moved for 2 ticks, or at deadline - 2. A reciprocal rival
 gets real steps, at most 2 counters, and we accept when one more round cannot beat the decay. Our limit is never
 crossed. Days are sent with every offer; leaning toward our side is a hypothesis, his day asks are logged.
+The rival's moves are measured in OUR TOTAL VALUE U = price surplus + w x day (read_bot): a rival who holds his price and
+moves the day toward us is conceding; one who improves the price but moves the day against us is judged on the net.
 
-SAFETY SWITCH: if after the first wave of Duels II fewer than 70 % of our duels close, or rivals stop conceding on their
-own, restart with --policy v1:   python3 analyze_duels.py --since <first duel id of the session>   to check the rate.
+SAFETY SWITCH (replaces the old 70 % rule): restart with --policy v1 only if
+  1. at least 2 AVOIDABLE no-deals: the duel ended with no deal although the rival made at least one offer inside our
+     limit with U >= 1 (silent rivals and rivals that never came inside our limit do not count), or
+  2. this agent stops or crashes and duels_watch.py cannot restart it.
+Check with:   python3 analyze_duels.py --since <first duel id of the session>   (prints the avoidable no-deals).
+
+Texts: one per situation (opening, counter, last call), Spanish and English, short, always with the price and, when the
+duel has days, the day. They never state our limit or our weight, and never say "last" or "final" except the last call.
+Words never change a price or a day.
 """
 import argparse
 import fcntl
@@ -26,13 +35,25 @@ from bazaar_sdk import BazaarError
 from bz import log
 from bz.duel import OPEN2, OPEN_FRAC, decide, decide2
 
-TEXTS = ["Thank you for meeting me. I can do {o}.", "I appreciate your move. {o} is where I can be.",
-         "Let us close quickly: {o}.", "A real step towards you: {o}.", "I think {o} is fair for both of us."]
+TEXTS = {  # (stage, has_day) -> text; {p} price, {d} day. Spanish / English.
+    ("opening", True): "Rápido y justo: {p} P, día {d}. ¿Qué día de entrega te va mejor? / "
+                       "Quick and fair: {p} P, day {d}. Which delivery day suits you best?",
+    ("counter", True): "Parece que el día te importa: {p} P con día {d}. / It seems the day matters to you: {p} P, day {d}.",
+    ("last_call", True): "Mi mejor oferta: {p} P, día {d}. / My best offer: {p} P, day {d}.",
+    ("opening", False): "Rápido y justo: {p} P. / Quick and fair: {p} P.",
+    ("counter", False): "Parece que cerrar rápido te importa: {p} P. / It seems closing fast matters to you: {p} P.",
+    ("last_call", False): "Mi mejor oferta: {p} P. / My best offer: {p} P.",
+}
 
 
-def offer_text(i: int, price: int, days) -> str:
-    o = f"{price} P" + (f" with delivery on day {days}" if days is not None else "")
-    return TEXTS[i % len(TEXTS)].format(o=o)
+def offer_text(stage: str, price: int, days=None) -> str:
+    """The words for one offer. The price (and the day, when there is one) are always in the text."""
+    return TEXTS[(stage if (stage, days is not None) in TEXTS else "counter", days is not None)].format(p=int(price), d=days)
+
+
+def stage_of(a: dict) -> str:
+    """v2 names the stage of each offer; v1 does not: its first offer is the opening, the rest are counters."""
+    return a.get("stage") or ("opening" if not a.get("k") else "counter")
 
 
 def arm_for(duel_id, arms: list) -> float:
@@ -59,10 +80,10 @@ def play(b, d: dict, tick: int, args) -> None:
     if a["action"] == "accept":
         b.duel_accept(d["duel"])
     elif a["days"] is None:
-        b.duel_say(d["duel"], offer_text(a["k"], a["price"], None), price=a["price"])
+        b.duel_say(d["duel"], offer_text(stage_of(a), a["price"], None), price=a["price"])
     else:  # price and days side by side at the top level, as the rules show
         b.call("POST", f"/api/duels/{int(d['duel'])}/messages",
-               {"text": offer_text(a["k"], a["price"], a["days"]), "price": int(a["price"]), "days": int(a["days"])})
+               {"text": offer_text(stage_of(a), a["price"], a["days"]), "price": int(a["price"]), "days": int(a["days"])})
 
 
 def main() -> None:

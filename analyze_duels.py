@@ -12,6 +12,7 @@ import os
 import statistics
 
 from bz import log
+from bz.duel import days_weight, inside, surplus
 
 
 def arms_from_log(path: str) -> dict:
@@ -44,6 +45,34 @@ def summarize(duels: list, arm_of: dict) -> dict:
     return out
 
 
+SWITCH_AT = 2   # avoidable no-deals that send us back to --policy v1
+
+
+def avoidable_no_deals(duels: list, grace: int = 2) -> list:
+    """No-deals that did not have to be: the duel ended with no deal although the rival made at least one offer inside our
+    limit with U >= 1 (U = price surplus + w x day, w from days_meaning). Silent rivals and rivals that never came inside
+    our limit are not avoidable. An offer made less than `grace` ticks before the deadline does not count: an accept at a gap
+    of 2 ticks settled in Duels I (duel 2486) but a gap of 1 is untested, so such an offer may not have been answerable. Returns [{"duel", "tick", "price", "days", "u"}] with the best such offer of each duel."""
+    out = []
+    for d in duels:
+        if d.get("status") != "no_deal":
+            continue
+        two = "days" in (d.get("issues") or [])
+        w = days_weight(d)[0] if two else 0.0
+        best = None
+        for m in d.get("messages") or []:
+            if m.get("from") == "you" or m.get("price") is None:
+                continue
+            if d.get("deadline_tick") is not None and m["tick"] > d["deadline_tick"] - grace:
+                continue
+            u = surplus(d["role"], d["your_limit"], m["price"]) + (w * (m.get("days") or 0) if two and w else 0.0)
+            if inside(d["role"], d["your_limit"], m["price"]) and u >= 1 and (best is None or u > best["u"]):
+                best = {"duel": d["duel"], "tick": m["tick"], "price": m["price"], "days": m.get("days"), "u": round(u, 1)}
+        if best:
+            out.append(best)
+    return out
+
+
 def main() -> None:
     from agent import connect
     ap = argparse.ArgumentParser()
@@ -56,6 +85,9 @@ def main() -> None:
                           ("seller", [d for d in duels if d["role"] == "seller"])):
         for arm, s in sorted(summarize(subset, arm_of).items(), key=lambda kv: (kv[0] is None, kv[0])):
             print(f"{label:6} arm {arm}: {s}")
+    av = avoidable_no_deals(duels)
+    print(f"avoidable no-deals: {len(av)} {[(a['duel'], a['price'], a['days'], a['u']) for a in av]}"
+          + (f"  -> SWITCH to --policy v1 (rule: {SWITCH_AT} or more)" if len(av) >= SWITCH_AT else f"  (switch at {SWITCH_AT})"))
 
 
 if __name__ == "__main__":

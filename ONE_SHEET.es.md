@@ -175,9 +175,9 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 | 4. Solo se mueve cuando nos movemos | Pasos reales, como mucho 2 contraofertas, aceptar cuando una ronda más no pueda superar el decaimiento |
 | Siempre | Nunca cruza nuestro límite (comprobado en 4.000 duelos aleatorios en `tests/test_duel2.py`) |
 
-**Arranque (solo en la máquina de Thameur):** sábado `python3 duels_watch.py` · domingo `python3 duels_watch.py -- --duel-ticks 12`. Aviso de la simulación: con rivales más duros el domingo, la tasa de tratos puede bajar a ≈68 %, por debajo del interruptor del 70 %.
+**Arranque (solo en la máquina de Thameur):** sábado `python3 duels_watch.py` · domingo `python3 duels_watch.py -- --duel-ticks 12`. Aviso de la simulación: con rivales más duros el domingo, la tasa de tratos puede bajar a ≈68 %; eso ya no activa el interruptor (ver abajo).
 
-**Interruptor de seguridad:** si tras la primera oleada de Duelos II se cierran menos del 70 % de los duelos, o los bots dejan de ceder solos, reiniciar con `--policy v1` (la lógica antigua).
+**Interruptor de seguridad (regla nueva, aprobada para Duelos II; se elimina la regla del 70 %):** volver a `--policy v1` solo si (1) hay al menos 2 no-tratos **evitables** — el duelo terminó sin trato aunque el rival hizo al menos una oferta dentro de nuestro límite con U ≥ 1 (U = ganancia de precio + w × día); los rivales callados y los que nunca entraron en nuestro límite no cuentan; una oferta en los 2 últimos ticks no cuenta (un margen de 1 tick no está probado) — o (2) el agente de duelos se para o falla y `duels_watch.py` no puede reiniciarlo. Comprobación: `python3 analyze_duels.py --since <primer id de duelo>`. Con Duelos I esta regla cuenta 9 no-tratos evitables de 16.
 **Riesgos que aceptamos:** algunos bots nunca hablan primero (3 duelos de Duelos I sin ningún mensaje; el paso 3 lo cubre). Solo en 12 de 64 duelos registrados habló primero el rival, así que hay pocos datos. Otros equipos pueden cambiar sus bots esta noche.
 
 ### El día de entrega (Duelos II y III): una hipótesis, todavía no una regla ⚠️

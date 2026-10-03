@@ -173,9 +173,9 @@ built so we can close in one or two rounds without losing the pie."*
 | 4. He moves only when we move | Real steps, at most 2 counters, accept when one more round can't beat the decay |
 | Always | Never crosses our limit (checked on 4,000 random duels in `tests/test_duel2.py`) |
 
-**Run (Thameur's machine only):** Saturday `python3 duels_watch.py` · Sunday `python3 duels_watch.py -- --duel-ticks 12`. Simulation warns: against harder rivals on Sunday the deal rate may fall to ≈68%, under the 70% switch.
+**Run (Thameur's machine only):** Saturday `python3 duels_watch.py` · Sunday `python3 duels_watch.py -- --duel-ticks 12`. Simulation warns: against harder rivals on Sunday the deal rate may fall to ≈68%; that no longer triggers the switch (see below).
 
-**Safety switch:** if after the first wave of Duels II fewer than 70% of duels close, or the bots stop conceding on their own, restart with `--policy v1` (the old logic).
+**Safety switch (new rule, approved for Duels II; the old 70% rule is dropped):** restart with `--policy v1` only if (1) at least 2 **avoidable** no-deals — the duel ended with no deal although the rival made at least one offer inside our limit with U ≥ 1 (U = price surplus + w × day); silent rivals and rivals that never came inside our limit do not count; an offer in the last 2 ticks does not count (a gap of 1 tick is untested) — or (2) the duel agent stops or crashes and `duels_watch.py` cannot restart it. Check: `python3 analyze_duels.py --since <first duel id>`. On Duels I this rule counts 9 avoidable no-deals of 16.
 **Risks we accept:** some bots never talk first (3 duels in Duels I had no message at all; step 3 covers it). Only 12 of 64 logged duels had the rival talking first, so the data is thin. Other teams may change their bots tonight.
 
 ### The delivery day (Duels II and III): a hypothesis, not a rule yet ⚠️

@@ -26,4 +26,34 @@ arms = [0.45, 0.25]
 assert [arm_for(i, arms) for i in (1, 2, 3, 4)] == [0.25, 0.45, 0.25, 0.45]
 assert arm_for(7, arms) == arm_for(7, arms)
 assert arm_for(9, [0.45]) == 0.45                                  # no split test: one arm for every duel
+# ---- avoidable no-deals: the new safety-switch rule
+from analyze_duels import avoidable_no_deals  # noqa: E402
+
+
+def nd(i, role, limit, msgs, deadline=520, issues=("price",), w=None, meaning=None):
+    return {"duel": i, "status": "no_deal", "role": role, "your_limit": limit, "deadline_tick": deadline, "issues": list(issues),
+            "your_days_weight": w, "days_meaning": meaning, "messages": msgs}
+
+
+def msg(t, who, p, day=None):
+    return {"tick": t, "from": who, "price": p, "days": day}
+
+
+# 2362 (Duels I): he offered 129 inside our buyer limit 148 and we never answered: AVOIDABLE
+assert [a["duel"] for a in avoidable_no_deals([nd(2362, "buyer", 148, [msg(504, "R", 129)], 519)])] == [2362]
+# 2485: seller cost 85, he climbed to 106 and we said nothing: AVOIDABLE
+assert [a["duel"] for a in avoidable_no_deals([nd(2485, "seller", 85, [msg(526, "R", 53), msg(535, "R", 106)], 542)])] == [2485]
+# a silent rival (2317) and a rival who never came inside our limit (2486 style) do NOT count
+assert avoidable_no_deals([nd(2317, "buyer", 128, [], 525)]) == []
+assert avoidable_no_deals([nd(9, "buyer", 100, [msg(500, "R", 160), msg(505, "R", 140)], 520)]) == []
+# an offer in the last tick could not be answered
+assert avoidable_no_deals([nd(8, "buyer", 100, [msg(519, "R", 90)], 520)]) == []
+assert avoidable_no_deals([nd(8, "buyer", 100, [msg(518, "R", 90)], 520)])[0]["price"] == 90
+# only no-deals count
+assert avoidable_no_deals([{**nd(7, "buyer", 100, [msg(500, "R", 90)]), "status": "deal"}]) == []
+# U matters: inside our limit but the day makes U < 1: not avoidable (buyer 100, a day costs 5: 98 on day 5 = 2 - 25)
+assert avoidable_no_deals([nd(6, "buyer", 100, [msg(500, "R", 98, 5)], 520, ("price", "days"), 5, "each day costs you")]) == []
+assert avoidable_no_deals([nd(6, "buyer", 100, [msg(500, "R", 98, 0)], 520, ("price", "days"), 5, "each day costs you")])[0]["u"] == 2.0
+# the same offer with a day that HELPS us: U = 2 + 5 x 5 = 27: avoidable
+assert avoidable_no_deals([nd(5, "buyer", 100, [msg(500, "R", 98, 5)], 520, ("price", "days"), 5, "your gain per day")])[0]["u"] == 27.0
 print("test_analyze_duels: ok")

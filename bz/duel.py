@@ -180,28 +180,44 @@ def _toward_us(role: str, prev: float, cur: float) -> float:
     return (prev - cur) if role == "buyer" else (cur - prev)
 
 
-def read_bot(d: dict) -> dict:
-    """His behaviour so far, from the priced messages in order: solo steps (no offer of ours in between) and steps
-    that answered one of our offers. kind: 'self' (concedes alone), 'recip', 'hard' (does not move for us), 'new'."""
-    role, msgs = d["role"], [m for m in d.get("messages") or [] if m.get("price") is not None]
-    solo, answered, prev, ours_since = [], [], None, False
+def read_bot(d: dict, w: float = None) -> dict:
+    """His behaviour so far, from his priced messages in order, measured in OUR TOTAL VALUE U = price surplus + w * day
+    (w = our signed value per day, 0 when days do not count). Solo steps (no offer of ours in between) and steps that
+    answered one of our offers are changes of U, so a rival who holds his price and moves the day toward us is conceding,
+    and one who improves the price while moving the day against us is judged on the net. Price-only duels (or w = 0)
+    give exactly the old price steps. solo_price / answered_price keep the price-only steps: only a price inside our limit
+    can ever be accepted. kind: 'self' (concedes alone), 'recip', 'hard' (does not move for us), 'new'."""
+    role, limit = d["role"], float(d["your_limit"])
+    two = "days" in (d.get("issues") or [])
+    if w is None:
+        w = days_weight(d)[0] if two else 0.0
+    use_days = two and w != 0
+    msgs = [m for m in d.get("messages") or [] if m.get("price") is not None]
+    solo, answered, solo_p, answered_p = [], [], [], []
+    prev_u = prev_p = last_days = None
+    ours_since = False
     for m in msgs:
         if m.get("from") == "you":
             ours_since = True
             continue
-        if prev is not None:
-            (answered if ours_since else solo).append(_toward_us(role, prev, m["price"]))
-        prev, ours_since = m["price"], False
+        if m.get("days") is not None:
+            last_days = m["days"]  # a message without a day keeps his last day
+        u = surplus(role, limit, m["price"]) + (w * (last_days or 0) if use_days else 0.0)
+        if prev_u is not None:
+            (answered if ours_since else solo).append(u - prev_u)
+            (answered_p if ours_since else solo_p).append(_toward_us(role, prev_p, m["price"]))
+        prev_u, prev_p, ours_since = u, m["price"], False
     his = [m for m in msgs if m.get("from") != "you"]
     if solo and max(solo) > 0 and (not answered or len(solo) >= len(answered)):
         kind = "self"
-    elif answered and max(answered) >= max(2.0, 0.02 * float(d["your_limit"])):  # a real step, not a token 1 P
+    elif answered and max(answered) >= max(2.0, 0.02 * limit):  # a real step, not a token 1 P
         kind = "recip"
     elif answered:
         kind = "hard"
     else:
         kind = "new"
-    return {"kind": kind, "solo": solo, "answered": answered, "his_ticks": [m["tick"] for m in his],
+    return {"kind": kind, "solo": solo, "answered": answered, "solo_price": solo_p, "answered_price": answered_p,
+            "use_days": use_days, "his_ticks": [m["tick"] for m in his],
             "his_days": [m.get("days") for m in his if m.get("days") is not None]}
 
 
@@ -214,7 +230,7 @@ def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_C
     w, w_how = days_weight(d, days_sign)
     ours, his, k, awaiting = history(d)
     left = d["deadline_tick"] - tick
-    bot = read_bot(d)
+    bot = read_bot(d, w if two else 0.0)
     start = d.get("_start", d["deadline_tick"] - DUEL_TICKS)
     priced = [m for m in d.get("messages") or [] if m.get("price") is not None]
     we_opened = bool(priced) and priced[0].get("from") == "you"
@@ -256,8 +272,18 @@ def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_C
         return {"action": "wait", "why": "our offer stands: he owes the next move", **est}
     if moving:
         # wait only if his own pace can bring him inside our limit before the last 3 ticks; otherwise speak
-        need = max(0.0, -surplus(role, limit, r_price)) if r_price is not None else 0.0
-        pace = sum(s for s in bot["solo"] if s > 0) / max(1, sum(1 for s in bot["solo"] if s > 0))
+        if bot["use_days"] and r_price is not None and inside(role, limit, r_price):
+            # price already inside: what is missing is value U >= 1, and his day moves count (price-only: unchanged below)
+            need = max(0.0, 1.0 - (u_his if u_his is not None else 0.0))
+            steps = [x for x in bot["solo"] if x > 0]
+        elif bot["use_days"]:
+            # price still outside our limit: only his PRICE moves can bring it inside, a day move alone never will
+            need = max(0.0, -surplus(role, limit, r_price)) if r_price is not None else 0.0
+            steps = [x for x in bot["solo_price"] if x > 0]
+        else:
+            need = max(0.0, -surplus(role, limit, r_price)) if r_price is not None else 0.0
+            steps = [x for x in bot["solo"] if x > 0]
+        pace = sum(steps) / max(1, len(steps))
         if pace > 0 and need / pace <= left - 3:
             return {"action": "wait", "why": f"waiting: self-conceder (needs ~{need / pace:.0f} of {left} ticks)", **est}
     if his and not ours and last_his is not None and tick - his[0][0] < 2 and left > 4:
@@ -268,11 +294,14 @@ def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_C
         if last_call and left <= 3 and not his_ok:  # no deal scores 0 for both: one final offer near our limit
             margin = max(1, round(0.03 * limit))
             p = int(limit) - margin if role == "buyer" else int(-(-limit // 1)) + margin
-            if inside(role, limit, p) and not (ours and ours[-1][1] == p):
+            # never retreat: a "best offer" that is worse for him than what we already offered is not an offer
+            retreat = bool(ours) and ((ours[-1][1] >= p) if role == "buyer" else (ours[-1][1] <= p))
+            if inside(role, limit, p) and not retreat:
                 day = None
                 if two:
                     day = bot["his_days"][-1] if bot["his_days"] else 5
-                return {"action": "offer", "price": max(1, p), "days": day, "why": "last call near our limit", **est}
+                return {"action": "offer", "price": max(1, p), "days": day, "why": "last call near our limit",
+                        "stage": "last_call", **est}
         return {"action": "wait", "why": "counters used: waiting for an in-limit offer (no deal is fine)", **est}
 
     # 3. offer: the opening, then real steps (40 % of the gap between his offer and ours)
@@ -307,5 +336,5 @@ def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_C
             return {"action": "wait", "why": "at our limit: waiting", **est}
     if not inside(role, limit, price):
         return {"action": "wait", "why": "no offer inside our limit", **est}
-    return {"action": "offer", "price": price, "days": day,
+    return {"action": "offer", "price": price, "days": day, "stage": "opening" if not ours else "counter",
             "why": ("opening" if not ours else f"real step {counters + 1}/{max_counters}") + f" vs a {bot['kind']} bot", **est}

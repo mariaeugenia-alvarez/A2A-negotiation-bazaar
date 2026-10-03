@@ -97,4 +97,129 @@ d = duel("buyer", 100, [m(501, "you", 75), m(502, "R", 150), m(503, "you", 85), 
          deadline=516)
 a = decide2(d, 505)
 assert a["action"] == "offer" and a["counters"] == 1, a; checks += 1
-print(f"test_duel2: {checks} checks passed (4000 random duels for the hard rules)")
+# ================= read_bot in OUR TOTAL VALUE U = price surplus + w * day (approved for Duels II) =================
+from bz.duel import _toward_us, surplus  # noqa: E402
+
+
+def two(role, limit, msgs, w, meaning, rival, deadline=520):
+    return duel(role, limit, msgs, rival, deadline=deadline, issues=("price", "days"), w=abs(w), meaning=meaning)
+
+
+COST = "each day of delay costs you this much"
+# (a) price fixed, the day moves our way: he is conceding. Buyer, limit 120, a day costs us 2 P (w = -2).
+d = two("buyer", 120, [m(500, "R", 100, 8), m(501, "R", 100, 6)], -2, COST, {"price": 100, "days": 6})
+b = read_bot(d)
+assert b["solo"] == [4.0] and b["solo_price"] == [0.0] and b["kind"] == "self", b          # dU = -2 x (6 - 8) = +4
+a_ = decide2(d, 502)
+assert a_["action"] == "wait" and "self-conceder" in a_["why"], a_; checks += 2
+# the same duel read by price only would see no concession at all (this is the bug being fixed)
+d0 = duel("buyer", 120, [m(500, "R", 100), m(501, "R", 100)], {"price": 100, "days": None})
+assert read_bot(d0)["kind"] == "new"; checks += 1
+# (b) price better but the day worse and net U down: NOT conceding. 100/day 6 -> 95/day 9: dU = +5 - 6 = -1
+d = two("buyer", 120, [m(500, "R", 100, 6), m(501, "R", 95, 9)], -2, COST, {"price": 95, "days": 9})
+b = read_bot(d)
+assert b["solo"] == [-1.0] and b["solo_price"] == [5.0] and b["kind"] != "self", b
+assert "self-conceder" not in decide2(d, 502)["why"]; checks += 2
+# ... and with a day that helps us as much as the price, the net is positive: conceding
+d = two("buyer", 120, [m(500, "R", 100, 6), m(501, "R", 95, 4)], -2, COST, {"price": 95, "days": 4})
+assert read_bot(d)["solo"] == [9.0] and read_bot(d)["kind"] == "self"; checks += 1
+# a seller with a gain per day: a later day is worth more to us (w = +3): his day 2 -> 5 at a fixed price is +9
+d = two("seller", 60, [m(500, "R", 70, 2), m(501, "R", 70, 5)], 3, "your gain per day of delivery", {"price": 70, "days": 5})
+assert read_bot(d)["solo"] == [9.0] and read_bot(d)["kind"] == "self"; checks += 1
+# his answers to OUR offers are measured in U too: day moves toward us after our offer = a real answer (reciprocal)
+d = two("buyer", 120, [m(500, "R", 100, 8), m(501, "you", 80, 5), m(502, "R", 100, 4)], -2, COST, {"price": 100, "days": 4})
+b = read_bot(d)
+assert b["answered"] == [8.0] and b["solo"] == [] and b["kind"] == "recip", b; checks += 1
+# a message without a day keeps his last day
+d = two("buyer", 120, [m(500, "R", 100, 6), {"tick": 501, "from": "R", "price": 96, "days": None}], -2, COST, {"price": 96, "days": None})
+assert read_bot(d)["solo"] == [4.0], read_bot(d); checks += 1
+# (e) price still OUTSIDE our limit and only the day moves: waiting would never give an acceptable offer, so we speak
+d = two("buyer", 100, [m(500, "R", 130, 8), m(501, "R", 130, 5)], -2, COST, {"price": 130, "days": 5})
+assert read_bot(d)["kind"] == "self" and read_bot(d)["solo"] == [6.0]
+a_ = decide2(d, 502)
+assert a_["action"] == "offer" and a_["price"] <= 100, a_; checks += 2
+# (f) price inside our limit but U < 1 because of the day, and the day keeps moving our way: wait for U to reach 1
+d = two("buyer", 100, [m(500, "R", 98, 5), m(501, "R", 98, 4)], -5, COST, {"price": 98, "days": 4})
+a_ = decide2(d, 502)
+assert a_["action"] == "wait" and "self-conceder" in a_["why"], a_; checks += 1
+
+# (c) price-only behaviour is EXACTLY what it was: a copy of the previous read_bot must agree on thousands of random duels,
+#     for price-only duels and for two-issue duels whose days do not count (w = 0)
+def old_read_bot(d):
+    role, msgs = d["role"], [x for x in d.get("messages") or [] if x.get("price") is not None]
+    solo, answered, prev, ours_since = [], [], None, False
+    for x in msgs:
+        if x.get("from") == "you":
+            ours_since = True
+            continue
+        if prev is not None:
+            (answered if ours_since else solo).append(_toward_us(role, prev, x["price"]))
+        prev, ours_since = x["price"], False
+    if solo and max(solo) > 0 and (not answered or len(solo) >= len(answered)):
+        kind = "self"
+    elif answered and max(answered) >= max(2.0, 0.02 * float(d["your_limit"])):
+        kind = "recip"
+    elif answered:
+        kind = "hard"
+    else:
+        kind = "new"
+    return {"kind": kind, "solo": solo, "answered": answered}
+
+
+rng2 = random.Random(21)
+for seed in range(3000):
+    role = rng2.choice(["buyer", "seller"])
+    limit = rng2.randint(20, 200)
+    with_days = rng2.random() < 0.5
+    msgs, t0 = [], 500
+    for _ in range(rng2.randint(0, 9)):
+        msgs.append(m(t0, rng2.choice(["R", "R", "you"]), round(limit * rng2.uniform(0.4, 1.6)), rng2.randint(0, 10) if with_days else None))
+        t0 += rng2.choice([0, 1, 1, 2])
+    dd = duel(role, limit, msgs, None, issues=("price", "days") if with_days else ("price",), w=0.0 if with_days else None,
+              meaning="???" if with_days else None)           # unreadable meaning: days count for nothing (w = 0)
+    new, old = read_bot(dd), old_read_bot(dd)
+    assert (new["kind"], new["solo"], new["answered"]) == (old["kind"], old["solo"], old["answered"]), (dd, new, old)
+    assert new["solo"] == new["solo_price"] and new["answered"] == new["answered_price"], (dd, new)
+checks += 1
+
+# (d) the hard rules on 4,000 more random two-issue duels, signed weights both ways, days on every message
+rng3 = random.Random(33)
+crossed = 0
+for seed in range(4000):
+    role = rng3.choice(["buyer", "seller"])
+    limit = rng3.randint(20, 200)
+    msgs, t0 = [], 500
+    for _ in range(rng3.randint(0, 8)):
+        msgs.append(m(t0, rng3.choice(["R", "R", "you"]), round(limit * rng3.uniform(0.4, 1.6)), rng3.randint(0, 10)))
+        t0 += rng3.choice([0, 1, 1, 2])
+    his_ = [x for x in msgs if x["from"] != "you"]
+    rival = {"price": his_[-1]["price"], "days": his_[-1]["days"]} if his_ else None
+    w_ = rng3.uniform(0.2, 3.0)
+    dd = duel(role, limit, msgs, rival, deadline=t0 + rng3.randint(0, 14), issues=("price", "days"), w=w_,
+              meaning=rng3.choice(["your gain per day", "each day of delay costs you", "gain and cost"]))
+    a_ = decide2(dd, t0)
+    if a_["action"] == "offer":
+        crossed += not (inside(role, limit, a_["price"]) and a_["price"] >= 1 and 0 <= a_["days"] <= 10)
+    if a_["action"] == "accept":
+        crossed += not (rival and inside(role, limit, rival["price"]))
+assert crossed == 0, crossed; checks += 1
+# the last call never retreats (found with the fake duel server: we offered 100 = our limit, then "best offer 97")
+d = duel("buyer", 100, [m(500, "R", 150), m(501, "you", 75), m(502, "R", 145), m(503, "you", 100), m(504, "R", 140)],
+         {"price": 140, "days": None}, deadline=516)
+a_ = decide2(d, 513)                                    # 3 ticks left, counters used, he is still outside: no last call below 100
+assert a_["action"] == "wait" or (a_["action"] == "offer" and a_["price"] >= 100), a_
+d = duel("buyer", 100, [m(500, "R", 150), m(501, "you", 60), m(502, "R", 145), m(503, "you", 70), m(504, "R", 140)],
+         {"price": 140, "days": None}, deadline=516)
+a_ = decide2(d, 513)                                    # our last offer 70: a last call at 97 is a real step up
+assert a_["action"] == "offer" and a_["price"] == 97 and a_["stage"] == "last_call", a_
+d = duel("seller", 60, [m(500, "R", 30), m(501, "you", 90), m(502, "R", 35), m(503, "you", 60), m(504, "R", 40)],
+         {"price": 40, "days": None}, deadline=516)
+a_ = decide2(d, 513)                                    # a seller already at the cost 60: a "best offer" of 62 would be worse for him
+assert a_["action"] == "wait", a_
+d = duel("seller", 60, [m(500, "R", 30), m(501, "you", 100), m(502, "R", 35), m(503, "you", 90), m(504, "R", 40)],
+         {"price": 40, "days": None}, deadline=516)
+a_ = decide2(d, 513)                                    # our last offer 90: a last call at 62 is a real step toward him
+assert a_["action"] == "offer" and a_["price"] == 62 and a_["stage"] == "last_call", a_
+checks += 4
+print(f"test_duel2: {checks} checks passed (4000 random duels for the hard rules, 3000 regression duels, 4000 random two-issue duels)")
+
