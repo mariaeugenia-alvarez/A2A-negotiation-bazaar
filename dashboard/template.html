@@ -351,7 +351,7 @@ function md(src) {
     const l = raw.trimEnd();
     if (/^\|/.test(l)) { if (/^\|[\s|:-]+\|$/.test(l)) continue; (tbl = tbl || []).push(l.replace(/^\||\|$/g, "").split("|").map(c => c.trim())); continue; }
     close();
-    if (/^###\s/.test(l)) out.push(`<h3>${inline(l.slice(4))}</h3>`);
+    if (/^#{1,3}\s/.test(l)) out.push(`<h3>${inline(l.replace(/^#+\s*/, ""))}</h3>`);
     else if (/^\s*-\s/.test(l)) { if (!list) { out.push("<ul>"); list = true; } out.push(`<li>${inline(l.replace(/^\s*-\s/, ""))}</li>`); }
     else if (l.trim()) out.push(`<p>${inline(l)}</p>`);
   }
@@ -705,11 +705,13 @@ function marketRank() {
 
 function decisionStrip(decs) {
   if (!decs.length) return `<div class="empty">Todavía no hay decisiones.</div>`;
-  const xs = decs.map(d => d.tick), ys = decs.map(d => d.surplus ?? 0);
+  decs = decs.filter(d => d.surplus != null);
+  if (!decs.length) return `<div class="empty">Todavía no hay decisiones con cifras.</div>`;
+  const xs = decs.map(d => d.tick), ys = decs.map(d => d.surplus);
   const p = plot({xd: [Math.min(...xs) - 1, Math.max(...xs) + 1], yd: pad(Math.min(...ys, 0), Math.max(...ys, 4), 1), w: 1000, right: 20, h: 300, xlabel: "tick", ylabel: "excedente de la oferta para nosotros, en P", aria: "Excedente de cada oferta que valoró el agente"});
   let g = `<line x1="${p.m.l}" x2="${p.W - p.m.r}" y1="${p.Y(2)}" y2="${p.Y(2)}" stroke="var(--muted)" stroke-dasharray="5 5" stroke-width="1.5"/><text x="${p.m.l + 6}" y="${p.Y(2) + 16}">margen mínimo</text>`;
   for (const d of decs) {
-    const x = p.X(d.tick), y = p.Y(d.surplus ?? 0), t = `${ACT[d.action]} · oferta ${d.offer} de ${d.maker} en ${venueName(d.venue)}: recibimos ${num(d.got + d.cash_in)}, damos ${num(d.lost + d.cash_out)}, excedente ${num(d.surplus)} · ${d.live ? "en vivo" : "en sombra"}`;
+    const x = p.X(d.tick), y = p.Y(d.surplus), t = `${ACT[d.action]} · oferta ${d.offer} de ${d.maker} en ${venueName(d.venue)}: recibimos ${num((d.got || 0) + (d.cash_in || 0))}, damos ${num((d.lost || 0) + (d.cash_out || 0))}, excedente ${num(d.surplus)} · ${d.live ? "en vivo" : "en sombra"}`;
     let m;
     if (d.action === "accept") m = `<path d="M${x - 6},${y} l6,-6 l6,6 l-6,6z" fill="var(--ok)" stroke="var(--panel)" stroke-width="1.5"/>`;
     else if (d.action === "counter") m = `<circle cx="${x}" cy="${y}" r="4.5" fill="var(--panel)" stroke="var(--ink)" stroke-width="2" opacity=".85"/>`;
@@ -724,36 +726,59 @@ function pageMercado(filter) {
   const modeTag = T.mode === "live" ? `<span class="tag deal">En vivo: acepta y contraoferta</span>` : T.mode === "shadow" ? `<span class="tag none">En sombra: solo anota</span>` : `<span class="tag none">Sin actividad registrada</span>`;
   const co = T.counter_outcomes, sentN = T.counters.length;
   const share = (n, d) => d ? Math.round(n / d * 100) : 0;
+  const nowTick = D.clock ? D.clock.tick : null, Bd = M.bids || {list: [], committed: 0, cash: null, free: null};
+  const confirmed = T.accepted_by_us.filter(a => a.settlement && a.settlement.found).length, lost = T.accepted_by_us.filter(a => a.settlement && !a.settlement.found).length;
   const decs = T.decisions, shown = [...decs].reverse().filter(d => filter === "all" || d.action === filter).slice(0, 80);
   const facts = `<div class="facts">
     <div><b>${B.market != null ? num(B.market, 2) : (my ? num(my.market, 2) : "—")}</b><span>puntos de mercado${my ? ` (puesto ${[...D.teams].sort((a, b) => b.market - a.market).findIndex(t => t.team === ME) + 1} de ${D.teams.length})` : ""}</span></div>
     <div><b>${B.bench_efficiency != null ? num(B.bench_efficiency, 3) : "—"}</b><span>eficiencia en la prueba de mercado</span></div>
     <div><b>${T.total}</b><span>ofertas valoradas por el agente</span></div>
     <div><b>${sentN}</b><span>contraofertas enviadas</span></div>
-    <div><b>${T.accepted_by_us.length}</b><span>ofertas aceptadas por el agente</span></div></div>`;
+    <div><b>${T.accepted_by_us.length}</b><span>ofertas aceptadas por el agente</span></div>
+    ${M.bids && M.bids.cash != null ? `<div><b>${num(M.bids.committed, 0)} P</b><span>prometidos en pujas abiertas, de ${num(M.bids.cash, 0)} P en caja</span></div>` : ""}</div>`;
   const reading = T.total ? `<ul class="small muted" style="padding-left:18px;margin:12px 0 0;max-width:80ch">
     <li>De ${T.total} ofertas, ${share(c.accept, T.total)} % cumplían nuestro margen (aceptar), ${share(c.counter, T.total)} % se podían contraofertar y ${share(c.ignore + c.human, T.total)} % se ignoraron o quedaron para una persona.</li>
     <li>${c.live} decisiones se tomaron con el agente en vivo y ${c.shadow} en sombra (solo anotadas, sin enviar nada).</li>
     ${sentN ? `<li>De ${sentN} contraofertas: ${co.accepted || 0} aceptadas, ${co.expired || 0} caducadas, ${co.open || 0} abiertas${co.refused ? `, ${co.refused} rechazadas al enviarlas` : ""}.</li>` : ""}
+    ${T.accepted_by_us.length ? `<li>De ${T.accepted_by_us.length} ofertas aceptadas por el agente, el juego confirmó ${confirmed}${lost ? ` y ${lost} no aparecen` : ""}.</li>` : ""}
     <li>Mercado con más oportunidades: ${T.by_venue[0] ? `${esc(venueName(T.by_venue[0].venue))} (${T.by_venue[0].decisions} ofertas, ${T.by_venue[0].accept} aceptables)` : "—"}.</li></ul>` : "";
   const dtable = `<div class="chips" role="group" aria-label="Filtrar decisiones">${[["all", "Todas"], ["accept", "Aceptar"], ["counter", "Contraofertar"], ["ignore", "Ignorar"]].map(([k, n]) => `<button class="chip" aria-pressed="${filter === k}" data-mf="${k}">${n}</button>`).join("")}</div>
     ${shown.length ? `<div class="scroll"><table><thead><tr><th>Tick</th><th>Origen</th><th>Mercado</th><th>De</th><th class="r">Recibimos</th><th class="r">Damos</th><th class="r">Comisión</th><th class="r">Excedente</th><th class="r">Margen</th><th>Decisión</th><th>Modo</th></tr></thead><tbody>
-    ${shown.map(d => `<tr><td>${d.tick}</td><td>${d.source === "to_us" ? "nos la hacen a nosotros" : "tablón público"}</td><td>${esc(venueName(d.venue))}</td><td>${esc(d.maker)}</td><td class="r">${num(d.got)} + ${d.cash_in} P</td><td class="r">${num(d.lost)} + ${d.cash_out} P</td><td class="r">${d.fee}</td><td class="r"><b>${num(d.surplus)}</b></td><td class="r">${num(d.margin)}</td>
+    ${shown.map(d => `<tr><td>${d.tick}</td><td>${d.source === "to_us" ? "nos la hacen a nosotros" : "tablón público"}</td><td>${esc(venueName(d.venue))}</td><td>${esc(d.maker)}</td><td class="r">${d.got != null ? `${num(d.got)} + ${d.cash_in} P` : "—"}</td><td class="r">${d.lost != null ? `${num(d.lost)} + ${d.cash_out} P` : "—"}</td><td class="r">${d.fee ?? "—"}</td><td class="r"><b>${d.surplus != null ? num(d.surplus) : "—"}</b></td><td class="r">${d.margin != null ? num(d.margin) : "—"}</td>
     <td><b>${ACT[d.action] || d.action}</b> <span class="muted small">${esc(whyEs(d.why))}</span></td><td>${d.live ? "en vivo" : "sombra"}</td></tr>`).join("")}</tbody></table></div>
     <p class="note">Las más recientes primero (${shown.length} de ${decs.filter(d => filter === "all" || d.action === filter).length}). «Recibimos» y «Damos» son el valor para nosotros de las cartas más el efectivo. Excedente = lo que recibimos − lo que damos − la comisión.</p>` : `<div class="empty">Ninguna decisión de este tipo.</div>`}`;
-  const ctable = T.counters.length ? `<div class="scroll"><table><thead><tr><th>Tick</th><th>A</th><th class="r">Pedían o ofrecían</th><th class="r">Nuestro precio</th><th class="r">Nuestro mínimo</th><th>Cómo acabó</th></tr></thead><tbody>
-    ${[...T.counters].reverse().map(x => `<tr><td>${x.tick}</td><td>${esc(x.maker)}</td><td class="r">${P(x.their)}</td><td class="r"><b>${P(x.price)}</b></td><td class="r">${P(x.clearing)}</td><td>${esc(OUT[x.outcome] || x.outcome)}${x.settled_price != null ? ` a ${P(x.settled_price)}` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Todavía no hemos enviado ninguna contraoferta. Solo las manda <span class="mono">trader.py --live</span>.</div>`;
+  const ctable = T.counters.length ? `<div class="scroll"><table><thead><tr><th>Tick</th><th>A</th><th class="r">Pedían o ofrecían</th><th class="r">Nuestro precio</th><th class="r">Nuestro mínimo</th><th class="r">Mejor puja vista</th><th>Cómo acabó</th></tr></thead><tbody>
+    ${[...T.counters].reverse().map(x => `<tr><td>${x.tick}</td><td>${esc(x.maker)}</td><td class="r">${P(x.their)}</td><td class="r"><b>${P(x.price)}</b></td><td class="r">${P(x.clearing)}</td><td class="r">${x.best_bid ? P(x.best_bid) : "—"}</td><td>${esc(OUT[x.outcome] || x.outcome)}${x.settled_price != null ? ` a ${P(x.settled_price)}` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Todavía no hemos enviado ninguna contraoferta. Solo las manda <span class="mono">trader.py --live</span>.</div>`;
   const vtable = `<div class="scroll"><table><thead><tr><th>Mercado</th><th>Dueño</th><th>Cómo cruza</th><th class="r">Comisión</th><th class="r">Cambios</th><th class="r">Volumen</th><th class="r">Participantes</th><th>Estado</th><th class="r">Ofertas valoradas</th></tr></thead><tbody>
     ${[...M.venues].sort((a, b) => (b.trades - a.trades) || (b.volume - a.volume)).filter(v => v.house || v.trades || v.ours || v.status === "open" && !v.starter).map(v => {
       const dv = T.by_venue.find(x => x.venue === v.venue);
       return `<tr style="${v.ours ? "font-weight:700" : ""}"><td>${v.ours ? `<span class="dot"></span>` : ""}${esc(v.house ? "El Rastro" : v.name)}</td><td>${esc(v.house ? "la casa" : v.owner_name || v.owner)}</td><td>${esc(v.mechanism === "auto" ? "automático" : v.mechanism === "board" ? "con bróker" : "—")}</td><td class="r">${v.fee_bps / 100} %${v.fee_per_card ? ` + ${v.fee_per_card} P` : ""}</td><td class="r">${v.trades}</td><td class="r">${v.volume} P</td><td class="r">${v.traders}</td><td>${v.status === "open" ? "abierto" : "cerrado"}</td><td class="r">${dv ? dv.decisions : ""}</td></tr>`;
     }).join("")}</tbody></table></div>
     <p class="note">Se muestran El Rastro, nuestro puesto y los mercados con bróker o con cambios. Los puestos gratuitos de los demás equipos (cruce automático, sin cambios) se omiten.</p>`;
-  const offers = M.offers.length ? `<div class="scroll"><table><thead><tr><th>Oferta</th><th>De quién</th><th>Mercado</th><th>Dan</th><th>Piden</th><th class="r">Caduca en el tick</th></tr></thead><tbody>
-    ${M.offers.map(o => `<tr><td>${o.id}</td><td>${o.dir === "us" ? `nuestra, para ${esc(o.other)}` : `de ${esc(o.other)}, para nosotros`}</td><td>${esc(venueName(o.venue))}</td><td>${esc(o.dir === "us" ? o.give : o.give)}</td><td>${esc(o.want)}</td><td class="r">${o.expires ?? ""}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Ahora mismo no hay ofertas abiertas con nosotros.</div>`;
+  const offersAll = M.offers.filter(o => !o.bid);
+  const offers = offersAll.length ? `<div class="scroll"><table><thead><tr><th>Oferta</th><th>De quién</th><th>Mercado</th><th>Dan</th><th>Piden</th><th class="r">Caduca en el tick</th></tr></thead><tbody>
+    ${offersAll.map(o => `<tr><td>${o.id}</td><td>${o.dir === "us" ? `nuestra, para ${esc(o.other)}` : `de ${esc(o.other)}, para nosotros`}</td><td>${esc(venueName(o.venue))}</td><td>${esc(o.dir === "us" ? o.give : o.give)}</td><td>${esc(o.want)}</td><td class="r">${o.expires ?? ""}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Ahora mismo no hay ofertas abiertas con nosotros.</div>`;
   const stall = V ? `<dl class="kv"><dt>Nuestro puesto</dt><dd>${esc(V.name)} (${esc(V.venue)})</dd><dt>Cómo cruza</dt><dd>${V.mechanism === "auto" ? "automático: el motor cruza el mejor precio de compra y de venta en cada tick" : "con bróker"}</dd><dt>Comisión</dt><dd>${V.fee_bps / 100} %</dd>
     <dt>Cambios hechos en él</dt><dd>${V.trades} (volumen ${V.volume} P, ${V.traders} participantes)</dd><dt>Puntos de la prueba de mercado</dt><dd>${B.bench_points != null ? num(B.bench_points, 2) : "—"} (eficiencia ${B.bench_efficiency != null ? num(B.bench_efficiency, 3) : "—"})</dd><dt>Puntos de mercado de nuestro bróker</dt><dd>${B.mm_points != null ? num(B.mm_points, 2) : "—"}</dd></dl>
     <p class="note">${V.starter ? "Es el puesto gratuito que da la organización: no hemos abierto uno propio ni tenemos bróker. " : ""}Un bróker propio solo puede actuar en mercados con bróker; igualar al cruce automático da la mitad de los puntos de la prueba, y el máximo va a la media de los tres mejores.</p>` : `<div class="empty">No hemos podido leer nuestro puesto.</div>`;
+
+  const settleCell = a => {
+    const x = a.settlement;
+    if (!x) return nowTick != null && nowTick - a.tick <= 3 ? `<span class="tag live">Pendiente</span>` : `<span class="muted small">sin comprobar (registro anterior)</span>`;
+    if (!x.found) return `<span class="tag none">No aparece en el juego</span> <span class="small muted">la rechazaron o la tomó otro</span>`;
+    const off = (x.price != null && x.expected_cash != null && x.price !== x.expected_cash) || (x.fee != null && x.expected_fee != null && x.fee !== x.expected_fee);
+    return `<span class="tag deal">Cerrado a ${P(x.price)}</span> <span class="small muted">comisión ${P(x.fee)}</span>${off ? ` <b class="small" style="color:var(--bad)">distinto de lo esperado (${P(x.expected_cash)} y ${P(x.expected_fee)} de comisión)</b>` : ""}`;
+  };
+  const acc = T.accepted_by_us.length ? `<div class="scroll"><table><thead><tr><th>Tick</th><th>Origen</th><th>De</th><th class="r">Recibimos</th><th class="r">Damos</th><th class="r">Excedente</th><th>Lo que registró el juego</th></tr></thead><tbody>
+    ${[...T.accepted_by_us].reverse().map(a => `<tr><td>${a.tick}</td><td>${a.source === "to_us" ? "nos la hicieron a nosotros" : "tablón público"}</td><td>${esc(a.maker)}</td><td class="r">${num(a.got)} + ${a.cash_in} P</td><td class="r">${num(a.lost)} + ${a.cash_out} P</td><td class="r"><b>${num(a.surplus)}</b></td><td>${settleCell(a)}</td></tr>`).join("")}</tbody></table></div>
+    <p class="note">Después de cada aceptación el agente comprueba en el feed del juego qué precio y qué comisión se registraron, sin fiarse de nuestro efectivo, que otras sesiones también gastan.</p>` : `<div class="empty">El agente todavía no ha aceptado ninguna oferta.</div>`;
+  const staleOpen = Bd.list.filter(o => o.stale), cancelledStale = T.stale_bids.filter(x => x.cancelled).length;
+  const bidsHtml = Bd.list.length ? `<p class="sub" style="margin-bottom:10px">Prometen <b>${P(Bd.committed)}</b>${Bd.cash != null ? ` de los ${P(Bd.cash)} que tenemos en caja; quedan libres <b>${P(Bd.free)}</b>` : ""}. El agente descuenta estas promesas antes de aceptar nada más y no compra una carta que ya tenemos pedida.</p>
+    <div class="scroll"><table><thead><tr><th>Oferta</th><th>Carta</th><th class="r">Puja</th><th class="r">Caduca en el tick</th><th>Aviso</th></tr></thead><tbody>
+    ${[...Bd.list].sort((a, b) => a.expires - b.expires).map(o => `<tr><td>${o.id}</td><td>${o.cards.map(esc).join(", ")}</td><td class="r"><b>${P(o.cash)}</b></td><td class="r">${o.expires ?? ""}</td><td>${o.stale ? `<b style="color:var(--bad)">Ya tenemos la carta</b> <span class="small muted">si la aceptan pagamos un duplicado, que vale ~25 %</span>` : `<span class="muted small">en regla</span>`}</td></tr>`).join("")}</tbody></table></div>
+    ${staleOpen.length ? `<p class="note" style="color:var(--bad)">${staleOpen.length} puja(s) desfasada(s). Cancélalas a mano, o arranca el trader con <span class="mono">--cancel-stale-bids</span>.</p>` : ""}${cancelledStale ? `<p class="note">${cancelledStale} puja(s) desfasada(s) canceladas por el agente.</p>` : ""}
+    <p class="note">Una puja que sigue abierta no se revisa sola: si conseguimos la carta por otro lado, la puja sigue pidiéndola.</p>` : `<div class="empty">No tenemos pujas de compra abiertas.</div>`;
+  const ledger = M.ledger ? `<details><summary>Registro de tratos de hoy (<span class="mono">TRADES.md</span>)</summary><div class="panel" style="margin-top:10px">${md(M.ledger)}</div></details>` : "";
   const nxt = (M.bench_next || []).map(u => `<li>${D.clock ? `en ${num(u.at_hours - D.clock.t_hours)} h` : `${num(u.at_hours)} h`}: ${esc(u.note || "Prueba de mercado")}</li>`).join("");
   return `<h1>Mercado</h1><p class="sub">Lo que hace el agente con las ofertas de otros equipos y con el mercado. Cada tick <span class="mono">trader.py</span> lee las ofertas que nos hacen y los tablones públicos, las valora solo por su estructura, a nuestros valores privados, y decide: aceptar, contraofertar o ignorar. ${modeTag}${T.paused ? ` <span class="tag none">Pausado (existe logs/trader.pause)</span>` : ""}</p>
     ${facts}${reading}
@@ -763,11 +788,14 @@ function pageMercado(filter) {
       <p class="note">Datos de <span class="mono">logs/score.jsonl</span> (<span class="mono">observe.py</span>). Las líneas verticales marcan el cambio de experimento.</p></div>
       <div><h3>Puntos de mercado de cada equipo</h3>${marketRank()}</div></div>
     <h2>Nuestro puesto y la prueba de mercado</h2><div class="cols even"><div>${stall}</div><div><h3>Próximas pruebas</h3>${nxt ? `<ul class="small" style="padding-left:18px;margin:0">${nxt}</ul>` : `<p class="muted">Sin pruebas anunciadas.</p>`}<p class="note">Cada pocas horas todos los mercados reciben el mismo libro sintético de compradores y vendedores; la nota es la parte de la ganancia posible que se consigue.</p></div></div>
+    <h2>Lo que ha aceptado el agente</h2>${acc}
     <h2>Contraofertas que hemos enviado</h2>${ctable}
     <p class="note">Una contraoferta abre ${num((K.anchor ?? 0.15) * 100, 0)} % más allá del precio de la otra parte, sin pasar nunca de nuestro mínimo; dura ${K.counter_ticks ?? 20} ticks.</p>
-    <h2>Ofertas abiertas ahora</h2>${offers}
+    <h2>Nuestras pujas de compra abiertas</h2>${bidsHtml}
+    <h2>Otras ofertas abiertas</h2>${offers}
     <h2>Todas las decisiones</h2>${dtable}
-    <h2>Los mercados</h2>${vtable}`;
+    <h2>Los mercados</h2>${vtable}
+    ${ledger ? `<h2>Registro de tratos</h2>${ledger}` : ""}`;
 }
 
 /* ============================================================ router */

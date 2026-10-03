@@ -117,6 +117,34 @@ def test_trader_view_joins_counters_and_outcomes():
     assert {x["venue"]: x["decisions"] for x in v["by_venue"]} == {"rastro": 2, "v02": 1}
 
 
+def test_trader_view_new_logs():
+    import json
+    import tempfile
+    from bz import log
+    old = log.LOG_DIR
+    with tempfile.TemporaryDirectory() as tmp:
+        log.LOG_DIR = tmp
+        def w(name, rows):
+            open(os.path.join(tmp, name), "w").write("".join(json.dumps(r) + "\n" for r in rows))
+        base = {"offer": 1, "maker": "t05", "venue": "rastro", "live": True, "action": "accept", "tick": 5, "surplus": 5, "margin": 2}
+        w("trader.jsonl", [base, {"offer": 2, "maker": "abuela", "venue": None, "live": True, "action": "human", "tick": 6, "why": "no numbers"}])
+        w("trader_accept.jsonl", [{**base, "source": "board", "cash_before": 99}, {**base, "offer": 9, "source": "board"}])
+        w("trader_settlement.jsonl", [{"offer": 1, "expected_cash": 9, "expected_fee": 2, "found": True, "price": 9, "fee": 2, "tick": 8}])
+        w("trader_stale_bid.jsonl", [{"tick": 7, "offer": 70, "cards": ["MAL-07"], "cash": 17}, {"tick": 7, "offer": 71, "cards": ["SAL-08"], "cash": 20}])
+        w("trader_cancel.jsonl", [{"tick": 8, "offer": 71, "cards": ["SAL-08"], "why": "stale bid"}])
+        w("trader_counter.jsonl", [{"tick": 5, "incoming": 3, "counter": 4, "maker": "t05", "price": 2, "their": 6, "clearing": 2, "best_bid": 5}])
+        try:
+            v = dash.trader_view()
+        finally:
+            log.LOG_DIR = old
+    acc = {a["offer"]: a for a in v["accepted_by_us"]}
+    assert acc[1]["settlement"]["found"] and acc[1]["settlement"]["price"] == 9 and "cash_before" not in acc[1]
+    assert acc[9]["settlement"] is None, "an accept the game has not confirmed yet"
+    assert [(x["offer"], x["cancelled"]) for x in v["stale_bids"]] == [(70, False), (71, True)] and v["cancelled"] == 1
+    assert v["counters"][0]["best_bid"] == 5
+    assert v["counts"]["human"] == 1
+
+
 def test_rev_ignores_build_time():
     import dashboard
     a = dashboard.stamp({"built": "10:00:00", "x": [1, 2]})

@@ -354,6 +354,15 @@ def trader_view(counters_sent_cap: int = 200, decisions_cap: int = 400) -> dict:
     counters = read_jsonl(os.path.join(log.LOG_DIR, "trader_counter.jsonl"))
     outcomes = {o["incoming"]: o for o in read_jsonl(os.path.join(log.LOG_DIR, "trader_outcome.jsonl"))}
     accepts = read_jsonl(os.path.join(log.LOG_DIR, "trader_accept.jsonl"))
+    settled = {x["offer"]: x for x in read_jsonl(os.path.join(log.LOG_DIR, "trader_settlement.jsonl"))}
+    for a in accepts:  # what the game recorded after each accept: the price and fee we really paid
+        x = settled.get(a["offer"])
+        a["settlement"] = {k: x.get(k) for k in ("found", "price", "fee", "expected_cash", "expected_fee", "tick")} if x else None
+        a.pop("ts", None)
+        a.pop("cash_before", None)
+    cancels = {c["offer"]: c for c in read_jsonl(os.path.join(log.LOG_DIR, "trader_cancel.jsonl"))}
+    stale = [{**{k: x.get(k) for k in ("tick", "offer", "cards", "cash")}, "cancelled": x["offer"] in cancels}
+             for x in read_jsonl(os.path.join(log.LOG_DIR, "trader_stale_bid.jsonl"))]
     for c in counters:
         o = outcomes.get(c["incoming"])
         c["outcome"] = o["outcome"] if o else "open"
@@ -376,7 +385,8 @@ def trader_view(counters_sent_cap: int = 200, decisions_cap: int = 400) -> dict:
                    "ignore": sum(n for (a, _), n in acts.items() if a == "ignore"), "human": sum(n for (a, _), n in acts.items() if a == "human"),
                    "live": sum(n for (_, live), n in acts.items() if live), "shadow": sum(n for (_, live), n in acts.items() if not live)},
         "by_venue": sorted(by_venue.values(), key=lambda v: -v["decisions"]),
-        "counters": counters[-counters_sent_cap:], "accepted_by_us": accepts[-60:],
+        "counters": counters[-counters_sent_cap:], "accepted_by_us": accepts[-60:], "stale_bids": stale[-40:],
+        "cancelled": len(cancels),
         "counter_outcomes": dict(Counter(c["outcome"] for c in counters)),
         "mode": ("live" if last and last.get("live") else "shadow") if last else None, "last_tick": last["tick"] if last else None,
         "paused": os.path.exists(os.path.join(log.LOG_DIR, "trader.pause")),
@@ -395,14 +405,31 @@ def market_view(pub: dict, b, st, me: str) -> dict:
     if b is not None:
         try:
             for o in b.my_offers().get("offers") or []:
+                cards = [t.split(":", 1)[1] for t in (o.get("want") or {}).get("types") or [] if t.startswith("card:")]
+                cards += list((o.get("want") or {}).get("cards") or [])
                 offers.append({"id": o["id"], "dir": "us" if o.get("maker") == me else "to_us", "other": o.get("to") if o.get("maker") == me else o.get("maker"),
+                               "bid": o.get("maker") == me and o.get("status") == "open" and bool((o.get("give") or {}).get("cash")) and bool(cards),
+                               "cards": cards, "cash": (o.get("give") or {}).get("cash") or 0,
                                "venue": o.get("venue"), "status": o.get("status"), "give": leg_text(o.get("give")), "want": leg_text(o.get("want")),
                                "created": o.get("created_tick"), "expires": o.get("expires_tick")})
         except Exception:
             pass
     score = (st.me.get("score") if st else None) or {}
     bench = [u for u in ((pub.get("schedule") or {}).get("upcoming") or []) if u.get("action") == "bench"]
-    return {"trader": trader_view(), "venues": venues, "offers": offers, "bench_next": bench[:5],
+    trader = trader_view()
+    open_ids = {o["id"] for o in offers if o["status"] == "open"}
+    for x in trader["stale_bids"]:  # a stale bid only matters while it is still open
+        x["open"] = x["offer"] in open_ids and not x["cancelled"] if b is not None else None
+    bids = [o for o in offers if o["bid"]]
+    committed = sum(o["cash"] for o in bids)
+    cash = st.me.get("cash") if st else None
+    stale_ids = {x["offer"] for x in trader["stale_bids"] if x.get("open")}
+    for o in bids:
+        o["stale"] = o["id"] in stale_ids
+    ledger_path = os.path.join(ROOT, "TRADES.md")
+    return {"trader": trader, "venues": venues, "offers": offers, "bench_next": bench[:5],
+            "bids": {"list": bids, "committed": committed, "cash": cash, "free": (cash - committed) if cash is not None else None},
+            "ledger": open(ledger_path, encoding="utf-8").read() if os.path.exists(ledger_path) else None,
             "our_venue": next((v for v in venues if v["ours"]), None),
             "bench": {k: score.get(k) for k in ("bench_efficiency", "bench_points", "mm_points", "bench_venue", "market")},
             "limits": trader_constants()}
