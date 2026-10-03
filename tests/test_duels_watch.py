@@ -24,4 +24,7 @@ assert waiting_on_us([duel(1, [m(503, "R", 129), m(504, "you", 110)], 519)], 515
 assert waiting_on_us([duel(2317, [], 525)], 512, 3) == [2317]
 # finished duels never count
 assert waiting_on_us([duel(9, [], 525, status="deal")], 540, 3) == []
+# v2 waits on purpose (self-conceder): a decision logged for the duel within `silent` ticks means the agent is alive
+assert waiting_on_us([duel(2485, [m(526, "R", 53), m(529, "R", 70)], 542)], 533, 3, {2485: 532}) == []
+assert waiting_on_us([duel(2485, [m(526, "R", 53), m(529, "R", 70)], 542)], 533, 3, {2485: 529}) == [2485]
 print("test_duels_watch: ok")

@@ -14,6 +14,7 @@ Alerts go to logs/alerts.jsonl (level DUEL_SILENT, DUEL_CRASH, DUEL_START) and t
 """
 import argparse
 import fcntl
+import json
 import os
 import subprocess
 import sys
@@ -26,11 +27,28 @@ from bz import log
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
-def waiting_on_us(duels: list, tick: int, silent: int) -> list:
-    """Live duels where we owe a message: the rival spoke last, or nobody spoke, for at least `silent` ticks."""
+def last_decisions(path: str) -> dict:
+    """duel id -> last tick duels.py logged a decision for it (a deliberate wait counts: the agent is alive)."""
+    out = {}
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            for line in f.readlines()[-3000:]:
+                try:
+                    e = json.loads(line)
+                    out[int(e["duel"])] = max(out.get(int(e["duel"]), -1), int(e["tick"]))
+                except (ValueError, KeyError, TypeError):
+                    continue
+    return out
+
+
+def waiting_on_us(duels: list, tick: int, silent: int, decided: dict = None) -> list:
+    """Live duels where we owe a message: the rival spoke last, or nobody spoke, for at least `silent` ticks, and
+    duels.py has not logged a decision for the duel in that time (v2 stays silent on purpose with self-conceders)."""
     out = []
     for d in duels:
         if d.get("status") != "live":
+            continue
+        if decided and tick - decided.get(int(d["duel"]), -999) < silent:
             continue
         msgs = [m for m in d.get("messages") or [] if m.get("price") is not None]
         if msgs and msgs[-1].get("from") == "you":
@@ -72,7 +90,7 @@ def main() -> None:
                 child = subprocess.Popen([sys.executable, os.path.join(HERE, "duels.py"), *passthrough], cwd=HERE)
                 last_restart = tick
                 alert("DUEL_START", f"duels.py started at tick {tick} for {len(live)} live duels")
-            owed = waiting_on_us(live, tick, args.silent)
+            owed = waiting_on_us(live, tick, args.silent, last_decisions(os.path.join(log.LOG_DIR, "duels.jsonl")))
             # at most one restart per 10 ticks: duels.py may also wait on purpose (our price already at our limit)
             if owed and running and tick - last_restart > max(args.silent, 10):
                 alert("DUEL_SILENT", f"{len(owed)} live duels waited {args.silent}+ ticks for us {owed[:6]}: restarting duels.py")
