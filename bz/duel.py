@@ -226,6 +226,7 @@ def read_bot(d: dict, w: float = None) -> dict:
 # + w x day, and a day moved toward him is paid for in price. Price-only duels never use this code.
 
 C_MIN = 1.0  # primas charged per day moved toward him, at least (c = max(|w|, C_MIN))
+U_FLOOR = 1.0  # every offer we send is worth at least this to us: a deal below it scores nothing or less
 
 
 def _u(role: str, limit: float, w: float, price: float, day) -> float:
@@ -268,8 +269,10 @@ def package_counter(role: str, limit: float, w: float, last: tuple, his, c_min: 
         hp, hd = his
         u_his = _u(role, limit, w, hp, hd if hd is not None else ld)
         u_t = max(u_last - 0.4 * (u_last - u_his), u_his)
+    u_t = max(u_t, U_FLOOR)                             # we never offer a package worth less than 1 to us
     s0 = u_t - w * ld                                   # surplus we need at our unchanged day
-    p0 = int((limit - s0 if role == "buyer" else limit + s0) + 0.5)
+    p0_real = limit - s0 if role == "buyer" else limit + s0
+    p0 = int(p0_real // 1) if role == "buyer" else int(-((-p0_real) // 1))   # rounded in OUR favour: U stays >= u_t
     c = max(abs(w), c_min)
     target_day = int(ld + 0.5 * (hd - ld) + 0.5) if hd is not None else ld
     step = 1 if target_day >= ld else -1
@@ -287,10 +290,27 @@ def package_counter(role: str, limit: float, w: float, last: tuple, his, c_min: 
                     continue                            # we would be at or beyond his price: a smaller move, or his offer wins
                 price = hp - 1 if role == "buyer" else hp + 1   # never at or beyond what he already offers
             u = _u(role, limit, w, price, d)
-            if price >= 1 and inside(role, limit, price) and (helps or u <= u_last + 1e-9) \
+            if price >= 1 and inside(role, limit, price) and u >= U_FLOOR - 1e-9 and (helps or u <= u_last + 1e-9) \
                     and (u_his is None or u >= u_his - 1e-9):
                 return {"price": int(price), "day": d, "u": round(u, 2), "u_t": round(u_t, 2), "p0": p0, "moved": moved,
                         "charge": charge, "helps": helps}
+    return None
+
+
+def _walk(a: int, b: int) -> list:
+    step = 1 if b >= a else -1
+    return list(range(a, b + step, step))
+
+
+def fix_day_for_u(role: str, limit: float, w: float, price: int, day: int, last_day):
+    """The day for an offer whose U is below 1 at this price: move it back toward OUR side, first toward our last day, then
+    toward our preferred end, until U >= 1. None when no day gives U >= 1 at this price (w = 0 never can: days do not count)."""
+    pref = 10 if w > 0 else 0
+    path = _walk(day, last_day) if last_day is not None else [day]
+    path += _walk(path[-1], pref)
+    for d in path:
+        if 0 <= d <= 10 and surplus(role, limit, price) + w * d >= U_FLOOR - 1e-9:
+            return d
     return None
 
 
@@ -427,6 +447,11 @@ def decide2(d: dict, tick: int, *, open2: dict = None, max_counters: int = MAX_C
             return {"action": "wait", "why": "at our limit: waiting", **est}
     if not inside(role, limit, price):
         return {"action": "wait", "why": "no offer inside our limit", **est}
+    if two and _u(role, limit, w, price, day) < U_FLOOR - 1e-9:  # a deal at this package would score nothing: fix the day or wait
+        fixed = fix_day_for_u(role, limit, w, price, day, ours[-1][2] if ours else None)
+        if fixed is None:
+            return {"action": "wait", "why": "no package with U >= 1 inside our limit", **est}
+        day, pkg = fixed, None
     return {"action": "offer", "price": price, "days": day, "stage": "opening" if not ours else "counter",
             "why": ("opening" if not ours else f"real step {counters + 1}/{max_counters}") + f" vs a {bot['kind']} bot",
             **({"pkg": pkg} if pkg else {}), **est}

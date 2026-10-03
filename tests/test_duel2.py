@@ -357,5 +357,97 @@ assert last_call_day("seller", 60, 1.0, 63, 7, 5) == 7 and last_call_day("buyer"
 assert last_call_day("buyer", 100, -5.0, 99, None, None) == 0                                              # margin 1: only day 0 gives U >= 1
 assert last_call_day("buyer", 100, -5.0, 99, 6, 6) == 0 and last_call_day("buyer", 100, -9.0, 100, 3, 3) is None   # surplus 0: no day fits
 checks += 3
+# ================= HARD RULE: every offer we send has U >= 1 (price surplus + w x day), on top of price inside the limit =================
+from bz.duel import U_FLOOR, days_weight, fix_day_for_u  # noqa: E402
+
+# the blocker case (found in verification): buyer L=100, a day costs 2, we opened 75/day 3, he asks 140/day 8 then 130/day 8.
+# The package used to be 95 P / day 6 with U = 5 - 12 = -7. Now: an offer with U >= 1, or a wait.
+d = two("buyer", 100, [m(500, "R", 140, 8), m(501, "you", 75, 3), m(502, "R", 130, 8)], -2, COST, {"price": 130, "days": 8}, deadline=530)
+a_ = decide2(d, 503)
+assert a_["action"] == "offer" and surplus("buyer", 100, a_["price"]) - 2 * a_["days"] >= 1 and a_["price"] <= 100, a_
+assert (a_["price"], a_["days"]) == (87, 6), a_      # u_t is floored at 1: the biggest concession we can make is U = 1
+checks += 1
+
+# fix_day_for_u: toward our last day first, then toward our preferred end; nothing fits: None
+assert fix_day_for_u("buyer", 100, -2.0, 99, 6, 3) == 0          # surplus 1: only day 0 leaves U >= 1; path 6 -> 3 -> 0
+assert fix_day_for_u("buyer", 100, -2.0, 90, 8, 3) == 4          # surplus 10: U = 10 - 2d >= 1 -> d <= 4; the first day on the path 8 -> 3
+assert fix_day_for_u("buyer", 100, 0.0, 100, 5, 5) is None       # w = 0: days do not count and the surplus is 0
+assert fix_day_for_u("seller", 60, 3.0, 61, 2, 5) == 2           # already U = 1 + 6 >= 1: kept
+checks += 4
+
+# the opening with a large weight: day 3 at 75 P would be U = 25 - 30 = -5; the day moves toward our side until U >= 1
+d = two("buyer", 100, [], -10, COST, None, deadline=516)
+a_ = decide2(d, 501)
+assert a_["action"] == "offer" and 25 - 10 * a_["days"] >= 1 and a_["days"] == 2, a_; checks += 1
+
+# the 20,000 random packages: 0 with U < 1 (re-run with the same generator as above, counting)
+rng7 = random.Random(55)
+bad = n = 0
+for seed in range(20000):
+    role = rng7.choice(["buyer", "seller"])
+    limit = rng7.randint(20, 200)
+    w = rng7.choice([-1, 1]) * rng7.choice([0.0, 0.3, 0.8, 1.0, 1.7, 3.0, 5.0])
+    ld = rng7.randint(0, 10)
+    lp = round(limit * (rng7.uniform(0.5, 0.95) if role == "buyer" else rng7.uniform(1.05, 1.6)))
+    his = (round(limit * rng7.uniform(0.6, 1.7)), rng7.choice([None, rng7.randint(0, 10), rng7.randint(0, 10)])) if rng7.random() < 0.85 else None
+    pk = package_counter(role, limit, w, (lp, ld), his)
+    if pk:
+        n += 1
+        bad += (surplus(role, limit, pk["price"]) + w * pk["day"]) < U_FLOOR - 1e-9
+assert n > 8000 and bad == 0, (n, bad); checks += 1
+
+# the 4,000 random two-issue duels: every offer (opening, counter, last call, fallback) has U >= 1; nothing crosses the limit
+rng8 = random.Random(77)
+offers = low = 0
+for seed in range(4000):
+    role = rng8.choice(["buyer", "seller"])
+    limit = rng8.randint(20, 200)
+    msgs, t0 = [], 500
+    for _ in range(rng8.randint(0, 8)):
+        msgs.append(m(t0, rng8.choice(["R", "R", "you"]), round(limit * rng8.uniform(0.4, 1.6)), rng8.randint(0, 10)))
+        t0 += rng8.choice([0, 1, 1, 2])
+    his_ = [x for x in msgs if x["from"] != "you"]
+    rival = {"price": his_[-1]["price"], "days": his_[-1]["days"]} if his_ else None
+    dd = duel(role, limit, msgs, rival, deadline=t0 + rng8.randint(0, 14), issues=("price", "days"), w=rng8.uniform(0.2, 6.0),
+              meaning=rng8.choice(["your gain per day", "each day of delay costs you"]))
+    a_ = decide2(dd, t0)
+    if a_["action"] == "offer":
+        offers += 1
+        w_signed = days_weight(dd)[0]
+        low += (surplus(role, limit, a_["price"]) + w_signed * a_["days"]) < U_FLOOR - 1e-9
+        assert inside(role, limit, a_["price"]) and 0 <= a_["days"] <= 10, a_
+assert offers > 800 and low == 0, (offers, low); checks += 1
+
+# the 2,000 chains of successive offers (same generator as the earlier chain test): every offer has U >= 1
+rng9 = random.Random(66)
+chains = low = 0
+for seed in range(2000):
+    role = rng9.choice(["buyer", "seller"])
+    limit = rng9.randint(40, 180)
+    w = rng9.choice([-1, 1]) * rng9.choice([0.5, 1.0, 2.0, 4.0, 8.0])
+    meaning = "your gain per day" if w > 0 else COST
+    msgs = [m(500, "R", round(limit * (1.4 if role == "buyer" else 0.6)), rng9.randint(0, 10))]
+    for step_i in range(4):
+        tick_ = 503 + 2 * step_i
+        dd = duel(role, limit, msgs, {"price": msgs[-1]["price"], "days": msgs[-1]["days"]}, deadline=530, issues=("price", "days"),
+                  w=abs(w), meaning=meaning)
+        a_ = decide2(dd, tick_)
+        if a_["action"] != "offer":
+            break
+        chains += 1
+        low += (surplus(role, limit, a_["price"]) + w * a_["days"]) < U_FLOOR - 1e-9
+        msgs.append({"tick": tick_, "from": "you", "price": a_["price"], "days": a_["days"]})
+        msgs.append({"tick": tick_ + 1, "from": "R", "price": msgs[-2]["price"] + (-1 if role == "buyer" else 1) * rng9.randint(0, 6),
+                     "days": rng9.randint(0, 10)})
+assert chains > 1500 and low == 0, (chains, low); checks += 1
+
+# the last call keeps U >= 1 (already enforced by last_call_day): 3 more random scans
+for seed in range(2000):
+    w_ = rng9.choice([-1, 1]) * rng9.choice([0.3, 1.0, 2.0, 5.0, 9.0])
+    limit = rng9.randint(20, 200)
+    p = limit - max(1, round(0.03 * limit))
+    dy = last_call_day("buyer", limit, w_, p, rng9.choice([None, rng9.randint(0, 10)]), rng9.choice([None, rng9.randint(0, 10)]))
+    assert dy is None or (0 <= dy <= 10 and surplus("buyer", limit, p) + w_ * dy >= U_FLOOR - 1e-9)
+checks += 1
 print(f"test_duel2: {checks} checks passed (4000 random duels for the hard rules, 3000 regression duels, 4000 random two-issue duels)")
 
