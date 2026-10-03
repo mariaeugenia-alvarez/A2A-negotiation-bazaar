@@ -6,7 +6,8 @@ The maker's `give` is what we receive and the maker's `want` is what we hand ove
 Verified in play (Saturday, see TRADES.md):
   - the side that ACCEPTS pays the venue fee: we paid 9 + 2 P accepting an ask; we received a full 65 P when Team 13
     accepted our offer. So the fee counts against us only when we accept, never in a counter we post.
-  - a complete page adds 25 % of the page's total value to every card of that page (Lavapies: LAV-01 16 -> 122).
+  - a complete page adds 25 % of the page's total value ONCE (Lavapies: 106 in collection_value). Each held card's your_value
+    shows it in full (LAV-01 16 -> 122) because giving that card away breaks the page; never sum those values.
     Values must come from the game (GameValues), not from our formula, or we would sell a page card far too cheap.
   - dealers (Abuela, El Chato, ...) are not ours: their offers reach us inside the dealer scripts' threads.
 

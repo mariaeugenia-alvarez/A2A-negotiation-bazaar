@@ -68,7 +68,7 @@ offers ("settled") and each card's history (`GET /api/cards/{id}`). Value = what
 
 1. **Team trades move `neg_points`. Dealer deals move `ladder_points`.** Dealer deals left `neg_points` unchanged five times in a row.
 2. **The side that accepts pays the venue fee.** We received the full 65 when Team 13 accepted our offer. We paid 9 + 2 when we accepted Team 18's ask.
-3. **Page bonus = 25 % of the page's total card value, added to every card of the complete page.** Lavapiés totalled 424, so +106 per card: commons 16 → 122, uncommons 40 → 146, rares 112 → 218. Selling one card of a complete page loses the whole bonus.
+3. **Page bonus = 25 % of the page's total card value, paid ONCE per complete page.** Lavapiés totalled 424, so the bonus is 106 P in total. Proof (tick ~750): `collection_value` 984.0 = base card values 761.5 + sealed pack 116.3 + **106.2**. Each held card's `your_value` still shows +106, because it is what we would LOSE by giving that card away (its own value plus the whole bonus, since the page breaks): commons 16 → 122, uncommons 40 → 146, rares 112 → 218. The sum of those per-card values (1,821.5) is 1,060 above the base: it counts the bonus 10 times, so do not add it up. Selling one card of a complete page loses its own value plus 106 once. Completing Salamanca would add 72.9 once, plus the values of the missing cards.
 4. **A dealer deal at the dealer's opening price does not count** (rules). El Chato sells uncommons at 33 and does not move. Rares go 97 → 84–89.
 
 ## Mistakes and their fixes
@@ -85,7 +85,7 @@ offers ("settled") and each card's history (`GET /api/cards/{id}`). Value = what
 
 ## Resumen en español
 
-- **Tratos con equipos → `neg_points`. Tratos con dealers → `ladder_points`.** Paga la comisión quien acepta. **El bono de página es el 25 % del total de la página en cada carta.** Completamos Lavapiés.
+- **Tratos con equipos → `neg_points`. Tratos con dealers → `ladder_points`.** Paga la comisión quien acepta. **El bono de página es el 25 % del total de la página, UNA sola vez** (el `your_value` de cada carta muestra lo que perderíamos al venderla: su valor más todo el bono). Completamos Lavapiés.
 - **Errores:**
   - El trader actuó en un hilo de Abuela (503).
   - Ofreció MAL-10 a dos equipos a la vez y la vendió barata (65, con pujas vistas de 70–82).

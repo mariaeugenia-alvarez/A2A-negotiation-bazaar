@@ -23,7 +23,7 @@ and every round of talk costs points. Section VIII says what we kept and what we
 | `neg_points` (team trades) | 0 | **23.5** | Our biggest source. ≈ the value we gained in team trades (+24 by `TRADES.md`) ⚠️ |
 | `duel_points` | 0 | **5.98** | Duels I: 18 deals out of 34 |
 | `ladder_points` (dealers) | 0 | **0.14** | 13 dealer deals moved it almost nothing |
-| Cash · cards | 501 P | 326 P · 33 cards | **Lavapiés page complete** (+106 P of value on each of its cards) |
+| Cash · cards | 501 P | 326 P · 33 cards | **Lavapiés page complete** (+106 P of bonus in total, shown as +106 on each card's value) |
 
 **What this means:** our points came from team trades and duels. Dealers have paid almost nothing in score.
 Because the score is relative, standing still loses rank.
@@ -39,7 +39,7 @@ Because the score is relative, standing still loses rank.
 |---|---|---|
 | **Duels II (≈20:35)** | **No duel left unanswered.** Deal rate ≥ 80%. Median ≤ 2 rounds. Average result per deal ≥ 18 | Duels I: deals in ≤ 2 rounds averaged **20.4**, deals in ≥ 4 rounds averaged **5.7**. Our silence cost us 8 duels |
 | **Team trades** | `neg_points` 23.5 → **45** by 23:00. Every trade must gain value | Six small trades already gave +24. The quoter is ready (not live) |
-| **Pages** | Complete **Salamanca** (missing SAL-06, 07, 09, 10). Never break Lavapiés | Page bonus = +25% of the page total on every card of the page ✅ |
+| **Pages** | Complete **Salamanca** (missing SAL-06, 07, 09, 10). Never break Lavapiés | Page bonus = +25% of the page total, paid ONCE (each card's value shows it because selling any card loses it) ✅ |
 | **Dealers** | Only trades that gain value: page cards bought below their value, spares sold above it. **Never a sale below our value, never a page card** | Dealer score is tiny. Their use is cheap cards and unlocks, not points |
 | **Market** | Keep 7.5 or better. v21 is open without a broker (VII): decide on Maru's broker **before the next Market Test**, not at the hard one (now Sunday ≈09:35) | Top teams are at 10.6–12.1 |
 

@@ -23,7 +23,7 @@ precios y cada ronda de charla cuesta puntos. La sección VIII dice qué tomamos
 | `neg_points` (tratos con equipos) | 0 | **23,5** | Nuestra mayor fuente. ≈ el valor ganado en tratos con equipos (+24 según `TRADES.md`) ⚠️ |
 | `duel_points` | 0 | **5,98** | Duelos I: 18 tratos de 34 |
 | `ladder_points` (dealers) | 0 | **0,14** | 13 tratos con dealers casi no lo movieron |
-| Dinero · cartas | 501 P | 326 P · 33 cartas | **Página de Lavapiés completa** (+106 P de valor en cada una de sus cartas) |
+| Dinero · cartas | 501 P | 326 P · 33 cartas | **Página de Lavapiés completa** (+106 P de bono en total, que se ve como +106 en el valor de cada carta) |
 
 **Qué significa:** nuestros puntos vinieron de los tratos con equipos y de los duelos. Los dealers casi no han dado
 puntos. Como la puntuación es relativa, quedarse quieto hace perder puestos.
@@ -39,7 +39,7 @@ puntos. Como la puntuación es relativa, quedarse quieto hace perder puestos.
 |---|---|---|
 | **Duelos II (≈20:35)** | **Ningún duelo sin respuesta.** Tratos ≥ 80 %. Mediana ≤ 2 rondas. Resultado medio por trato ≥ 18 | Duelos I: los tratos en ≤ 2 rondas dieron de media **20,4**; los de ≥ 4 rondas, **5,7**. Nuestro silencio nos costó 8 duelos |
 | **Tratos con equipos** | `neg_points` de 23,5 a **45** a las 23:00. Cada trato debe ganar valor | Seis tratos pequeños ya dieron +24. El quoter está listo (no en vivo) |
-| **Páginas** | Completar **Salamanca** (faltan SAL-06, 07, 09, 10). No romper nunca Lavapiés | Bono de página = +25 % del total de la página en cada carta ✅ |
+| **Páginas** | Completar **Salamanca** (faltan SAL-06, 07, 09, 10). No romper nunca Lavapiés | Bono de página = +25 % del total de la página, UNA sola vez (el valor de cada carta lo muestra porque vender cualquiera lo pierde) ✅ |
 | **Dealers** | Solo tratos que ganen valor: cartas de página compradas por debajo de su valor, repetidas vendidas por encima. **Nunca una venta por debajo de nuestro valor, nunca una carta de página** | Los dealers dan muy pocos puntos. Sirven para cartas baratas y desbloqueos, no para puntos |
 | **Mercado** | Mantener 7,5 o más. v21 está abierto sin broker (VII): decidir sobre el broker de Maru **antes del próximo Market Test**, no en el duro (ahora domingo ≈09:35) | Los mejores equipos están en 10,6–12,1 |
 
