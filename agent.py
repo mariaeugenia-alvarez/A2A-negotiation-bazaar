@@ -57,6 +57,8 @@ def learned(st: State, args, kind: str) -> dict:
         return {}
     traits = (learn.load_traits().get(args.dealer) or {})
     p = learn.plan(args.dealer, kind, st.cards_by_id, traits=traits)
+    if getattr(args, "patience", None):  # --patience: our own pacing beats the guess from his trait
+        p["patience"] = args.patience
     log.say(learn.describe(args.dealer, kind, p))
     return {k: p[k] for k in ("target", "accept_at", "patience")}
 
@@ -219,6 +221,7 @@ def main() -> None:
         p.add_argument("--no-learn", action="store_true", help="ignore what earlier conversations taught us")
         p.add_argument("--force", action="store_true", help="haggle even if her best price ever is beyond our limit")
         p.add_argument("--margin", type=float, default=0.1, help="share of an item's value we keep as profit when buying")
+        p.add_argument("--patience", type=int, help="pace our concessions over this many messages (El Chato: 8 when he sells)")
         if name != "abuela":
             p.add_argument("--open", type=int, help="our first price")
             p.add_argument("--limit", type=int, help="most we pay (buy) / least we take (sell)")

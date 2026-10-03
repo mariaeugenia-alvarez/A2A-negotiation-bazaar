@@ -91,6 +91,39 @@ esa carta a Abuela en el tick 155 y el hilo cerró con `not_owner`.
 - Para comprar, nuestro BATNA es Abuela (compramos LAV-08 a 21 allí). A El Chato solo le compramos si baja de lo
   que ya conseguimos con ella. Hay que reescribir los escenarios de compra del simulador con apertura 33 y paso ≈ 1.
 
+**Segundo hilo, 505 (ticks 333-336): comprar LAV-09 (rara, nos vale 112, lista 77). Sin trato:** abrimos en 60 con
+límite 93, pero el agente repartió la subida en 3 mensajes (el prior de su paciencia) y subimos de 11 en 11.
+
+| Tick | Quién | Precio |
+|---|---|---|
+| 333 | nosotros | 60 |
+| 334 | nosotros | 71 |
+| 334 | El Chato | 97 («Sesenta no compra nada aquí. El Cine Doré, 97. Ese es mi número.») |
+| 335 | El Chato | 96 |
+| 335 | nosotros | 82 |
+| 336 | nosotros | 93 |
+| 336 | El Chato | 95 («Subiste once, yo bajo uno. 95 P. Así funciona conmigo.») |
+
+- El hilo lo cerró el servidor (`closed`, sin motivo) justo después de nuestro 93: llegamos al límite en 3 mensajes y
+  él seguía en 95.
+- **Cuando vende, solo iguala pasos pequeños:** en el feed, pasos de 2-4 P reciben lo mismo; un salto grande (6, 11)
+  recibe 1 P. Con él hay que subir de ~4 en ~4 durante unos 8 mensajes (`--patience 8`). Los hilos de raras del feed
+  duraron 8-9 mensajes sin palabra final.
+- `tests/sim_chato.py` ya está recalibrado con el feed y con este hilo: reproduce el 0/48 de este ritmo, y con apertura
+  60 y ritmo de 8 cierra 48/48 a ~85,5 de media.
+
+**Tercer hilo, 526 (unos minutos después): comprar LAV-10 (rara, nos vale 112). Trato a 84:**
+`agent.py buy-card LAV-10 --dealer chato --open 60 --limit 93 --patience 8 --force` (`--force`: el hilo 505 dejó
+«su mejor precio 95», por encima del límite, y sin él el agente ni abre).
+
+| Nosotros | 60 | 64 | 68 | 72 | 76 | 80 | 84 ✔ |
+|---|---|---|---|---|---|---|---|
+| El Chato | 97 | — | 95 | 93 | 89 | 85 | acepta |
+
+- Con pasos de 4 bajó 2, 2, 4, 4 y aceptó nuestro 84 en el 7º mensaje: igualó el paso, como predijo el simulador.
+- 84 es el segundo precio más bajo del feed (solo t04 sacó 82), y nos deja ~28 de ganancia sobre el valor.
+- La memoria de 0,9 no se notó: el hilo 505 fallido no le hizo endurecerse.
+
 **Prior para dealers nuevos (agrupado, aparte de los datos de cada dealer):** mensajes antes de su final ≈ 6 × rasgo de
 paciencia (Abuela 0,85 → 5-7; El Chato 0,35 → 3 observado, 2 con el prior). `learn.messages_per_trait` lo calcula con
 los dealers que ya conocemos, y un hilo real sustituye al prior.
