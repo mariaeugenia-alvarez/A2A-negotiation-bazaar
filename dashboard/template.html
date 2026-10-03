@@ -131,6 +131,24 @@ summary{cursor:pointer;font-weight:600}
 .tb th.ax2{text-align:center;border-bottom:1px solid var(--line);font-size:12px;letter-spacing:.04em;text-transform:uppercase}
 .tb .arrow{color:var(--ink);font-weight:800}
 
+/* ---- collection */
+.setrow{margin:22px 0 0}
+.sethead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;border-top:2px solid var(--sc,var(--ink));padding-top:8px;margin-bottom:10px}
+.sethead h3{margin:0;font-size:18px;font-stretch:85%;font-weight:800}
+.album{display:grid;grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:8px}
+.ct{position:relative;border:1px solid var(--line);border-left:5px solid var(--rc);background:var(--panel);border-radius:3px 10px 3px 10px;padding:7px 10px 8px;font-size:12.5px;line-height:1.3;min-width:0}
+.ct .ref{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.ct .nm{display:block;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ct .v{display:block;margin-top:4px;font-size:15px;font-weight:800;font-stretch:80%}
+.ct .v small{font-weight:500;color:var(--muted);font-size:12px;font-stretch:100%}
+.ct.miss{background:transparent;border-style:dashed;border-left-style:solid}
+.ct.miss .nm,.ct.miss .v{color:var(--muted)}
+.ct.off{opacity:.62}
+.ct .n{position:absolute;top:6px;right:8px;font-size:11.5px;font-weight:700;padding:0 6px;border-radius:99px;background:var(--ink);color:var(--paper)}
+.ct .n.dup{background:var(--abuela)}
+.ct .n.no{background:transparent;color:var(--bad);border:1px solid currentColor}
+.rk{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--rc);margin-right:6px}
+
 /* ---- charts */
 svg{display:block;max-width:100%;height:auto}
 svg text{font-family:var(--sans);fill:var(--muted);font-size:12px}
@@ -594,6 +612,68 @@ function pageEquipos(sel, sortKey) {
 }
 const tradeTable = tr => tr.length ? `<div class="scroll"><table><thead><tr><th>Tick</th><th>Entre</th><th>Qué</th><th class="r">Precio</th><th>Dónde</th></tr></thead><tbody>${tr.map(x => `<tr><td>${x.tick}</td><td>${(x.parties || []).map(esc).join(" ↔ ")}</td><td>${(x.items || []).map(i => esc(i).replace(/\((\w+)\)/, (m, r) => `(${RAR[r] || r})`)).join(", ")}</td><td class="r">${P(x.price)}</td><td>${esc(x.persona ? "dealer " + x.persona : x.venue || "")}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Sin cambios a la vista.</div>`;
 
+/* ============================================================ collection chapter */
+function pageColeccion() {
+  const C = D.collection;
+  const head = `<h1>Colección</h1><p class="sub">Qué cartas tenemos, cuáles faltan para cada página, cuáles valen más para nosotros y cuáles están repetidas.</p>`;
+  if (!C) return head + `<div class="empty">Hace falta la clave del equipo para ver la colección (el dashboard se construyó sin ella o sin red).</div>`;
+  if (C.error) return head + `<div class="empty">No se pudo leer la colección: ${esc(C.error)}</div>`;
+  const rc = r => (C.rarities || {})[r] || "var(--faint)";
+  const all = C.sets.flatMap(s => s.cards.map(c => ({...c, set: s})));
+  const held = all.filter(c => c.n), dups = all.filter(c => c.n > 1);
+  const missPage = all.filter(c => c.page && !c.n && c.set.released);
+  const best = c => Math.max(...c.values.map(v => v ?? 0));
+  const pagesDone = C.sets.filter(s => s.complete).length, released = C.sets.filter(s => s.released).length;
+  const left = s => (s.missing || []).length;
+  const pageTag = s => !s.released ? `<span class="tag none">sin publicar${s.release ? ` · ${esc(s.release)}` : ""}</span>`
+    : s.complete ? `<span class="tag deal">página completa${s.master ? " · maestra" : ""}</span>`
+    : `<span class="tag ${left(s) <= 2 ? "live" : "none"}">faltan ${left(s)}</span>`;
+
+  const facts = `<div class="facts">
+    <div><b>${num(C.album.filled, 0)}/${num(C.album.slots, 0)}</b><span>casillas del álbum</span></div>
+    <div><b>${pagesDone}/${released}</b><span>páginas completas</span></div>
+    <div><b>${missPage.length}</b><span>cartas de página que faltan</span></div>
+    <div><b>${sum(dups.map(c => c.n - 1))}</b><span>copias repetidas</span></div>
+    <div><b>${P(C.collection_value)}</b><span>valor de la colección</span></div></div>`;
+
+  const tile = c => {
+    const miss = !c.n, val = miss ? c.next : best(c);
+    const tipTxt = miss ? `Falta · la siguiente copia nos vale ${num(c.next, 1)} P (sin el bonus de página) · tope de compra ${c.cap ?? "—"} P`
+      : c.n > 1 ? `${c.n} copias · valores ${c.values.map(v => num(v, 1)).join(" / ")} P · vender la sobrante desde ${c.floor} P`
+      : `1 copia · nos vale ${num(val, 1)} P (con el bonus de página)`;
+    const badge = miss ? (c.page && c.set.released ? `<span class="n no">falta</span>` : "") : `<span class="n ${c.n > 1 ? "dup" : ""}">×${c.n}</span>`;
+    return `<div class="ct ${miss ? "miss" : ""} ${c.page ? "" : "off"}" style="--rc:${rc(c.rarity)}" data-tip="${esc(`${c.ref} ${c.name || ""} · ${RAR[c.rarity] || c.rarity}${c.page ? "" : " · fuera de página"} · ${c.minted ?? "?"}/${c.print_run ?? "?"} impresas. ${tipTxt}`)}">
+      ${badge}<span class="ref">${esc(c.ref)}</span><span class="nm">${esc(c.name || "")}</span>
+      <span class="v">${val == null ? "—" : P(val)} <small>${val == null ? "" : miss ? "si la conseguimos" : c.n > 1 ? "mejor copia" : ""}</small></span></div>`;
+  };
+  const legend = `<div class="legend">${Object.entries(C.rarities || {}).map(([r, col]) => `<span><i class="o" style="--c:${col}"></i>${esc(RAR[r] || r)}</span>`).join("")}
+    <span>· borde discontinuo: falta · atenuada: fuera de página (épica, legendaria)</span></div>`;
+  const albumHtml = C.sets.map(s => `<div class="setrow" style="--sc:${esc(s.color || "var(--ink)")}"><div class="sethead">
+      <h3>${esc(s.name || s.id)}</h3><span class="mono muted">${esc(s.id)}</span>${pageTag(s)}
+      ${s.have != null ? `<span class="small muted">${s.have}/${s.of} de página</span>` : ""}
+      ${s.affinity != null ? `<span class="small muted">afinidad ×${num(s.affinity, 2)}</span>` : ""}</div>
+      <div class="album">${s.cards.map(c => tile({...c, set: s})).join("")}</div></div>`).join("");
+
+  const rarCell = c => `<td style="white-space:nowrap"><span class="rk" style="--rc:${rc(c.rarity)}"></span>${esc(RAR[c.rarity] || c.rarity)}</td>`;
+  const cardCell = c => `<td><span class="mono">${esc(c.ref)}</span> ${esc(c.name || "")}</td>`;
+  const topHeld = [...held].sort((a, b) => best(b) - best(a)).slice(0, 12);
+  const topMiss = [...missPage].sort((a, b) => (b.next ?? 0) - (a.next ?? 0) || left(a.set) - left(b.set));
+  const precious = `<div class="cols even">
+    <div><h3>Las que más nos valen de las que tenemos</h3><div class="scroll"><table><thead><tr><th>Carta</th><th>Rareza</th><th class="r">Copias</th><th class="r">Nos vale</th></tr></thead><tbody>
+      ${topHeld.map(c => `<tr>${cardCell(c)}${rarCell(c)}<td class="r">${c.n}</td><td class="r"><b>${P(best(c))}</b></td></tr>`).join("") || `<tr><td colspan="4" class="muted">No tenemos cartas.</td></tr>`}</tbody></table></div>
+      <p class="note">Valor de nuestra mejor copia según /api/me, con el bonus de página incluido: por eso las de una página completa valen tanto.</p></div>
+    <div><h3>Las que faltan, por lo que nos valdrían</h3><div class="scroll"><table><thead><tr><th>Carta</th><th>Rareza</th><th class="r">Nos vale</th><th class="r">Tope compra</th><th>Página</th></tr></thead><tbody>
+      ${topMiss.map(c => `<tr>${cardCell(c)}${rarCell(c)}<td class="r"><b>${P(c.next)}</b></td><td class="r">${c.cap != null ? P(c.cap) : "—"}</td><td class="small ${left(c.set) <= 2 ? "" : "muted"}" style="white-space:nowrap">${esc(c.set.id)} · faltan ${left(c.set)}</td></tr>`).join("") || `<tr><td colspan="5" class="muted">No falta ninguna carta de página.</td></tr>`}</tbody></table></div>
+      <p class="note">Valor de la siguiente copia sin el bonus de página (${C.page_bonus != null ? `+${num(C.page_bonus * 100, 0)} %` : "aparte"}): la que completa una página vale más. Tope = valor × 0,9.</p></div></div>`;
+
+  const dupHtml = dups.length ? `<div class="scroll"><table><thead><tr><th>Carta</th><th>Rareza</th><th class="r">Copias</th><th class="r">Valor de cada copia</th><th class="r">Vale la sobrante</th><th class="r">Mínimo de venta</th></tr></thead><tbody>
+      ${dups.sort((a, b) => (b.spare ?? 0) - (a.spare ?? 0)).map(c => `<tr>${cardCell(c)}${rarCell(c)}<td class="r">${c.n}</td><td class="r small">${c.values.map(v => num(v, 1)).join(" · ")}</td><td class="r">${P(c.spare)}</td><td class="r"><b>${P(c.floor)}</b></td></tr>`).join("")}</tbody></table></div>
+      <p class="note">Se vende la copia que menos nos vale; nunca por debajo del mínimo (price.sell_floor del your_value de esa copia).</p>`
+    : `<div class="empty">Ninguna carta repetida ahora mismo: cada copia que tenemos ocupa su casilla.</div>`;
+
+  return head + facts + `<h2>Las más preciadas</h2>${precious}<h2>Repetidas</h2>${dupHtml}<h2>El álbum, barrio a barrio</h2>${legend}${albumHtml}`;
+}
+
 function pageFormulas() {
   const F = D.formulas, c = F.constants, v = F.values;
   const aff = v && v.affinity ? Object.entries(v.affinity).map(([k, a]) => `<tr><td>${k}</td><td class="r">×${num(a, 2)}</td></tr>`).join("") : "";
@@ -891,13 +971,13 @@ concesor fijo x % = haggle(step_frac=x): cada mensaje cede x % de lo que queda</
 }
 
 /* ============================================================ router */
-const pagesOf = () => [["resumen", "Resumen"], ...Object.keys(D.dealers).map(id => [id, D.dealers[id].name]), ["duelos", "Duelos"], ["mercado", "Mercado"], ["banco", "Banco de pruebas"], ["equipos", "Otros equipos"], ["formulas", "Fórmulas"]];
+const pagesOf = () => [["resumen", "Resumen"], ["coleccion", "Colección"], ...Object.keys(D.dealers).map(id => [id, D.dealers[id].name]), ["duelos", "Duelos"], ["mercado", "Mercado"], ["banco", "Banco de pruebas"], ["equipos", "Otros equipos"], ["formulas", "Fórmulas"]];
 let PAGES = pagesOf();
 const state = {kind: {}, sort: null, mf: "all"};
 function route(keep) {
   const [page = "resumen", a, b] = location.hash.slice(1).split("/");
   const known = PAGES.find(p => p[0] === page) ? page : "resumen";
-  $("#line").innerHTML = PAGES.map(([id, name], i) => `<li class="${id === known ? "on" : ""}" style="--i:${i};--st:${id === "resumen" || id === "formulas" ? "var(--us)" : id === "duelos" ? "var(--rival)" : id === "mercado" ? "var(--ink)" : id === "banco" ? "var(--ok)" : id === "equipos" ? "var(--other)" : dcolor(id)}"><a href="${hash(id)}" ${id === known ? 'aria-current="page"' : ""}>${esc(name)}</a></li>`).join("");
+  $("#line").innerHTML = PAGES.map(([id, name], i) => `<li class="${id === known ? "on" : ""}" style="--i:${i};--st:${id === "resumen" || id === "formulas" || id === "coleccion" ? "var(--us)" : id === "duelos" ? "var(--rival)" : id === "mercado" ? "var(--ink)" : id === "banco" ? "var(--ok)" : id === "equipos" ? "var(--other)" : dcolor(id)}"><a href="${hash(id)}" ${id === known ? 'aria-current="page"' : ""}>${esc(name)}</a></li>`).join("");
   let html;
   if (known === "resumen") html = pageResumen();
   else if (known === "duelos") html = pageDuelos(a);
@@ -905,6 +985,7 @@ function route(keep) {
   else if (known === "banco") html = pageBanco();
   else if (known === "equipos") html = pageEquipos(a, state.sort);
   else if (known === "formulas") html = pageFormulas();
+  else if (known === "coleccion") html = pageColeccion();
   else html = pageDealer(known, a && b ? {source: a, id: +b} : null, state.kind[known]);
   $("#main").innerHTML = html;
   if (keep) { /* live refresh: stay where the reader is */ }

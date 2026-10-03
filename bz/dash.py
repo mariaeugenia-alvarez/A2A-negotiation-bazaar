@@ -487,6 +487,52 @@ def formulas(b, st, model: dict, traits: dict) -> dict:
     return out
 
 
+# ---------------------------------------------------------------- our collection
+
+def collection_view(st) -> dict:
+    """Every card of every set: how many copies we hold, what each is worth to us, what is missing and repeated.
+
+    A held copy is priced with its own your_value (/api/me, page bonus included); a missing card with the value of the
+    next copy (price.Valuer, the same as /api/me/value), which leaves the page bonus out.
+    """
+    if st is None:
+        return None
+    try:
+        v = price.from_state(st)
+        held = st.by_ref()
+        album = {p["set"]: p for p in (st.me.get("album") or {}).get("pages") or []}
+        sets = []
+        for s in st.catalog["sets"]:
+            cards = []
+            for c in s["cards"]:
+                copies = held.get(c["id"], [])
+                row = {"ref": c["id"], "name": c.get("name"), "rarity": c["rarity"], "page": bool(c.get("page")),
+                       "minted": c.get("minted"), "print_run": c.get("print_run"), "n": len(copies),
+                       "values": [a.get("your_value") for a in copies], "ids": [a["id"] for a in copies]}
+                if c["id"] in v.cards:
+                    nxt = v.card_value(c["id"])
+                    row["next"] = round(nxt, 2)
+                    row["cap"] = price.buy_cap(nxt)
+                if len(copies) > 1:
+                    spare = copies[-1].get("your_value") or 0  # the cheapest copy is the one we would sell
+                    row["spare"] = spare
+                    row["floor"] = price.sell_floor(spare)
+                cards.append(row)
+            page = album.get(s["id"]) or {}
+            missing = [c["ref"] for c in cards if c["page"] and not c["n"]]
+            sets.append({"id": s["id"], "name": s.get("name"), "color": s.get("color"), "released": bool(s.get("released")),
+                         "release": s.get("release"), "affinity": (st.me.get("affinity") or {}).get(s["id"]),
+                         "have": page.get("have"), "of": page.get("of"), "complete": page.get("complete"),
+                         "master": page.get("master"), "missing": missing if s.get("released") else None, "cards": cards})
+        return {"sets": sets, "collection_value": st.me.get("collection_value"),
+                "rarities": {k: r.get("color") for k, r in st.catalog.get("rarities", {}).items()},
+                "album": {k: (st.me.get("album") or {}).get(k) for k in ("filled", "slots")},
+                "page_bonus": st.catalog.get("values", {}).get("page_bonus"),
+                "master_bonus": st.catalog.get("values", {}).get("master_bonus")}
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
 # ---------------------------------------------------------------- everything
 
 def notes() -> dict:
@@ -568,4 +614,5 @@ def build(offline: bool = False, key: bool = True) -> dict:
                     "album": (st.me.get("album") or {}).get("filled")} if st else None),
         "duels": duels, "duel_summary": duel_summary(duels), "formulas": formulas(b, st, model, traits),
         "market": market_view(pub, b, st, me), "notes": notes(), "testbed": testbed_view(),
+        "collection": collection_view(st),
     }
