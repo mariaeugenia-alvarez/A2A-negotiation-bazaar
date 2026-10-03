@@ -31,7 +31,8 @@ Equipo t09 en The Bazaar. Varias sesiones comparten la misma clave: antes de abr
 
 ## Reglas
 
-- Analizar es gratis; negociar gasta primas reales: nada LIVE sin el visto bueno de Maru.
+- Analizar es gratis; negociar gasta primas reales: nada LIVE sin visto bueno: cartas (dealers, tratos con
+  equipos, quoter), de Maru; duelos, de Thameur.
 - **Manda lo que nos vale la carta** (`your_value`, `b.value(ref)`): nunca vender por debajo de `price.sell_floor(valor)`
   ni comprar por encima de `price.buy_cap(valor)`. Vale también para `--limit`, `--force` y scripts a medida. Si la
   escalera de dealers justifica cruzar ese límite, antes se pregunta a Maru diciendo cuántas primas perdemos.

@@ -48,7 +48,7 @@ a deal outside our limit, a sale below our value, a duel with no answer.
 ### Hard rules (never broken, by code or by hand)
 1. **Duels: never cross our limit.** As seller never below our cost, as buyer never above our value. Crossing it loses points and gives the rival nothing ✅ (organisers' slides).
 2. **Never sell a card below what it is worth to us. Never sell a card of a complete page or a card we need for a page.**
-3. **Nothing LIVE without Thameur's OK.** Analysis is free. Negotiating spends real primas.
+3. **Nothing LIVE without an OK. Duels: Thameur. Cards (dealers, team trades, quoter): Maru.** Analysis is free. Negotiating spends real primas.
 4. **One owner per lane on our shared key:** dealers = Maru's scripts, team trades = `trader.py`, duels = `duels.py`. Before posting any offer, say so in the other terminal.
 5. **Prices come from code.** Words carry the price and ask for information. They never decide the price.
 
@@ -180,7 +180,7 @@ built so we can close in one or two rounds without losing the pie."*
 
 ### Team trades (`trader.py`, owner: trader session) ✅
 - **Buy:** value received − cash − fee > margin. **Sell:** never below our value, spares first, never a card we need for a page.
-- **Quoter (built, not live):** standing bids for our missing page cards and asks for spares. The guard stops it when it should. Plan at tick 568: bids RET-02..05 at 8, SAL-06/07 and MAL-06/08 at 20, RET-09 at 68, an ask for the LAV-06 spare at 20. 180 P committed, +79 of value if everything fills. **Needs Thameur's OK.** ⚠️ Cash is **48 P** (15:36, after the v21 bond): the 180 P plan does not fit. Trim it to the cash (`--quote-budget`) or wait for the bond to come back.
+- **Quoter (built, not live):** standing bids for our missing page cards and asks for spares. The guard stops it when it should. Plan at tick 568: bids RET-02..05 at 8, SAL-06/07 and MAL-06/08 at 20, RET-09 at 68, an ask for the LAV-06 spare at 20. 180 P committed, +79 of value if everything fills. **Needs Maru's OK.** ⚠️ Cash is **48 P** (15:36, after the v21 bond): the 180 P plan does not fit. Trim it to the cash (`--quote-budget`) or wait for the bond to come back.
 - **Lessons from this morning:** never offer one card to two teams at once. Open sales above the best bid seen. Re-check stale bids (a fill after we got the card elsewhere buys a duplicate worth 25%).
 
 ### Dealers (Maru's scripts: `agent.py`, `bz/predict.py`, `DEALERS.md`) ✅

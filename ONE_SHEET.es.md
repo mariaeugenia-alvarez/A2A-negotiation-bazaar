@@ -49,7 +49,7 @@ respuesta.
 ### Reglas fijas (nunca se rompen, ni en código ni a mano)
 1. **Duelos: nunca cruzar nuestro límite.** Como vendedor, nunca por debajo de nuestro coste; como comprador, nunca por encima de nuestro valor. Cruzarlo resta puntos y no le da nada al rival ✅ (diapositivas de la organización).
 2. **Nunca vender una carta por debajo de lo que vale para nosotros. Nunca vender una carta de una página completa ni una que nos falte para una página.**
-3. **Nada EN VIVO sin el visto bueno de Thameur.** Analizar es gratis; negociar gasta primas reales.
+3. **Nada EN VIVO sin visto bueno. Duelos: Thameur. Cartas (dealers, tratos con equipos, quoter): Maru.** Analizar es gratis; negociar gasta primas reales.
 4. **Un dueño por carril en nuestra clave compartida:** dealers = scripts de Maru, tratos con equipos = `trader.py`, duelos = `duels.py`. Antes de publicar una oferta, avisar en la otra terminal.
 5. **Los precios los pone el código.** Las palabras llevan el precio y piden información. Nunca deciden el precio.
 
@@ -182,7 +182,7 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 
 ### Tratos con equipos (`trader.py`, dueña: sesión del trader) ✅
 - **Comprar:** valor recibido − dinero − comisión > margen. **Vender:** nunca por debajo de nuestro valor, primero las repetidas, nunca una carta que nos falte para una página.
-- **Quoter (hecho, no en vivo):** pujas fijas por las cartas que nos faltan y ofertas de venta de repetidas. El guardián lo para cuando debe. Plan del tick 568: pujas RET-02..05 a 8, SAL-06/07 y MAL-06/08 a 20, RET-09 a 68, venta de la LAV-06 repetida a 20. 180 P comprometidas, +79 de valor si todo se llena. **Necesita el visto bueno de Thameur.** ⚠️ La caja tiene **48 P** (15:36, tras la fianza de v21): el plan de 180 P no cabe. Recortarlo a la caja (`--quote-budget`) o esperar a que vuelva la fianza.
+- **Quoter (hecho, no en vivo):** pujas fijas por las cartas que nos faltan y ofertas de venta de repetidas. El guardián lo para cuando debe. Plan del tick 568: pujas RET-02..05 a 8, SAL-06/07 y MAL-06/08 a 20, RET-09 a 68, venta de la LAV-06 repetida a 20. 180 P comprometidas, +79 de valor si todo se llena. **Necesita el visto bueno de Maru.** ⚠️ La caja tiene **48 P** (15:36, tras la fianza de v21): el plan de 180 P no cabe. Recortarlo a la caja (`--quote-budget`) o esperar a que vuelva la fianza.
 - **Lecciones de esta mañana:** nunca ofrecer una carta a dos equipos a la vez. Abrir las ventas por encima de la mejor puja vista. Revisar las pujas viejas (si se llenan después de conseguir la carta por otro lado, compramos una repetida que vale el 25 %).
 
 ### Dealers (scripts de Maru: `agent.py`, `bz/predict.py`, `DEALERS.md`) ✅

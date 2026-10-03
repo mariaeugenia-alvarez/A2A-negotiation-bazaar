@@ -3,7 +3,7 @@
 Saturday 3 Oct 2026, 13:05 (tick 583) · Team 9 · Spanish version: `PLAYBOOK.es.md` · Strategy and source of truth: `ONE_SHEET.md`
 
 **Rule for every loop: one change, one number to watch, and the decision rule written down BEFORE we look at the result.**
-Real trades cost primas: nothing below sends anything unless it says LIVE, and LIVE needs Thameur's approval.
+Real trades cost primas: nothing below sends anything unless it says LIVE, and LIVE needs an OK: **duels from Thameur, cards (dealers, team trades, quoter) from Maru**.
 **Who does what on our shared key:** dealers = Maru's scripts (`agent.py`, `bz/haggle.py`, `bz/predict.py`).
 Team trades = `trader.py` (trader session). Duels = `duels.py` under `duels_watch.py`, on **one machine only**. All of
 them spend the same cash, so tell each other before a big purchase or before posting offers.
@@ -27,9 +27,9 @@ them spend the same cash, so tell each other before a big purchase or before pos
 | # | Loop | Cadence | Observe | Decision rule (fixed now) | Action |
 |---|---|---|---|---|---|
 | L1 | **Score** | always on | `logs/score.jsonl`: our numbers, the tag, the leader and the median | An experiment is read only if our number moved **and** the leader and median moved less. The negotiating score is relative ✅, so always compare with the median | Set the tag before each experiment |
-| L2 | **Offers to us** | every tick | `logs/trader.jsonl` | Every accept must gain value. Never sell below our value or a card we need for a page | `trader.py`; LIVE only with your OK (`logs/trader.pause` exists since 11:09, so it is paused) |
+| L2 | **Offers to us** | every tick | `logs/trader.jsonl` | Every accept must gain value. Never sell below our value or a card we need for a page | `trader.py`; LIVE only with Maru's OK (`logs/trader.pause` exists since 11:09, so it is paused) |
 | L3 | **Duels** | each session | Deal rate, result per deal, rounds, unanswered duels | **Duels I baseline:** 18 deals of 30, result 13.3 per deal, deals in ≤ 2 rounds 20.4 vs ≥ 4 rounds 5.7, **8 duels lost to our silence**. Duels II target: 0 unanswered, ≥ 80% deals, median ≤ 2 rounds, ≥ 18 per deal. If the result per deal is lower with fewer rounds → go back to the Duels I logic for Sunday | `duels_watch.py` on one machine, `observe.py tag D2`, then `analyze_duels.py` |
-| L4 | **Quoter** | every tick once LIVE | Fills, `neg_points`, alerts | Each fill must raise `neg_points`. If a fill lowers it, or a STALE / FOREIGN alert appears, pause (`touch logs/trader.pause`) and look | `trader.py --quotes --live` after your OK |
+| L4 | **Quoter** | every tick once LIVE | Fills, `neg_points`, alerts | Each fill must raise `neg_points`. If a fill lowers it, or a STALE / FOREIGN alert appears, pause (`touch logs/trader.pause`) and look | `trader.py --quotes --live` after Maru's OK |
 | L5 | **Dealers** | per dealer | Thread logs, `ladder_points`, `neg_points` | Dealer score is tiny (0.14). Deal only for value: page cards below value, spares above it. **No sale below our value, no page card** | Maru's scripts, `--model predict` |
 | L6 | **Market Test** | every 2 h | `bench_efficiency`, `market` for us and the best team | Free stall gave 0.933 → market 7.5. **Since tick 575 our own venue v21 replaces it** (no broker seen yet). If v21 scores below 7.5 in Market Test 3 → a broker for it becomes the top market task | Read only |
 | L7 | **Words** | team trades first | Reply rate and price reached, per wording | Two wordings (plain vs label + one calibrated question), alternated, at least 10 each. Keep the one with the higher reply rate, then the better price. Never on El Chato | After L2 sends counters |
@@ -50,7 +50,7 @@ them spend the same cash, so tell each other before a big purchase or before pos
 
 1. **Duel decision logic for Duels II** (`bz/duel.py`, trader session, approved 13:35): `ONE_SHEET.md` section VI. Firm limit, an ambitious first offer the rival can accept, read the bot and adapt (stay silent while he concedes on his own), accept when one more round can't beat the decay, at most 2 real counters. Delivery day: hypothesis only. **Built** (83a1efd) as `duels.py --policy v2`, tested in `tests/sim_duel2.py`; v1 stays the default until Thameur approves the waiting strategy.
 2. **Dealer guard** (Maru): `sell-spares` sells only spares, never below `sell_floor`; `--limit` clamped to `sell_floor`/`buy_cap` (15:36). **Done.**
-3. **Quoter LIVE** with your OK (180 P of bids, +79 of value if all fill). Cash is 48 P after the v21 bond: set `--quote-budget` to what we have.
+3. **Quoter LIVE** with Maru's OK (180 P of bids, +79 of value if all fill). Cash is 48 P after the v21 bond: set `--quote-budget` to what we have.
 4. **Broker:** v21 is open without one. Read L6 at the next Market Test and decide then, not at 21:30.
 
 ## 5. Open questions the experiments must answer
