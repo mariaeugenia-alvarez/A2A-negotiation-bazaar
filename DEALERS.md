@@ -57,6 +57,29 @@ Frases de cierre: «Let's meet in the middle», «Venga, X P», y la final: «I 
 - **H2 descartada** (final de 20 en el tick 95). `best_ever = 19` (tick 35) está caducado: `accept_at` nunca dispara.
 - Mejoras pendientes: límite 25 en vez de 23 (con 23 perdemos ~18 % de tratos), pujar F − 1 y luego F tras su primera bajada.
 
+### Modelo de predicción · `bz/predict.py` (sábado, 165 hilos de todos los equipos, feed + nuestros)
+`python3 -m bz.predict` reconstruye cada hilo, ajusta el modelo y lo compara con «1 P por movimiento».
+- **Límite L por conversación; su primera bajada va a mitad de camino, redondeando hacia abajo:**
+  d1 = (A − L) // 2, así que **L = A − 2·d1 o A − 2·d1 − 1**. Una sola respuesta suya da su límite con ±1 P.
+  0 violaciones en 126 hilos de todos los tipos (sobre, poco común, común, y al venderle, con el signo al revés).
+- Después baja ¼ de lo que le queda hasta L (mínimo 1 P), **sea cual sea nuestro paso**. Exacto en el 84-95 % de
+  respuestas; si falla, por 1 P (se para 1 P antes de L).
+- Acepta nuestra oferta si llega a lo que ella diría a continuación (y no pasa de L). Ofrecer menos no la convence.
+- Final tras 4-7 respuestas (4 en la mitad de los casos) o al tocar L; el final cae de media 0,9 P por encima de L.
+- Lo que sale de cada primera respuesta (sobre: abre 30):
+
+| Su 1ª respuesta | Veces | Límite L | Final esperado subiendo 1 P |
+|---|---|---|---|
+| 25 | 12 | 19-20 | ~20,8 |
+| 26 | 13 | 21-22 | ~22,4 |
+| 27 | 4 | 23-24 | ~23,8 |
+
+  Poco común (abre 29): 25 → L 20-21, 26 → 22-23, 27 → 24-25. Común (abre 12): 10 → 7-8, 11 → 9-10.
+  Al venderle un poco común (puja 12): 13 → L 14-15, 14 → 16-17. Común (puja 5): siempre 5-6.
+- **Jugada:** abrir lejos (la mitad de su precio), subir 1 P por mensaje sin repetir nunca, ofrecer L en cuanto ella
+  solo pueda decir L, y aceptar su final. Opcional: si la 1ª respuesta es 26-27, cerrar y abrir otro hilo para volver a
+  sortear L (cerrar sin trato no gasta cupo: el cupo cuenta compras). `advise()` da el siguiente precio.
+
 ## El Chato (nivel 2)
 - **Activo para nosotros desde el tick 98** (desbloqueado con 4 tratos con Abuela); abre a todos en t = 2,63 h.
 - Vende: comunes/poco comunes desde 33, raras desde 97 (−1 por subida nuestra, final ~91), sobre_plata 188.
@@ -136,6 +159,25 @@ misma orden con LAV-09. Ahora `learn` sacó objetivo 84 del hilo 526, y el agent
   tiempo entre compras.
 - Página LAV completa. Puntuación 12,18 → 16,58 y puesto 16º → 12º tras los dos tratos (otra sesión con nuestra clave
   también estaba operando).
+
+**Modelo de predicción (`bz/predict.py`, 72 hilos del feed y nuestros): Boulware con reciprocidad.**
+- Lo más que ha cedido en total en su respuesta k es floor(a·k² + b): nada al principio, cada vez más rápido.
+  a ≈ 0,48 en raras, 0,10 en poco comunes, 0,06 cuando nos compra un poco común (b = 0,5 / 0).
+- En cada respuesta cede **lo menor entre nuestro paso y lo que le deja su calendario**. Eso explica sus frases:
+  «Subiste once, yo bajo uno» (su calendario solo daba 1 en esa respuesta) y «no me muevo si tú apenas te mueves».
+  Un salto grande más tarde sí lo iguala (hilo 195: paso de 6 en la 5ª respuesta → bajó 6). Así que el salto grande no
+  se castiga: es demasiado pronto.
+- Predice cada concesión, dejando fuera el hilo a predecir: exacto en el 77 % (raras), 96 % (poco comunes al comprar)
+  y 87 % (poco comunes al venderle), contra 49 %, 44 % y 15 % de «igualar hasta 1 P».
+- Hilo 526 (pasos de 4, trato a 84): el modelo reproduce todo el hilo, incluida la aceptación de nuestro 84.
+- **Jugada:** pasos que sigan su calendario (rara: 1, 2, 2, 4, 4, 5...) y, cuando el siguiente paso nos junte, ofrecer
+  el punto medio (él iguala el paso). Con el simulador del modelo: igual que pasos de 4 si su paciencia es 4-5
+  (89, 85), mejor si dura 6+ (80-78 frente a 84). **Ojo:** 78-80 está por debajo de todo lo visto (mínimo 82); su
+  límite real puede cortar antes.
+- Poco comunes: le cuestan ~29 tras 6 respuestas, peor que Abuela (21-25): no comprárselas a él.
+
+**Doña Pilar:** sin datos para un modelo: 8 hilos, todos de t13 vendiendo poco comunes a 49-51 alternando precios
+(eso no es moverse). Puja 16 y no se movió nunca.
 
 **Prior para dealers nuevos (agrupado, aparte de los datos de cada dealer):** mensajes antes de su final ≈ 6 × rasgo de
 paciencia (Abuela 0,85 → 5-7; El Chato 0,35 → 3 observado, 2 con el prior). `learn.messages_per_trait` lo calcula con
