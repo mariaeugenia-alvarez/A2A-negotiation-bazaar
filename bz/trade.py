@@ -23,13 +23,50 @@ def fee_for(fees: dict, venue, cash: int, cards: int) -> int:
     return math.ceil(bps * cash / 10000) + per_card * cards
 
 
+ANCHOR = 0.15  # open a counter this share beyond the other side's price (never inside our clearing price)
+
+
+def anchor(d: dict, share: float = ANCHOR):
+    """Where a counter opens. judge() gives the price that only just clears our margin; we open beyond it, because
+    the other side usually moves toward us. Selling: at least the clearing price and 15 % above their bid.
+    Buying: at most the clearing price and 15 % below their ask. None when judge() found no counter."""
+    low = d.get("counter_cash")
+    if low is None:
+        return None
+    if d["cash_in"] and not d["cash_out"]:
+        return max(low, math.ceil(d["cash_in"] * (1 + share)))
+    if d["cash_out"] and not d["cash_in"]:
+        return max(1, min(low, math.floor(d["cash_out"] * (1 - share))))
+    return None
+
+
+def is_lowball(d: dict, price: int, share: float = 0.5) -> bool:
+    """A bid for their card at under half their ask: a probe, not a real offer. Kept, but rationed (see trader.py)."""
+    return bool(d["cash_out"]) and not d["cash_in"] and price < share * d["cash_out"]
+
+
+def cost(d: dict) -> int:
+    """Primas an accept spends if we are the accepter: the cash we pay plus the venue fee."""
+    return int(d.get("cash_out") or 0) + int(d.get("fee") or 0)
+
+
+def counter_body(offer: dict, d: dict, price: int):
+    """The structured offer we send back: {"give": ..., "want": ...}, or None when we cannot build one."""
+    if d["cash_in"] and not d["cash_out"] and d.get("gives"):  # they would pay us: we sell the card(s) they asked for
+        return {"give": {"assets": d["gives"]}, "want": {"cash": int(price)}}
+    refs = [a["ref"] for a in (offer.get("give") or {}).get("assets") or []]
+    if d["cash_out"] and not d["cash_in"] and refs:  # they ask cash for cards: we bid for those cards
+        return {"give": {"cash": int(price)}, "want": {"cards": refs}}
+    return None
+
+
 def judge(offer: dict, valuer, by_ref: dict, cash: int, fees: dict, missing: dict, me_id: str) -> dict:
     out = {"offer": offer.get("id"), "maker": offer.get("maker"), "venue": offer.get("venue")}
     if offer.get("maker") == me_id or offer.get("status", "open") != "open":
         return {**out, "action": "ignore", "why": "not an open offer from someone else"}
     give, want = offer.get("give") or {}, offer.get("want") or {}
     owned = {ref: len(copies) for ref, copies in by_ref.items()}
-    chosen, lost, cards_out = [], 0.0, 0
+    chosen, named, lost, cards_out = [], [], 0.0, 0
 
     for a in want.get("assets") or []:  # a named copy of ours
         ref = a.get("ref")
@@ -39,6 +76,7 @@ def judge(offer: dict, valuer, by_ref: dict, cash: int, fees: dict, missing: dic
         lost += valuer.card_value(ref, owned=owned[ref] - 1)
         owned[ref] -= 1
         cards_out += 1
+        named.append(mine["id"])
     for t in want.get("types") or []:  # any copy of a card: we hand over the least valuable one
         kind, _, ref = t.partition(":")
         if kind != "card":
@@ -72,7 +110,8 @@ def judge(offer: dict, valuer, by_ref: dict, cash: int, fees: dict, missing: dic
     surplus = got + cash_in - lost - cash_out - fee
     margin = max(MIN_SURPLUS, MIN_SHARE * (lost + cash_out))
     res = {**out, "got": round(got, 1), "lost": round(lost, 1), "cash_in": cash_in, "cash_out": cash_out, "fee": fee,
-           "surplus": round(surplus, 1), "margin": round(margin, 1), "assets": chosen, "counter_cash": None}
+           "surplus": round(surplus, 1), "margin": round(margin, 1), "assets": chosen, "gives": named + chosen,
+           "counter_cash": None}
     if surplus >= margin:
         return {**res, "action": "accept", "why": f"+{surplus:.1f} P of value after a {fee} P fee"}
     if cash_out and not cash_in:  # we would pay: the most that still clears the margin

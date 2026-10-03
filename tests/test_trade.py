@@ -13,7 +13,7 @@ CATALOG = {
              {"id": "MAL", "released": True, "cards": [{"id": "MAL-10", "rarity": "rare"}]}],
 }
 AFF = {"LAV": 1.6, "MAL": 0.9}
-FEES = {"rastro": (500, 1), "v02": (0, 0)}
+FEES = {"rastro": (500, 1), "v02": (0, 0), "v07": (0, 0)}
 
 
 def card(i, ref, kind="card"):
@@ -79,4 +79,27 @@ assert a["action"] == "accept" and a["fee"] == 2 and a["surplus"] == 5.0, a
 pub0 = {**pub, "venue": "v02"}
 a0 = run(pub0, [], missing={"LAV": ["LAV-02", "LAV-03"], "MAL": []})
 assert a0["fee"] == 0 and a0["surplus"] == 7.0, a0; checks += 2
+# 9. counters: Team 17's real 70 P bid for MAL-10 (we hold one at 63): clearing price 75, we open 15 % above their bid
+from bz.trade import anchor, counter_body  # noqa: E402
+o17 = offer({"cash": 70}, {"types": ["card:MAL-10"]}, maker="t17")
+a = run(o17, held)
+assert a["action"] == "counter" and a["counter_cash"] == 75 and anchor(a) == 81, a
+assert counter_body(o17, a, 81) == {"give": {"assets": [135]}, "want": {"cash": 81}}, counter_body(o17, a, 81)
+# buying: they ask 20 for a card worth 22 to us (clearing 18): we open at 17, never above the clearing price
+ob = offer({"assets": [card(70, "LAV-03")]}, {"cash": 20}, maker="t03")
+a = run(ob, [], missing={"LAV": ["LAV-02", "LAV-03"], "MAL": []})
+assert a["action"] in ("accept", "counter", "ignore"), a
+if a["action"] == "counter":
+    assert anchor(a) <= a["counter_cash"] and counter_body(ob, a, anchor(a))["want"] == {"cards": ["LAV-03"]}, a
+# a named copy of ours is handed over in the counter
+on = offer({"cash": 100}, {"assets": [card(135, "MAL-10")]}, maker="t12")
+a = run(on, held)
+assert a["gives"] == [135] and a["assets"] == [], a; checks += 3
+# 10. a 2 P bid for a card they ask 9 for is a lowball; 7 is not. The accept cost is cash plus fee.
+from bz.trade import cost, is_lowball  # noqa: E402
+a5 = run(offer({"assets": [card(486, "LAV-02")]}, {"cash": 9}, venue="v07"), [card(127, "LAV-02")])
+assert a5["counter_cash"] == 2 and is_lowball(a5, anchor(a5)) and not is_lowball(a5, 7), a5
+pub = offer({"assets": [card(61, "LAV-03")]}, {"cash": 9}, maker="m1"); pub["to"] = None
+ap = run(pub, [], missing={"LAV": ["LAV-02", "LAV-03"], "MAL": []})
+assert cost(ap) == 11, ap; checks += 3
 print(f"test_trade: {checks} checks passed")
