@@ -43,6 +43,7 @@ BUDGET_SECONDS = 3600
 MAX_COUNTER_RATIO = 1.25  # a sell counter above this x their price: 0 of 22 accepted, 3 of 5 at or below (tick 1445)
 BID_MEMORY = 60         # ticks a bid for a card is remembered: we never sell that card below it
 HEARTBEAT = os.path.join(log.LOG_DIR, "trader.heartbeat")
+GAME_PAUSED_SLEEP = 20  # seconds between clock reads while the game is paused (doors closed at night)
 DEFAULT_HANDS_OFF = "RET-09"  # Maru is buying it by hand: no quote, no accept, no counter
 DEFAULT_EARMARK = "none"  # off by default: nothing proves a completed page scores; switch on with --earmark RET-09:60
 
@@ -104,6 +105,11 @@ def parse_guard(text: str) -> dict:
         if k and k.lower() != "none" and v:
             out[k.strip()] = float(v)
     return out
+
+
+def game_paused(clk: dict) -> bool:
+    """The game clock does not move: paused, or the doors are closed (night)."""
+    return bool(clk.get("paused")) or clk.get("doors") == "closed"
 
 
 def complete_pages(missing: dict) -> set:
@@ -192,7 +198,8 @@ def main() -> None:
     hands_off = {r.strip() for r in args.hands_off.split(",") if r.strip() and r.strip().lower() != "none"}
     protect = {r.strip() for r in args.protect_pages.split(",") if r.strip() and r.strip().lower() != "none"}
     guard = parse_guard(args.guard_pages)
-    complete_seen = None  # sets whose page is complete: a new one is announced once, and protected from then on
+    complete_seen = None
+    idle_told = False  # sets whose page is complete: a new one is announced once, and protected from then on
     scanner, blocked_seen = BoardScanner(), set()
     bids = {}       # card -> [(tick, cash)] bids seen from anyone
     check = None    # (decision, offer, tick) of the last accept, to read its settlement
@@ -205,6 +212,24 @@ def main() -> None:
         try:
             clk = b.clock()
             tick = clk["tick"]
+            if game_paused(clk):  # doors closed: wait_tick() returns at once, and a loop with no wait hits the rate limit
+                if not idle_told:  # (5 refused calls in the same tick stop the guard, and it stays stopped at 09:00)
+                    log.say(f"[t{tick}] trader: the game is paused (doors {clk.get('doors')}); idle until it resumes")
+                    idle_told = True
+                try:
+                    with open(HEARTBEAT, "w", encoding="utf-8") as f:
+                        json.dump({"tick": tick, "ts": time.time(), "live": args.live, "acting": False, "game_paused": True,
+                                   "cash": st.cash, "stopped": bool(quoter and quoter.guard.stopped),
+                                   "tick_seconds": clk.get("tick_seconds"), "budget": args.budget, "floor": CASH_FLOOR}, f)
+                except OSError:
+                    pass
+                if args.once:
+                    return
+                time.sleep(GAME_PAUSED_SLEEP)
+                continue
+            if idle_told:
+                log.say(f"[t{tick}] trader: the game resumed")
+                idle_told = False
             scale = tick_scale(clk.get("tick_seconds"))
             window = round(BUDGET_SECONDS / float(clk.get("tick_seconds") or 30))
             if quoter:

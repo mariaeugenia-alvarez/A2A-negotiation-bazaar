@@ -129,6 +129,7 @@ def health(log_dir: str = None, now: float = None) -> dict:
     age = round(now - hb["ts"]) if hb.get("ts") else None
     return {"age": age, "alive": age is not None and age < 120, "live": hb.get("live"), "acting": hb.get("acting"),
             "stopped": hb.get("stopped"), "paused": os.path.exists(os.path.join(d, "trader.pause")), "cash": hb.get("cash"),
+            "game_paused": bool(hb.get("game_paused")),
             "tick": hb.get("tick")}
 
 

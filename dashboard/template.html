@@ -919,6 +919,7 @@ function activityPanel(A, f) {
   const light = !H.alive ? ["var(--bad)", `<b style="color:var(--bad)">PARADO o colgado</b>: último latido ${H.age != null ? `hace ${H.age} s` : "nunca"}`]
     : H.stopped ? ["var(--bad)", `<b style="color:var(--bad)">DETENIDO por su guardia</b>`]
     : H.paused ? ["var(--bad)", `<b style="color:var(--bad)">En pausa</b> (existe logs/trader.pause)`]
+    : H.game_paused ? ["var(--muted)", `Vivo, en espera: el juego está en pausa (puertas cerradas) · tick ${H.tick ?? "—"}`]
     : !H.acting ? ["var(--muted)", "Vivo, en sombra (no actúa)"] : ["var(--ok)", `Vivo y actuando · latido hace ${H.age} s · tick ${H.tick ?? "—"} · caja ${H.cash ?? "—"} P`];
   const rows = f === "fail" ? A.failures : f === "ok" ? A.items.filter(i => i.status === "ok") : f === "noinfo" ? A.items.filter(i => i.status !== "info") : A.items;
   const chips = [["all", "Todo"], ["noinfo", "Sin rutina"], ["ok", "Tratos hechos"], ["fail", "Fallos y bloqueos"]].map(([k, n]) => `<button class="chip" aria-pressed="${f === k}" data-af="${k}">${n}</button>`).join("");

@@ -116,4 +116,12 @@ assert complete_pages({"LAV": [], "RET": []}) == {"LAV", "RET"}                 
 RET9 = {"RET-09": [{"id": 60, "ref": "RET-09", "your_value": 177.1}]}
 assert judge(buy("RET-09", 400), V(), RET9, 351, F0, {"RET": []}, "t09", protect=frozenset())["action"] == "ignore"
 checks += 7
-print(f"test_trader_fixes (with D3): {checks} checks passed")
+
+# F. game paused (the real clock of 2026-10-04 00:55): the trader idles, no busy loop
+from trader import game_paused  # noqa: E402
+assert game_paused({"tick": 1445, "paused": True, "doors": "closed"}) is True
+assert game_paused({"tick": 1445, "paused": False, "doors": "closed"}) is True
+assert game_paused({"tick": 1500, "paused": False, "doors": "open"}) is False
+assert game_paused({"tick": 1500}) is False
+checks += 4
+print(f"test_trader_fixes (with F): {checks} checks passed")
