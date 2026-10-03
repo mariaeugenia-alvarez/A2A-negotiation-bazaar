@@ -7,6 +7,7 @@ Sources, all read-only:
   logs/feed.jsonl              every public event; the dashboard appends what /api/feed shows now
   /api/dealers, /api/leaderboard, /api/feed ...   public, no key needed
   our key (optional)           our score, our duels, the values behind our limits
+  bz/testbed.py                our haggle() against simulated dealers (logs/testbed.json, rerun when the code changes)
 
 Other teams' haggles come from the public feed: it shows the dealer's words and every price, but the teams' own words
 are blank. That is enough to see how each dealer moves with everybody.
@@ -19,7 +20,7 @@ import time
 import urllib.request
 from collections import Counter, defaultdict
 
-from . import learn, log, price
+from . import learn, log, price, testbed
 from .duel import OPEN_FRAC
 from .trade import HOUSE_FEE, MIN_SHARE, MIN_SURPLUS
 
@@ -497,6 +498,14 @@ def notes() -> dict:
     return {p.split("\n", 1)[0].strip(): p.split("\n", 1)[1] if "\n" in p else "" for p in parts[1:]}
 
 
+def testbed_view() -> dict:
+    """The testbed table, or why it is missing: a bug there must not take the rest of the dashboard down."""
+    try:
+        return testbed.cached()
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
 def build(offline: bool = False, key: bool = True) -> dict:
     pub = fetch_public(offline)
     events = sync_feed((pub.get("feed") or {}).get("events") or [])
@@ -558,5 +567,5 @@ def build(offline: bool = False, key: bool = True) -> dict:
         "wallet": ({"cash": st.me.get("cash"), "level": st.me.get("level"), "collection": st.me.get("collection_value"),
                     "album": (st.me.get("album") or {}).get("filled")} if st else None),
         "duels": duels, "duel_summary": duel_summary(duels), "formulas": formulas(b, st, model, traits),
-        "market": market_view(pub, b, st, me), "notes": notes(),
+        "market": market_view(pub, b, st, me), "notes": notes(), "testbed": testbed_view(),
     }

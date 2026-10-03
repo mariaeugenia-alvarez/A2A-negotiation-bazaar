@@ -124,6 +124,13 @@ summary{cursor:pointer;font-weight:600}
 .md table{font-size:13.5px;margin:8px 0}
 .md del{color:var(--faint)}
 
+/* ---- testbed */
+.tb td.top{background:color-mix(in srgb,var(--ok) 16%,transparent)}
+.tb td.top b{color:var(--ok)}
+.tb tr.base td:first-child{color:var(--muted)}
+.tb th.ax2{text-align:center;border-bottom:1px solid var(--line);font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+.tb .arrow{color:var(--ink);font-weight:800}
+
 /* ---- charts */
 svg{display:block;max-width:100%;height:auto}
 svg text{font-family:var(--sans);fill:var(--muted);font-size:12px}
@@ -798,18 +805,104 @@ function pageMercado(filter) {
     ${ledger ? `<h2>Registro de tratos</h2>${ledger}` : ""}`;
 }
 
+/* ============================================================ testbed chapter */
+const TIER = {model: ["Modelo (bz/predict)", "var(--us)"], pace: ["Ritmo fijo de haggle()", "var(--abuela)"], baseline: ["Concesor fijo (suelo)", "var(--other)"]};
+const TB_COLS = [
+  ["se", "SE⁺", "Valor", "Excedente normalizado: lo que nos quedamos ÷ ancho de la ZOPA (0 sin trato)", true],
+  ["agr", "AGR⁺", "Calibración", "Cerramos cuando hay ZOPA", true],
+  ["cse", "CSE⁺", "Calibración", "Excedente normalizado cuando cerramos", true],
+  ["fagr", "FAGR⁻", "Calibración", "Cerramos cuando no hay ZOPA", false],
+  ["viol", "Viol. reserva", "Cumplimiento", "Tratos que pasan nuestra reserva, sobre todas las partidas", false],
+];
+const f2 = v => v == null ? "—" : Number(v).toLocaleString("es-ES", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const ci = m => m == null ? `<span class="faint">—</span>` : `<b>${f2(m.v)}</b> <small class="faint">[${f2(m.lo)}–${f2(m.hi)}]</small>`;
+/* the rows that hold the two best values of a column; none when every row ties */
+function best2(rows, get, up) {
+  const vs = rows.map(get).filter(v => v != null);
+  const uniq = [...new Set(vs)].sort((a, b) => up ? b - a : a - b);
+  if (uniq.length < 2) return new Set();
+  const cut = uniq[Math.min(1, uniq.length - 2)];
+  return new Set(rows.filter(r => { const v = get(r); return v != null && (up ? v >= cut : v <= cut); }).map(r => r.id));
+}
+const violBg = v => v > 0 ? `background:color-mix(in srgb,var(--bad) ${Math.round(18 + 62 * Math.min(1, v / 0.2))}%,transparent);color:var(--ink)` : "";
+function tbBars(rows, floor) {
+  const W = 1000, rowH = 30, L = 230, R = 70, top = 26, H = top + rows.length * rowH + 30;
+  const X = v => L + v * (W - L - R);
+  let g = "";
+  for (const v of [0, 0.25, 0.5, 0.75, 1]) g += `<line x1="${X(v)}" x2="${X(v)}" y1="${top - 6}" y2="${H - 26}" stroke="var(--grid)"/><text x="${X(v)}" y="${H - 8}" text-anchor="middle">${num(v, 2)}</text>`;
+  rows.forEach((r, i) => {
+    const m = r.all.se, y = top + i * rowH, c = TIER[r.tier][1];
+    if (!m) return;
+    const t = `${r.label}: SE⁺ ${num(m.v, 2)} (IC 95 % ${num(m.lo, 2)}–${num(m.hi, 2)}) · AGR⁺ ${num(r.all.agr?.v, 2)} × CSE⁺ ${num(r.all.cse?.v, 2)}`;
+    g += `<text x="${L - 10}" y="${y + 15}" text-anchor="end" style="fill:var(--ink)">${esc(r.label)}</text>`;
+    g += `<rect class="hit" data-tip="${esc(t)}" x="${X(0)}" y="${y + 4}" width="${Math.max(1, X(m.v) - X(0))}" height="${rowH - 12}" rx="2" fill="${c}" ${r.tier === "baseline" ? 'fill-opacity=".55"' : ""}/>`;
+    g += `<line x1="${X(m.lo)}" x2="${X(m.hi)}" y1="${y + rowH / 2 - 1}" y2="${y + rowH / 2 - 1}" stroke="var(--ink)" stroke-width="1.5"/>`;
+    for (const e of [m.lo, m.hi]) g += `<line x1="${X(e)}" x2="${X(e)}" y1="${y + 9}" y2="${y + rowH - 11}" stroke="var(--ink)" stroke-width="1.5"/>`;
+    g += `<text x="${X(m.hi) + 8}" y="${y + 15}" style="fill:var(--ink);font-weight:700">${num(m.v, 2)}</text>`;
+  });
+  if (floor != null) g += `<line x1="${X(floor)}" x2="${X(floor)}" y1="${top - 14}" y2="${H - 26}" stroke="var(--bad)" stroke-dasharray="5 4" stroke-width="1.5"/><text x="${X(floor) + 6}" y="${top - 12}" style="fill:var(--bad)">suelo: concesor fijo 30 %</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="SE⁺ de cada configuración con su intervalo de confianza">${g}</svg>`;
+}
+function pageBanco() {
+  const T = D.testbed;
+  const head = `<h1>Banco de pruebas</h1><p class="sub">Nuestro <span class="mono">haggle()</span> contra dealers simulados cuyo límite secreto conocemos. Cada mundo fija el límite del dealer, su paciencia y nuestra reserva, así que podemos medir lo que ningún hilo real dice: qué parte de la ZOPA nos llevamos. Gratis, sin red; <span class="mono">python3 -m bz.testbed</span> imprime la misma tabla.</p>`;
+  if (!T || T.error || !T.configs) return head + `<div class="empty">No se pudo calcular el banco de pruebas${T && T.error ? `: <span class="mono">${esc(T.error)}</span>` : ""}.</div>`;
+  const rows = T.configs, fams = Object.keys(T.families);
+  const floorRow = rows.find(r => r.floor), floor = floorRow?.all.se?.v;
+  const under = r => r.tier !== "baseline" && floor != null && r.all.se && r.all.se.v <= floor;
+  const nGames = sum(rows.map(r => r.all.games)), nWorlds = sum(Object.values(T.worlds));
+  const top = rows.filter(r => r.tier !== "baseline").sort((a, b) => (b.all.se?.v ?? -1) - (a.all.se?.v ?? -1))[0];
+  const facts = `<div class="facts"><div><b>${rows.filter(r => r.tier !== "baseline").length} + ${rows.filter(r => r.tier === "baseline").length}</b><span>configuraciones + concesores fijos</span></div>
+    <div><b>${nWorlds}</b><span>mundos (${fams.map(f => `${T.worlds[f]} ${esc(T.families[f].split(" (")[0].toLowerCase())}`).join(" · ")})</span></div>
+    <div><b>${num(nGames, 0)}</b><span>partidas simuladas</span></div>
+    <div><b>${top ? num(top.all.se.v, 2) : "—"}</b><span>mejor SE⁺: ${top ? esc(top.label) : "—"}</span></div>
+    <div><b>${floor != null ? num(floor, 2) : "—"}</b><span>suelo (concesor fijo 30 %)</span></div></div>`;
+  const marks = Object.fromEntries(TB_COLS.map(([k, , , , up]) => [k, best2(rows, r => r.all[k]?.v, up)]));
+  const axes = [];
+  for (const c of TB_COLS) { const last = axes[axes.length - 1]; if (last && last[0] === c[2]) last[1]++; else axes.push([c[2], 1]); }
+  const main = `<div class="scroll"><table class="tb"><thead>
+      <tr><th></th>${axes.map(([a, n]) => `<th colspan="${n}" class="ax2">${a}</th>`).join("")}</tr>
+      <tr><th>Configuración</th>${TB_COLS.map(([k, name, , what, up]) => `<th class="r" data-tip="${esc(what)}">${name} <span class="arrow">${up ? "↑" : "↓"}</span></th>`).join("")}</tr></thead><tbody>
+    ${rows.map(r => `<tr class="${r.tier === "baseline" ? "base" : ""}"><td><span class="dot" style="--dc:${TIER[r.tier][1]}"></span>${esc(r.label)}${r.floor ? ` <span class="tag none">suelo</span>` : ""}${under(r) ? ` <span class="tag" style="color:var(--bad)">no supera el suelo</span>` : ""}</td>
+      ${TB_COLS.map(([k]) => `<td class="r ${marks[k].has(r.id) ? "top" : ""}" style="${k === "viol" ? violBg(r.all[k]?.v) : ""}">${ci(r.all[k])}</td>`).join("")}</tr>`).join("")}
+    </tbody></table></div>
+    <p class="note">Todas las familias de dealer juntas. Entre corchetes, el intervalo de confianza al 95 % (bootstrap con ${num(T.resamples, 0)} remuestreos de los mundos). En verde, los dos mejores de cada columna; en rojo, las violaciones de reserva, más oscuro cuanto peor. SE⁺ = AGR⁺ × CSE⁺: separa cerrar siempre pero barato de cerrar menos pero exprimir más.</p>`;
+  const fcols = [...fams, "all"], fname = f => f === "all" ? "Todas" : T.families[f];
+  const fget = (r, f) => f === "all" ? r.all : r.by_family[f];
+  const fmarks = Object.fromEntries(fcols.map(f => [f, best2(rows, r => fget(r, f).se?.v, true)]));
+  const tourney = `<div class="scroll"><table class="tb"><thead><tr><th>Configuración</th>${fcols.map(f => `<th class="r">${esc(fname(f))} <span class="arrow">↑</span></th>`).join("")}</tr></thead><tbody>
+    ${rows.map(r => `<tr class="${r.tier === "baseline" ? "base" : ""}"><td><span class="dot" style="--dc:${TIER[r.tier][1]}"></span>${esc(r.label)}</td>
+      ${fcols.map(f => { const m = fget(r, f); return `<td class="r ${fmarks[f].has(r.id) ? "top" : ""}">${ci(m.se)}<br><small class="muted">AGR⁺ ${num(m.agr?.v, 2)} × CSE⁺ ${num(m.cse?.v, 2)}${m.fagr && m.fagr.v > 0 ? ` · FAGR⁻ ${num(m.fagr.v, 2)}` : ""}${m.viol && m.viol.v > 0 ? ` · <b style="color:var(--bad)">viol. ${num(m.viol.v, 2)}</b>` : ""}</small></td>`; }).join("")}</tr>`).join("")}
+    </tbody></table></div>
+    <p class="note">SE⁺ por familia de dealer. Contra el inmóvil, cada trato dentro de la ZOPA se cierra a su único precio, que es su límite: SE⁺ = 1 en cuanto cerramos, así que ahí solo cuenta AGR⁺.</p>`;
+  return head + facts + `<h2>Tabla principal</h2>${main}
+    <h2>SE⁺ por configuración</h2>${legend(Object.values(TIER).map(([t, c]) => [t, c]))}${tbBars(rows, floor)}
+    <p class="note">La barra es SE⁺ con todas las familias juntas, y el bigote es su intervalo al 95 %. Una configuración que no pasa la línea roja no mejora a conceder un 30 % de lo que queda en cada mensaje.</p>
+    <h2>Torneo: configuración × familia de dealer</h2>${tourney}
+    <h2>Cómo se calcula</h2><pre class="f">ZOPA   = precios que aceptan los dos: comprando, de su límite L a nuestra reserva R (ancho R − L)
+SE⁺    = (R − precio) ÷ (R − L), 0 sin trato · media sobre los mundos con ZOPA
+AGR⁺   = mundos con ZOPA en los que cerramos        CSE⁺ = SE⁺ medio de esos tratos        SE⁺ = AGR⁺ × CSE⁺
+FAGR⁻  = mundos sin ZOPA en los que cerramos igualmente
+viol.  = tratos que pasan nuestra reserva, sobre todas las partidas (debe ser 0)
+apertura x % = nuestro primer precio, x % por debajo de su precio (comprar) o por encima (vender)
+ritmo n      = haggle(patience=n): reparte lo que queda hasta la reserva en n mensajes
+concesor fijo x % = haggle(step_frac=x): cada mensaje cede x % de lo que queda</pre>
+    <p class="note">Las palabras no mueven a un dealer simulado, así que la persona no entra en el banco. Se recalcula solo cuando cambia <span class="mono">bz/testbed.py</span>, <span class="mono">haggle.py</span>, <span class="mono">predict.py</span> o <span class="mono">texts.py</span>; si no, se lee de <span class="mono">logs/testbed.json</span>.</p>`;
+}
+
 /* ============================================================ router */
-const pagesOf = () => [["resumen", "Resumen"], ...Object.keys(D.dealers).map(id => [id, D.dealers[id].name]), ["duelos", "Duelos"], ["mercado", "Mercado"], ["equipos", "Otros equipos"], ["formulas", "Fórmulas"]];
+const pagesOf = () => [["resumen", "Resumen"], ...Object.keys(D.dealers).map(id => [id, D.dealers[id].name]), ["duelos", "Duelos"], ["mercado", "Mercado"], ["banco", "Banco de pruebas"], ["equipos", "Otros equipos"], ["formulas", "Fórmulas"]];
 let PAGES = pagesOf();
 const state = {kind: {}, sort: null, mf: "all"};
 function route(keep) {
   const [page = "resumen", a, b] = location.hash.slice(1).split("/");
   const known = PAGES.find(p => p[0] === page) ? page : "resumen";
-  $("#line").innerHTML = PAGES.map(([id, name], i) => `<li class="${id === known ? "on" : ""}" style="--i:${i};--st:${id === "resumen" || id === "formulas" ? "var(--us)" : id === "duelos" ? "var(--rival)" : id === "mercado" ? "var(--ink)" : id === "equipos" ? "var(--other)" : dcolor(id)}"><a href="${hash(id)}" ${id === known ? 'aria-current="page"' : ""}>${esc(name)}</a></li>`).join("");
+  $("#line").innerHTML = PAGES.map(([id, name], i) => `<li class="${id === known ? "on" : ""}" style="--i:${i};--st:${id === "resumen" || id === "formulas" ? "var(--us)" : id === "duelos" ? "var(--rival)" : id === "mercado" ? "var(--ink)" : id === "banco" ? "var(--ok)" : id === "equipos" ? "var(--other)" : dcolor(id)}"><a href="${hash(id)}" ${id === known ? 'aria-current="page"' : ""}>${esc(name)}</a></li>`).join("");
   let html;
   if (known === "resumen") html = pageResumen();
   else if (known === "duelos") html = pageDuelos(a);
   else if (known === "mercado") html = pageMercado(state.mf);
+  else if (known === "banco") html = pageBanco();
   else if (known === "equipos") html = pageEquipos(a, state.sort);
   else if (known === "formulas") html = pageFormulas();
   else html = pageDealer(known, a && b ? {source: a, id: +b} : null, state.kind[known]);
