@@ -449,5 +449,23 @@ for seed in range(2000):
     dy = last_call_day("buyer", limit, w_, p, rng9.choice([None, rng9.randint(0, 10)]), rng9.choice([None, rng9.randint(0, 10)]))
     assert dy is None or (0 <= dy <= 10 and surplus("buyer", limit, p) + w_ * dy >= U_FLOOR - 1e-9)
 checks += 1
+# ================= days_meaning: the EXACT sentences of the Duels II duels (a hotfix: 'adds' was read as unread, w = 0) =================
+SELL_MEANING = "each delivery day adds this much cash to your side"      # sell duels: a later day GAINS us value
+BUY_MEANING = "each delivery day costs you this much cash"               # buy duels: a later day COSTS us value
+w_sell, how_sell = days_weight({"issues": ["price", "days"], "your_days_weight": 3.0, "days_meaning": SELL_MEANING})
+w_buy, how_buy = days_weight({"issues": ["price", "days"], "your_days_weight": 3.0, "days_meaning": BUY_MEANING})
+assert (w_sell, how_sell) == (3.0, "gain per day"), (w_sell, how_sell)
+assert (w_buy, how_buy) == (-3.0, "cost per day"), (w_buy, how_buy)
+# through decide2 (what the agent logs as w and w_how), seller and buyer, and the old sentences still read the same way
+for role, meaning, w_exp, how_exp in (("seller", SELL_MEANING, 3.0, "gain per day"), ("buyer", BUY_MEANING, -3.0, "cost per day"),
+                                      ("seller", "your gain per day of delivery", 3.0, "gain per day"),
+                                      ("buyer", "each day of delay costs you this much", -3.0, "cost per day")):
+    dd = duel(role, 100, [m(500, "R", 140 if role == "buyer" else 60, 5)], {"price": 140 if role == "buyer" else 60, "days": 5},
+              deadline=520, issues=("price", "days"), w=3.0, meaning=meaning)
+    a_ = decide2(dd, 503)
+    assert (a_["w"], a_["w_how"]) == (w_exp, how_exp), (role, meaning, a_["w"], a_["w_how"])
+# an unreadable sentence still counts days for nothing (w = 0), and never crashes
+assert days_weight({"issues": ["price", "days"], "your_days_weight": 3.0, "days_meaning": "???"})[0] == 0.0
+checks += 4
 print(f"test_duel2: {checks} checks passed (4000 random duels for the hard rules, 3000 regression duels, 4000 random two-issue duels)")
 
