@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regateos · The Bazaar</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%232446B5'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#ECEEE8; --panel:#F8F9F6; --ink:#16202F; --muted:#586374; --faint:#8A93A1; --line:#D3D8D0; --grid:#E1E5DE;
+  --us:#2446B5; --abuela:#D97400; --chato:#7A3FB0; --other:#8B94A3; --rival:#4B5666;
+  --ok:#1B7F4B; --bad:#B3261E; --wash:#E3E8F6;
+  --sans:"Archivo","Avenir Next","Helvetica Neue",sans-serif; --serif:"Newsreader","Iowan Old Style",Georgia,serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --paper:#0E1219; --panel:#161B25; --ink:#E7EAF0; --muted:#A2ACBB; --faint:#78828F; --line:#2A3140; --grid:#222938;
+    --us:#4F78E8; --abuela:#CC7A10; --chato:#9D66DB; --other:#6F7988; --rival:#A2ACBB;
+    --ok:#4CC38A; --bad:#F2706A; --wash:#1D2740;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;
+  background:
+    linear-gradient(var(--grid) 1px,transparent 1px) 0 0/100% 48px,
+    linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/48px 100%;opacity:.45}
+a{color:inherit}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--us);outline-offset:2px}
+.shell{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
+
+/* ---- the metro line */
+.rail{position:sticky;top:0;height:100vh;padding:28px 18px 24px 26px;display:flex;flex-direction:column;gap:20px;overflow:auto}
+.brand{display:flex;align-items:center;gap:12px}
+.badge{flex:none;width:44px;height:44px;border-radius:50%;background:var(--us);color:#fff;display:grid;place-items:center;font-weight:800;font-size:22px;font-stretch:80%}
+.brand b{display:block;font-size:19px;line-height:1.1;font-stretch:78%;font-weight:800;letter-spacing:.01em}
+.brand small{color:var(--muted);font-size:12.5px}
+.line{position:relative;margin:6px 0 0 21px;padding:0;list-style:none}
+.line::before{content:"";position:absolute;left:-3px;top:8px;bottom:8px;width:6px;border-radius:3px;background:var(--us);transform-origin:top;animation:draw .9s cubic-bezier(.6,0,.2,1) both}
+.line li{position:relative;padding:0 0 0 30px}
+.line a{display:block;padding:9px 0;text-decoration:none;color:var(--muted);font-weight:500;font-stretch:92%}
+.line a:hover{color:var(--ink)}
+.line li::before{content:"";position:absolute;left:-10px;top:50%;width:20px;height:20px;margin-top:-10px;border-radius:50%;background:var(--paper);border:4px solid var(--st,var(--us));animation:pop .35s both;animation-delay:calc(var(--i)*90ms + .25s)}
+.line li.on::before{background:var(--st,var(--us));box-shadow:0 0 0 4px var(--paper),0 0 0 6px var(--st,var(--us))}
+.line li.on a{color:var(--ink);font-weight:800}
+.railfoot{margin-top:auto;color:var(--muted);font-size:12.5px;line-height:1.45}
+.railfoot button{margin-top:8px;border:1px solid var(--line);background:var(--panel);padding:6px 10px;border-radius:6px;cursor:pointer}
+@keyframes draw{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+
+/* ---- page */
+main{padding:34px 40px 80px;max-width:1240px;min-width:0}
+h1{font-size:44px;line-height:1;margin:0 0 6px;font-stretch:72%;font-weight:800;letter-spacing:.005em}
+h2{font-size:24px;line-height:1.15;margin:44px 0 12px;font-stretch:80%;font-weight:800}
+h3{font-size:16px;margin:0 0 8px;font-weight:700}
+.sub{color:var(--muted);margin:0 0 26px;max-width:70ch}
+.cols{display:grid;gap:28px;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr)}
+.cols.even{grid-template-columns:1fr 1fr}
+@media (max-width:1100px){.cols,.cols.even{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:3px 14px 3px 14px;padding:18px 20px}
+.flat{border-top:2px solid var(--ink);padding-top:12px}
+.muted{color:var(--muted)} .faint{color:var(--faint)}
+.small{font-size:13px}
+.note{font-size:13px;color:var(--muted);max-width:75ch;margin:8px 0 0}
+.tag{display:inline-block;padding:1px 8px;border:1px solid currentColor;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+.tag.deal{color:var(--ok)} .tag.none{color:var(--muted)} .tag.live{color:var(--us)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--dc,var(--us));margin-right:6px;vertical-align:baseline}
+.dot.hollow{background:transparent;border:2px solid var(--dc,var(--us))}
+table{border-collapse:collapse;width:100%}
+th{font-weight:600;color:var(--muted);text-align:left;padding:6px 10px 6px 0;border-bottom:1px solid var(--ink);font-size:13px;white-space:nowrap}
+td{padding:8px 10px 8px 0;border-bottom:1px solid var(--line);vertical-align:middle}
+th.r,td.r{text-align:right}
+tbody tr.pick{cursor:pointer}
+tbody tr.pick:hover td{background:var(--wash)}
+tbody tr.sel td{background:var(--wash)}
+th button{background:none;border:0;padding:0;font-weight:600;cursor:pointer;color:inherit}
+.scroll{overflow-x:auto}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+.chip{border:1px solid var(--line);background:var(--panel);padding:6px 12px;border-radius:99px;cursor:pointer;font-weight:600;font-size:14px}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.empty{padding:22px;border:1px dashed var(--line);color:var(--muted);border-radius:8px}
+
+/* ---- dealer header */
+.dhead{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start;margin-bottom:26px}
+.avatar{width:84px;height:84px;border-radius:50%;display:grid;place-items:center;font-size:40px;background:var(--dc);box-shadow:0 0 0 5px var(--paper),0 0 0 8px var(--dc)}
+.bio{font-family:var(--serif);font-size:17px;line-height:1.5;max-width:60ch;color:var(--ink);margin:6px 0 0}
+.traits{display:grid;grid-template-columns:auto 1fr auto;gap:5px 12px;align-items:center;font-size:13.5px}
+.bar{height:8px;border-radius:4px;background:var(--grid);position:relative;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--dc,var(--ink));border-radius:4px}
+
+/* ---- big numbers without ceremony */
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border-top:2px solid var(--ink)}
+.facts div{padding:10px 14px 12px 0}
+.facts b{display:block;font-size:30px;font-stretch:78%;font-weight:800;line-height:1.1}
+.facts span{color:var(--muted);font-size:13px}
+
+/* ---- conversation */
+.talk{margin:6px 0 0;padding:0;list-style:none}
+.talk li{display:grid;grid-template-columns:54px 1fr auto;gap:12px;padding:10px 0 10px 12px;border-bottom:1px solid var(--line);border-left:4px solid var(--c)}
+.talk .who{font-size:12.5px;color:var(--muted);line-height:1.3}
+.talk .who b{color:var(--ink);display:block;font-size:13px}
+.talk .txt{font-family:var(--serif);font-size:16.5px;line-height:1.45;margin:0;max-width:68ch}
+.talk .us .txt{font-family:var(--sans);font-size:14.5px}
+.talk .none{color:var(--faint);font-style:italic}
+.price{text-align:right;white-space:nowrap}
+.price b{font-size:20px;font-stretch:80%;font-weight:800}
+.price small{display:block;color:var(--muted);font-size:12px}
+.fin{font-weight:700;color:var(--bad)}
+.mono{font-family:var(--mono);font-size:13px}
+pre.f{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--wash);border-radius:3px 10px 3px 10px;padding:12px 16px;margin:10px 0;overflow-x:auto;white-space:pre-wrap}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 18px;margin:0}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-weight:600}
+details{margin:8px 0}
+summary{cursor:pointer;font-weight:600}
+.md h3{margin:16px 0 6px;font-size:15px} .md p{margin:6px 0;max-width:80ch} .md ul{margin:6px 0 6px 18px;padding:0;max-width:80ch}
+.md code{font-family:var(--mono);font-size:12.5px;background:var(--wash);padding:0 4px;border-radius:3px}
+.md table{font-size:13.5px;margin:8px 0}
+.md del{color:var(--faint)}
+
+/* ---- charts */
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:var(--sans);fill:var(--muted);font-size:12px}
+.ax line{stroke:var(--grid)} .ax .base{stroke:var(--line)}
+.lab{fill:var(--ink)!important;font-weight:700}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--muted);margin:4px 0 6px}
+.legend i{display:inline-block;width:18px;height:3px;border-radius:2px;background:var(--c);vertical-align:middle;margin-right:6px}
+.legend i.o{height:10px;width:10px;border-radius:50%}
+#tip{position:fixed;z-index:50;pointer-events:none;background:var(--ink);color:var(--paper);padding:6px 10px;border-radius:6px;font-size:13px;max-width:320px;opacity:0;transition:opacity .08s}
+#tip.on{opacity:1}
+.hit{cursor:pointer}
+@media (max-width:860px){
+  .shell{grid-template-columns:1fr}
+  .rail{position:static;height:auto;flex-direction:row;flex-wrap:wrap;padding:16px}
+  .line{display:flex;gap:16px;margin:0;flex-wrap:wrap}.line::before{display:none}.line li{padding:0}.line li::before{display:none}
+  .railfoot{display:none} main{padding:20px 16px 60px} h1{font-size:34px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="rail" aria-label="Secciones">
+    <div class="brand"><span class="badge" id="badge">9</span><div><b>Regateos</b><small id="meta"></small></div></div>
+    <ol class="line" id="line"></ol>
+    <div class="railfoot" id="foot"></div>
+  </nav>
+  <main id="main"></main>
+</div>
+<div id="tip" role="tooltip"></div>
+<script>
+const DATA = /*__DATA__*/null;
+</script>
+<script>
+"use strict";
+/* ============================================================ helpers */
+const D = DATA, ME = D.me;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num = (v, d = 1) => v == null || Number.isNaN(v) ? "—" : Number(v).toLocaleString("es-ES", {maximumFractionDigits: d});
+const P = v => v == null ? "—" : `${num(v)} P`;
+const sum = a => a.reduce((x, y) => x + y, 0);
+const median = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const RAR = {common: "común", uncommon: "poco común", rare: "rara", epic: "épica", legendary: "legendaria"};
+const PACK = {sobre_barrio: "sobre de barrio", sobre_plata: "sobre de plata", sobre_oro: "sobre de oro", sobre_bienvenida: "sobre de bienvenida"};
+const TRAITS = {patience: ["paciencia", "cuántos mensajes aguanta antes de dar su última oferta"], generosity: ["generosidad", "cuánto cede por cada paso nuestro"],
+  shrewdness: ["astucia", "cuánto intenta engañar o presionar"], memory: ["memoria", "cuánto recuerda cómo la hemos tratado"],
+  strictness: ["rigor", "cuánto se aferra a su precio"], chattiness: ["charla", "cuánto habla"]};
+const OFFER = {open: "abierta", settled: "cerrada", accepted: "aceptada", cancelled: "cancelada", expired: "caducada"};
+const REASON = {not_owner: "ya no teníamos la carta", persona_quota: "cupo de la hora agotado", sold_out: "agotado", cooloff: "pausa por castigo",
+  insufficient_cash: "sin caja suficiente", accept_not_settled: "no se cerró el trato"};
+const dname = id => (D.dealers[id] || {}).name || id;
+const dcolor = id => ({abuela: "var(--abuela)", chato: "var(--chato)"}[id] || "var(--rival)");
+function kindLabel(k) {
+  const [a, b, c] = String(k).split(":");
+  if (a === "sell") return `Vender ${RAR[b] || "carta"}`;
+  if (a === "buy" && b === "pack") return `Comprar ${PACK[c] || c}`;
+  if (a === "buy" && b === "card") return `Comprar carta ${RAR[c] || ""}`.trim();
+  if (a === "buy") return `Comprar ${RAR[c] || c || ""}`.trim();
+  return "Otro";
+}
+const isBuy = k => String(k).startsWith("buy");
+function outcome(t) {
+  if (t.deal != null) return `<span class="tag deal">Trato a ${P(t.deal)}</span>`;
+  if (t.status === "open") return `<span class="tag live">En curso</span>`;
+  const why = REASON[t.closed_reason];
+  return `<span class="tag none">Sin trato</span>${why ? ` <span class="small muted">${esc(why)}</span>` : ""}`;
+}
+const tickRange = t => t.tick0 === t.tick1 || t.tick1 == null ? `${t.tick0}` : `${t.tick0}–${t.tick1}`;
+const allThreads = () => [...D.ours, ...D.others];
+const findThread = (src, id) => allThreads().find(t => t.id === id && t.source === src);
+const hash = (...p) => "#" + p.join("/");
+
+/* tooltips */
+const tip = $("#tip");
+document.addEventListener("mousemove", e => {
+  const el = e.target.closest && e.target.closest("[data-tip]");
+  if (!el) { tip.classList.remove("on"); return; }
+  tip.textContent = el.dataset.tip;
+  tip.classList.add("on");
+  const w = tip.offsetWidth, x = Math.min(e.clientX + 14, innerWidth - w - 10);
+  tip.style.left = x + "px"; tip.style.top = (e.clientY + 16) + "px";
+});
+
+/* ============================================================ svg charts */
+function ticks(min, max, n = 5) {
+  const span = max - min || 1, raw = span / n, mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 5, 10].map(m => m * mag).find(s => s >= raw) || mag;
+  const out = [];
+  for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) out.push(+v.toFixed(6));
+  return out;
+}
+function plot(o) {
+  const W = o.w || 760, H = o.h || 300, m = {l: 44, r: o.right ?? 96, t: o.ylabel ? 30 : 16, b: o.xlabel ? 46 : 30};
+  const X = v => m.l + (v - o.xd[0]) / ((o.xd[1] - o.xd[0]) || 1) * (W - m.l - m.r);
+  const Y = v => H - m.b - (v - o.yd[0]) / ((o.yd[1] - o.yd[0]) || 1) * (H - m.t - m.b);
+  let ax = `<g class="ax">`;
+  for (const v of ticks(o.yd[0], o.yd[1], 5)) ax += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${num(v)}</text>`;
+  for (const v of (o.xticks || ticks(o.xd[0], o.xd[1], 8))) ax += `<text x="${X(v)}" y="${H - m.b + 18}" text-anchor="middle">${(o.xfmt || num)(v)}</text>`;
+  ax += `<line class="base" x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}"/>`;
+  if (o.xlabel) ax += `<text x="${(m.l + W - m.r) / 2}" y="${H - 6}" text-anchor="middle">${esc(o.xlabel)}</text>`;
+  if (o.ylabel) ax += `<text x="12" y="12">${esc(o.ylabel)}</text>`;
+  ax += `</g>`;
+  return {W, H, m, X, Y, svg: inner => `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria)}">${ax}${inner}</svg>`};
+}
+const pad = (lo, hi, k = 1) => [Math.floor(lo - k), Math.ceil(hi + k)];
+const poly = (pts, X, Y) => pts.map((p, i) => `${i ? "L" : "M"}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join("");
+/* labels at the right edge that do not collide */
+function endLabels(items, p) {
+  items.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < items.length; i++) if (items[i].y - items[i - 1].y < 15) items[i].y = items[i - 1].y + 15;
+  return items.map(l => `<text class="lab" x="${p.W - p.m.r + 8}" y="${l.y + 4}" style="fill:${l.c}!important">${esc(l.t)}</text>`).join("");
+}
+
+/* one conversation: our prices and theirs, message by message */
+function pathChart(rows, o) {
+  const priced = rows.filter(r => r.price != null).map((r, i) => ({...r, x: i + 1}));
+  if (!priced.length) return `<div class="empty">Esta conversación no tiene precios.</div>`;
+  const prices = priced.map(r => r.price).concat(o.limit != null ? [o.limit] : [], o.deal != null ? [o.deal] : []);
+  const n = priced.length;
+  const p = plot({xd: [0.5, n + 1.6], yd: pad(Math.min(...prices), Math.max(...prices), 1.5), xticks: priced.map(r => r.x), aria: o.aria, h: 280, xlabel: "mensajes con precio, en orden"});
+  const series = [["us", "Nosotros", "var(--us)", 3], ["dealer", o.dealerName, o.dcolor, 3], ["team", o.teamName || "Equipo", o.teamColor || "var(--other)", 3]];
+  let g = "", labels = [];
+  if (o.limit != null) {
+    g += `<line x1="${p.m.l}" x2="${p.W - p.m.r}" y1="${p.Y(o.limit)}" y2="${p.Y(o.limit)}" stroke="var(--muted)" stroke-dasharray="5 5" stroke-width="1.5"/>`;
+    g += `<text x="${p.m.l + 4}" y="${p.Y(o.limit) - 6}">${o.buy ? "tope que pagamos" : "mínimo que aceptamos"}: ${num(o.limit)} P</text>`;
+  }
+  for (const [who, name, color, w] of series) {
+    const pts = priced.filter(r => r.who === who);
+    if (!pts.length) continue;
+    g += `<path d="${poly(pts.map(r => [r.x, r.price]), p.X, p.Y)}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    for (const r of pts) {
+      const tipText = `${name}: ${num(r.price)} P · tick ${r.tick}${r.final ? " · oferta final" : ""}${r.step ? ` · ${r.step > 0 ? "+" : "−"}${num(Math.abs(r.step))}` : ""}`;
+      if (r.final) g += `<circle cx="${p.X(r.x)}" cy="${p.Y(r.price)}" r="9" fill="none" stroke="${color}" stroke-width="2"/>`;
+      g += `<circle cx="${p.X(r.x)}" cy="${p.Y(r.price)}" r="4.5" fill="${color}" stroke="var(--panel)" stroke-width="2"/><circle class="hit" cx="${p.X(r.x)}" cy="${p.Y(r.price)}" r="12" fill="transparent" data-tip="${esc(tipText)}"/>`;
+    }
+    const last = pts[pts.length - 1];
+    labels.push({y: p.Y(last.price), t: name, c: color});
+  }
+  if (o.deal != null) {
+    const x2 = p.X(n + 0.9), y = p.Y(o.deal);
+    g += `<path d="M${x2 - 8},${y} l8,-8 l8,8 l-8,8z" fill="var(--ok)" stroke="var(--panel)" stroke-width="2"/><circle class="hit" cx="${x2}" cy="${y}" r="14" fill="transparent" data-tip="Trato cerrado a ${num(o.deal)} P"/>`;
+    g += `<text class="lab" x="${x2}" y="${y - 14}" text-anchor="middle" style="fill:var(--ok)!important">${num(o.deal)} P</text>`;
+  }
+  return p.svg(g + endLabels(labels, p));
+}
+
+/* many conversations: how the dealer's price moves as we speak (x = our messages so far) */
+function ladderChart(threads, dealer, buy) {
+  const lines = threads.map(t => {
+    let k = 0; const pts = [];
+    for (const r of t.rows) { if (r.who !== "dealer") k++; else if (r.who === "dealer" && r.price != null) pts.push([k, r.price]); }
+    return {t, pts};
+  }).filter(l => l.pts.length);
+  if (!lines.length) return `<div class="empty">Aún no hay conversaciones de este tipo.</div>`;
+  const all = lines.flatMap(l => l.pts), xmax = Math.max(...all.map(a => a[0]), 4);
+  const p = plot({xd: [0, xmax + 0.3], yd: pad(Math.min(...all.map(a => a[1])), Math.max(...all.map(a => a[1])), 1), xticks: ticks(0, xmax, 8), right: 20, h: 300,
+    xlabel: "mensajes que le hemos mandado", aria: `Precio de ${dname(dealer)} según los mensajes que le mandamos`});
+  let g = "";
+  lines.sort((a, b) => (a.t.source === "ours") - (b.t.source === "ours"));
+  for (const l of lines) {
+    const mine = l.t.source === "ours", c = mine ? "var(--us)" : "var(--other)";
+    const label = `${mine ? "Nosotros" : "Equipo " + l.t.team} · hilo ${l.t.id}${l.t.deal != null ? ` · trato a ${num(l.t.deal)} P` : " · sin trato"}`;
+    g += `<g class="hit" data-go="${hash(dealer, l.t.source, l.t.id)}" data-tip="${esc(label)}"><path d="${poly(l.pts, p.X, p.Y)}" fill="none" stroke="${c}" stroke-width="${mine ? 3 : 1.6}" opacity="${mine ? 1 : .6}" stroke-linejoin="round"/>
+      <path d="${poly(l.pts, p.X, p.Y)}" fill="none" stroke="transparent" stroke-width="12"/>`;
+    const e = l.pts[l.pts.length - 1];
+    g += `<circle cx="${p.X(e[0])}" cy="${p.Y(e[1])}" r="${mine ? 5 : 3.5}" fill="${l.t.deal != null ? c : "var(--panel)"}" stroke="${c}" stroke-width="2"/></g>`;
+  }
+  return p.svg(g);
+}
+
+/* the first move of the dealer against where it ends */
+function scatter(points, fit, dealer) {
+  if (points.length < 2) return `<div class="empty">Hacen falta al menos dos conversaciones con regateo.</div>`;
+  const xs = points.map(q => q.d1), ys = points.map(q => q.end);
+  const p = plot({xd: [Math.min(0, ...xs), Math.max(...xs) + 1], yd: pad(Math.min(...ys), Math.max(...ys), 1), right: 24, h: 270, xlabel: "cuánto baja (o sube) en su primer movimiento, en P",
+    ylabel: "precio en que acaba", aria: `Primer movimiento de ${dname(dealer)} frente a su precio final`});
+  let g = "";
+  if (fit && fit.n) {
+    const x0 = p.X(Math.min(0, ...xs)), x1 = p.X(Math.max(...xs) + 1);
+    const xa = Math.min(0, ...xs), xb = Math.max(...xs) + 1;
+    g += `<path d="M${x0},${p.Y(fit.a + fit.b * xa)} L${x1},${p.Y(fit.a + fit.b * xb)}" stroke="var(--muted)" stroke-dasharray="6 5" stroke-width="1.6" fill="none"/>`;
+  }
+  const jitter = new Map();
+  for (const q of points) {
+    const key = q.d1 + "|" + q.end, k = jitter.get(key) || 0; jitter.set(key, k + 1);
+    const c = q.ours ? "var(--us)" : "var(--other)", cx = p.X(q.d1) + k * 9, cy = p.Y(q.end);
+    g += `<g class="hit" data-go="${hash(dealer, q.ours ? "ours" : "feed", q.thread)}" data-tip="${esc(`${q.ours ? "Nosotros" : "Equipo " + q.team} · hilo ${q.thread}: primera bajada ${num(q.d1)}, acaba en ${num(q.end)} P${q.deal ? " (trato)" : ""}`)}">
+      <circle cx="${cx}" cy="${cy}" r="${q.ours ? 7 : 5.5}" fill="${q.deal ? c : "var(--panel)"}" stroke="${c}" stroke-width="2.2"/></g>`;
+  }
+  return p.svg(g);
+}
+
+/* deal prices over time */
+function strip(threads, dealer) {
+  const deals = threads.filter(t => t.deal != null);
+  if (deals.length < 1) return `<div class="empty">Todavía no hay tratos de este tipo.</div>`;
+  const xs = deals.map(t => t.tick1), ys = deals.map(t => t.deal);
+  const p = plot({xd: [Math.min(...xs) - 3, Math.max(...xs) + 3], yd: pad(Math.min(...ys), Math.max(...ys), 1.5), right: 20, h: 230, xlabel: "tick", aria: `Precios de los tratos con ${dname(dealer)} a lo largo del tiempo`});
+  let g = "";
+  for (const t of deals) {
+    const mine = t.source === "ours", c = mine ? "var(--us)" : "var(--other)";
+    g += `<g class="hit" data-go="${hash(dealer, t.source, t.id)}" data-tip="${esc(`${mine ? "Nosotros" : "Equipo " + t.team} · hilo ${t.id} · tick ${t.tick1} · ${num(t.deal)} P`)}"><circle cx="${p.X(t.tick1)}" cy="${p.Y(t.deal)}" r="${mine ? 7 : 5}" fill="${c}" stroke="var(--panel)" stroke-width="2"/></g>`;
+  }
+  return p.svg(g);
+}
+const legend = (items) => `<div class="legend">${items.map(([t, c, o]) => `<span><i class="${o ? "o" : ""}" style="--c:${c}"></i>${esc(t)}</span>`).join("")}</div>`;
+
+/* tiny path for a table row */
+function spark(t, dealer) {
+  const pr = t.rows.filter(r => r.price != null);
+  if (pr.length < 2) return "";
+  const W = 120, H = 30, ys = pr.map(r => r.price), lo = Math.min(...ys), hi = Math.max(...ys);
+  const X = i => 3 + i / (pr.length - 1) * (W - 6), Y = v => H - 4 - (v - lo) / ((hi - lo) || 1) * (H - 8);
+  const line = who => { const q = pr.map((r, i) => [i, r]).filter(a => a[1].who === who); return q.length ? `<path d="${q.map((a, j) => `${j ? "L" : "M"}${X(a[0]).toFixed(1)},${Y(a[1].price).toFixed(1)}`).join("")}" fill="none" stroke="${who === "us" ? "var(--us)" : who === "dealer" ? dcolor(dealer) : "var(--other)"}" stroke-width="2"/>` : ""; };
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">${line("dealer")}${line("us")}${line("team")}</svg>`;
+}
+
+/* ============================================================ small markdown (DEALERS.md) */
+function md(src) {
+  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`(.+?)`/g, "<code>$1</code>").replace(/~~(.+?)~~/g, "<del>$1</del>");
+  const out = []; let list = false, tbl = null;
+  const close = () => { if (list) { out.push("</ul>"); list = false; } if (tbl) { out.push(`<div class="scroll"><table><thead><tr>${tbl[0].map(c => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>${tbl.slice(1).map(r => `<tr>${r.map(c => `<td>${inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`); tbl = null; } };
+  for (const raw of src.split("\n")) {
+    const l = raw.trimEnd();
+    if (/^\|/.test(l)) { if (/^\|[\s|:-]+\|$/.test(l)) continue; (tbl = tbl || []).push(l.replace(/^\||\|$/g, "").split("|").map(c => c.trim())); continue; }
+    close();
+    if (/^###\s/.test(l)) out.push(`<h3>${inline(l.slice(4))}</h3>`);
+    else if (/^\s*-\s/.test(l)) { if (!list) { out.push("<ul>"); list = true; } out.push(`<li>${inline(l.replace(/^\s*-\s/, ""))}</li>`); }
+    else if (l.trim()) out.push(`<p>${inline(l)}</p>`);
+  }
+  close();
+  return `<div class="md">${out.join("")}</div>`;
+}
+
+/* ============================================================ conversation detail */
+function threadDetail(t) {
+  const dealer = t.dealer, buy = isBuy(t.kind), mine = t.source === "ours";
+  const prm = t.params || {}, who = r => r.who === "us" ? "Nosotros" : r.who === "dealer" ? dname(dealer) : `Equipo ${r.sender}`;
+  const pr = t.rows.filter(r => r.price != null);
+  const ours = pr.filter(r => r.who !== "dealer"), hers = pr.filter(r => r.who === "dealer");
+  // how much she moved after each of our moves: the reciprocity we try to learn
+  const moves = [];
+  let lastOurStep = null;
+  for (const r of pr) {
+    if (r.who !== "dealer") lastOurStep = r.step;
+    else if (r.step != null && lastOurStep) moves.push(Math.abs(r.step) / Math.abs(lastOurStep));
+  }
+  const give = hers.map(r => r.price), drop = give.length > 1 ? give[0] - give[give.length - 1] : 0;
+  const params = [
+    ["Quién", mine ? "Nosotros" : `Equipo ${t.team} (del feed público)`],
+    ["Qué", kindLabel(t.kind)], ["Ticks", tickRange(t)],
+    ["Su primer precio", P(t.first)], ["Su mejor precio", P(t.best)],
+    ["Nuestra apertura", P(prm.opening ?? ours[0]?.price)],
+    ["Nuestro límite", prm.limit != null ? P(prm.limit) : "no guardado"],
+    ["Mensajes nuestros", ours.length], ["Mensajes hasta su última oferta", t.final_after ?? "no la dio"],
+    ["Veces que cambió su precio", t.moves], ["Lo que cedió en total", P(Math.abs(drop))],
+    ["Cuánto cede por cada paso nuestro", moves.length ? `${num(median(moves), 2)} P por P` : "—"],
+    ["Cerró", t.deal != null ? P(t.deal) : (REASON[t.closed_reason] || (t.status === "open" ? "sigue abierta" : "sin trato"))],
+  ];
+  if (t.accepted_opening) params.push(["Aviso", "aceptado sin regatear: no cuenta para la puntuación ni para desbloquear niveles"]);
+  const talk = t.rows.map(r => {
+    const c = r.who === "us" ? "var(--us)" : r.who === "dealer" ? dcolor(dealer) : "var(--other)";
+    const txt = r.text ? esc(r.text) : (r.who === "team" ? `<span class="none">Texto no público: el feed solo enseña el precio.</span>` : `<span class="none">(sin texto)</span>`);
+    return `<li class="${r.who}" style="--c:${c}"><div class="who"><b>${esc(who(r))}</b>tick ${r.tick}</div><p class="txt">${txt}</p>
+      <div class="price">${r.price != null ? `<b>${num(r.price)} P</b><small>${r.step ? `${r.step > 0 ? "+" : "−"}${num(Math.abs(r.step))} · ` : ""}${r.final ? `<span class="fin">oferta final</span> · ` : ""}${esc(OFFER[r.status] || r.status || "")}</small>` : `<small>sin precio</small>`}</div></li>`;
+  }).join("");
+  const rounds = (() => {
+    const out = []; let cur = null;
+    for (const r of pr) { if (r.who !== "dealer") { cur = {us: r, her: null}; out.push(cur); } else if (cur && !cur.her) cur.her = r; else { cur = {us: null, her: r}; out.push(cur); } }
+    return out;
+  })();
+  return `<section class="panel" id="detail" style="--dc:${dcolor(dealer)}">
+    <h3>Hilo ${t.id} · ${esc(kindLabel(t.kind))} · ${outcome(t)}</h3>
+    ${legend([["Nosotros", "var(--us)"], [mine ? dname(dealer) : dname(dealer), dcolor(dealer)], ...(mine ? [] : [[`Equipo ${t.team}`, "var(--other)"]])])}
+    ${pathChart(t.rows, {limit: prm.limit, deal: t.deal, buy, dealerName: dname(dealer), dcolor: dcolor(dealer), teamName: `Equipo ${t.team}`, aria: `Camino de precios del hilo ${t.id}`})}
+    <div class="cols" style="margin-top:20px">
+      <div><h3>Parámetros y resultado</h3><dl class="kv">${params.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${typeof v === "number" ? num(v) : esc(v)}</dd>`).join("")}</dl>
+        ${mine && prm.limit == null ? `<p class="note">El límite y la apertura vienen de <span class="mono">logs/haggles.jsonl</span>, que esta carpeta aún no tiene. Los guarda <span class="mono">agent.py</span> en cada regateo nuevo.</p>` : ""}</div>
+      <div><h3>Ronda a ronda</h3><div class="scroll"><table><thead><tr><th>Ronda</th><th class="r">Nosotros</th><th class="r">${esc(dname(dealer))}</th></tr></thead><tbody>
+        ${rounds.map((r, i) => `<tr><td>${i + 1}</td><td class="r">${r.us ? `<b>${num(r.us.price)}</b> <span class="muted small">${r.us.step ? (r.us.step > 0 ? "+" : "−") + num(Math.abs(r.us.step)) : ""}</span>` : "—"}</td>
+        <td class="r">${r.her ? `<b>${num(r.her.price)}</b> <span class="muted small">${r.her.step ? (r.her.step > 0 ? "+" : "−") + num(Math.abs(r.her.step)) : ""}</span>${r.her.final ? ` <span class="fin small">final</span>` : ""}` : "—"}</td></tr>`).join("")}</tbody></table></div></div>
+    </div>
+    <h3 style="margin-top:22px">La conversación</h3><ol class="talk">${talk || `<li style="--c:var(--line)"><span class="none">Sin mensajes.</span></li>`}</ol>
+  </section>`;
+}
+
+function ledger(threads, dealer, sel, showTeam) {
+  if (!threads.length) return `<div class="empty">Nada todavía.</div>`;
+  return `<div class="scroll"><table><thead><tr><th>Hilo</th>${showTeam ? "<th>Equipo</th>" : ""}<th>Ticks</th><th>Qué</th><th>Resultado</th><th>Camino</th><th class="r">Msgs</th></tr></thead><tbody>
+  ${threads.map(t => `<tr class="pick ${sel && sel.id === t.id && sel.source === t.source ? "sel" : ""}" tabindex="0" data-go="${hash(t.dealer, t.source, t.id)}">
+    <td><b>${t.id}</b></td>${showTeam ? `<td>${esc(t.team)}</td>` : ""}<td>${tickRange(t)}</td><td>${esc(kindLabel(t.kind))}</td><td>${outcome(t)}</td><td>${spark(t, t.dealer)}</td><td class="r">${t.ours.length}</td></tr>`).join("")}
+  </tbody></table></div>`;
+}
+
+/* ============================================================ pages */
+function pageResumen() {
+  const sc = D.score, w = D.wallet, teams = D.teams, mineT = teams.find(t => t.team === ME);
+  const negs = teams.map(t => t.negotiating).filter(v => v != null);
+  const facts = sc ? `<div class="facts">
+    <div><b>${sc.rank}º</b><span>de ${teams.length} equipos</span></div>
+    <div><b>${num(sc.score, 2)}</b><span>puntos (negociación ${num(sc.negotiating, 2)} · mercado ${num(sc.market, 2)})</span></div>
+    <div><b>${num(w.cash, 0)} P</b><span>en caja</span></div>
+    <div><b>${w.album}/50</b><span>huecos del álbum, nivel ${w.level}</span></div></div>` : mineT ? `<div class="facts">
+    <div><b>${mineT.rank}º</b><span>de ${teams.length} equipos (ranking público)</span></div><div><b>${num(mineT.score, 2)}</b><span>puntos</span></div></div>` : "";
+  const groups = {};
+  for (const t of allThreads()) if (t.first != null) (groups[t.dealer + "|" + t.kind] ||= []).push(t);
+  const rows = Object.entries(groups).map(([k, ts]) => {
+    const [dealer, kind] = [k.split("|")[0], k.split("|")[1]], mine = ts.filter(t => t.source === "ours"), oth = ts.filter(t => t.source !== "ours");
+    const md1 = median(mine.filter(t => t.deal != null).map(t => t.deal)), md2 = median(oth.filter(t => t.deal != null).map(t => t.deal));
+    const diff = md1 != null && md2 != null ? md1 - md2 : null, buy = isBuy(kind);
+    const verdict = diff == null || diff === 0 ? "" : ((buy ? diff < 0 : diff > 0) ? `<span style="color:var(--ok)">${num(Math.abs(diff))} P mejor</span>` : `<span style="color:var(--bad)">${num(Math.abs(diff))} P peor</span>`);
+    return {dealer, kind, mine, oth, md1, md2, verdict};
+  }).filter(r => r.mine.length).sort((a, b) => a.dealer.localeCompare(b.dealer) || a.kind.localeCompare(b.kind));
+  const cmp = rows.length ? `<div class="scroll"><table><thead><tr><th>Dealer</th><th>Qué</th><th class="r">Hilos</th><th class="r">Tratos</th><th class="r">Nuestro precio (mediana)</th><th class="r">Otros equipos</th><th></th></tr></thead><tbody>
+    ${rows.map(r => `<tr class="pick" tabindex="0" data-go="${hash(r.dealer)}"><td><span class="dot" style="--dc:${dcolor(r.dealer)}"></span>${esc(dname(r.dealer))}</td><td>${esc(kindLabel(r.kind))}</td>
+    <td class="r">${r.mine.length}</td><td class="r">${r.mine.filter(t => t.deal != null).length}</td><td class="r"><b>${P(r.md1)}</b></td><td class="r">${P(r.md2)} <span class="faint small">(${r.oth.filter(t => t.deal != null).length})</span></td><td>${r.verdict}</td></tr>`).join("")}</tbody></table></div>
+    <p class="note">«Otros equipos» sale del feed público, que solo guarda los últimos ~${D.feed_events} eventos (ticks ${D.feed_span ? D.feed_span.join("–") : "—"}). Entre paréntesis, cuántos tratos hay detrás. Comprar: gana el precio más bajo; vender: el más alto.</p>` : `<div class="empty">Aún no hemos regateado con nadie.</div>`;
+  const up = (D.upcoming || []).filter(u => u.action !== "day_opens" && u.action !== "day_closes").slice(0, 7);
+  const now = D.clock ? D.clock.t_hours : null;
+  const upl = `<table><tbody>${up.map(u => `<tr><td class="r muted" style="white-space:nowrap;padding-right:14px">${now != null ? (u.at_hours - now >= 0 ? `en ${num(u.at_hours - now)} h` : "ya") : num(u.at_hours) + " h"}</td><td>${esc(u.note || u.action)}</td></tr>`).join("")}</tbody></table>`;
+  return `<h1>Nuestras partidas</h1><p class="sub">Cada regateo con un dealer, cada duelo y lo que vemos de los demás equipos. Datos de ${esc(D.built)}${D.clock ? ` · tick ${D.clock.tick}, ${esc(D.clock.round_name)}` : ""}.</p>
+    ${facts}
+    <h2>Línea del tiempo</h2>${timeline()}
+    <h2>¿Cómo nos va frente a los demás?</h2>${cmp}
+    <div class="cols even"><div><h2>Lo que viene</h2>${upl}</div>
+    <div><h2>Qué datos tenemos</h2><ul class="small muted" style="padding-left:18px;margin:0;max-width:60ch"><li>${D.ours.length} conversaciones nuestras con dealers y ${D.duels.length} duelos.</li><li>${D.others.length} conversaciones de otros equipos, reconstruidas del feed público.</li>
+    <li>${D.errors && D.errors.length ? `No se pudo leer: ${esc(D.errors.join(", "))}.` : "Todas las páginas públicas se leyeron bien."}</li>${D.offline ? "<li>Modo sin conexión.</li>" : ""}
+    <li>Los textos de los otros equipos no son públicos; los de los dealers sí.</li></ul></div></div>`;
+}
+
+function timeline() {
+  const lanes = [...new Set(D.ours.map(t => t.dealer))].concat(D.duels.length ? ["duelos"] : []);
+  const items = [];
+  for (const t of D.ours) items.push({lane: t.dealer, a: t.tick0, b: t.tick1 ?? t.tick0, deal: t.deal != null, label: `Hilo ${t.id} · ${kindLabel(t.kind)} · ${t.deal != null ? "trato a " + num(t.deal) + " P" : "sin trato"}`, go: hash(t.dealer, "ours", t.id), txt: t.deal != null ? num(t.deal) : ""});
+  for (const d of D.duels) { const ts = d.messages.map(m => m.tick); if (ts.length) items.push({lane: "duelos", a: Math.min(...ts), b: Math.max(...ts), deal: d.status === "deal", label: `Duelo ${d.id} · ${d.role === "buyer" ? "comprador" : "vendedor"} · ${d.status === "deal" ? "trato a " + num(d.price) + " P" : "sin trato"}`, go: hash("duelos", d.id), txt: ""}); }
+  if (!items.length) return `<div class="empty">Todavía no hay nada que dibujar.</div>`;
+  const lo = Math.min(...items.map(i => i.a)), hi = Math.max(...items.map(i => i.b));
+  const W = 1100, H = 40 + lanes.length * 54, mL = 112, p = {X: v => mL + (v - lo) / ((hi - lo) || 1) * (W - mL - 36)};
+  let g = "";
+  for (const v of ticks(lo, hi, 10)) g += `<text x="${p.X(v)}" y="${H - 8}" text-anchor="middle">${v}</text><line x1="${p.X(v)}" x2="${p.X(v)}" y1="14" y2="${H - 26}" stroke="var(--grid)"/>`;
+  lanes.forEach((ln, i) => {
+    const y = 36 + i * 54, c = ln === "duelos" ? "var(--rival)" : dcolor(ln);
+    g += `<text class="lab" x="0" y="${y + 4}">${esc(ln === "duelos" ? "Duelos" : dname(ln))}</text><line x1="${mL}" x2="${W - 36}" y1="${y}" y2="${y}" stroke="${c}" stroke-opacity=".28" stroke-width="3"/>`;
+    for (const it of items.filter(x => x.lane === ln)) {
+      const x1 = p.X(it.a), x2 = Math.max(p.X(it.b), x1 + 1);
+      g += `<g class="hit" data-go="${it.go}" data-tip="${esc(it.label)}"><path d="M${x1},${y} H${x2}" stroke="${c}" stroke-width="7" stroke-linecap="round"/>
+        <circle cx="${x2}" cy="${y}" r="8" fill="${it.deal ? c : "var(--panel)"}" stroke="${c}" stroke-width="3"/><rect x="${x1 - 8}" y="${y - 16}" width="${x2 - x1 + 16}" height="32" fill="transparent"/>
+        ${it.txt ? `<text x="${x2}" y="${y - 14}" text-anchor="middle" class="lab">${it.txt}</text>` : ""}</g>`;
+    }
+  });
+  return legend([["Trato cerrado", "var(--ink)", true]]).replace("<i class=\"o\"", "<i class=\"o\"") + `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Línea del tiempo de todas nuestras conversaciones">${g}</svg>
+    <p class="note">Cada tramo es una conversación, del primer al último mensaje; círculo lleno = trato, vacío = sin trato. Pulsa uno para ver la conversación.</p>`;
+}
+
+function pageDealer(id, sel, kindSel) {
+  const dl = D.dealers[id] || {id, name: id, traits: {}, menu: {sells: [], buys: []}}, tr = D.traits[id] || dl.traits || {};
+  const mineAll = D.ours.filter(t => t.dealer === id), othAll = D.others.filter(t => t.dealer === id);
+  const kinds = [...new Set([...mineAll, ...othAll].filter(t => t.first != null).map(t => t.kind))].sort();
+  const count = k => [...mineAll, ...othAll].filter(t => t.kind === k).length * 100 + mineAll.filter(t => t.kind === k).length;
+  const kind = kinds.includes(kindSel) ? kindSel : [...kinds].sort((a, b) => count(b) - count(a))[0];
+  const sm = ((D.summary[id] || {})[kind]) || {}, plan = ((D.plans[id] || {})[kind]), mod = ((D.model[id] || {})[kind]);
+  const mine = mineAll.filter(t => t.kind === kind), oth = othAll.filter(t => t.kind === kind), all = [...mine, ...oth];
+  const buy = isBuy(kind || "");
+  const menu = [...(dl.menu.sells || []).map(s => ["Vende", s.pack ? PACK[s.pack] || s.name : `carta ${RAR[s.rarity]}`, s.list_price, s.opening_ask, s.per_team_per_hour]),
+    ...(dl.menu.buys || []).map(s => ["Compra", `carta ${RAR[s.rarity]}${Array.isArray(s.sets) ? " (solo " + s.sets.join(", ") + ")" : ""}`, null, null, null])];
+  const selThread = sel ? findThread(sel.source, sel.id) : null;
+  const hdr = `<div class="dhead" style="--dc:${dcolor(id)}"><div class="avatar" aria-hidden="true">${esc((dl.avatar || {}).emoji || "🃏")}</div><div>
+    <h1>${esc(dl.name)}</h1><div class="muted">${esc(dl.title || "")}${dl.level ? ` · nivel ${dl.level}` : ""}</div><p class="bio">${esc((dl.bio || "").trim())}</p></div></div>`;
+  const prof = `<div class="cols even"><div><h3>Rasgos que publica</h3><div class="traits" style="--dc:${dcolor(id)}">${Object.entries(TRAITS).map(([k, [n, d]]) => tr[k] == null ? "" : `<span title="${esc(d)}">${n}</span><div class="bar"><i style="width:${tr[k] * 100}%"></i></div><b>${num(tr[k], 2)}</b>`).join("")}</div>
+      <p class="note">Son los números oficiales de /api/dealers. Los precios reales los marca un límite secreto en cada conversación.</p></div>
+    <div><h3>Qué vende y qué compra</h3><table><thead><tr><th></th><th>Artículo</th><th class="r">Lista</th><th class="r">Abre en</th><th class="r">Cupo/h</th></tr></thead><tbody>${menu.map(m => `<tr><td>${m[0]}</td><td>${esc(m[1])}</td><td class="r">${m[2] ?? ""}</td><td class="r">${m[3] ?? ""}</td><td class="r">${m[4] ?? ""}</td></tr>`).join("")}</tbody></table>
+      ${dl.menu.deals_per_team_per_hour ? `<p class="note">Máximo ${dl.menu.deals_per_team_per_hour} tratos por equipo y hora.</p>` : ""}</div></div>`;
+  if (!kinds.length) return hdr + prof + `<h2>Conversaciones</h2><div class="empty">Aún no hemos hablado con ${esc(dl.name)} y no hay conversaciones suyas en el feed.</div>` + notesFor(id, dl);
+  const chips = `<div class="chips" role="group" aria-label="Tipo de trato">${kinds.map(k => `<button class="chip" aria-pressed="${k === kind}" data-kind="${esc(k)}">${esc(kindLabel(k))}</button>`).join("")}</div>`;
+  const planBox = plan ? `<h3>Lo que el agente hará la próxima vez</h3><pre class="f">${esc(plan.text)}</pre>
+    <dl class="kv"><dt>Objetivo (su mejor precio)</dt><dd>${P(plan.target)}</dd><dt>Aceptar si se queda en</dt><dd>${P(plan.accept_at)}</dd><dt>Repartir las concesiones en</dt><dd>${plan.patience ?? "—"} mensajes${plan.source === "prior" ? " (estimado por su paciencia)" : ""}</dd>
+    ${mod ? `<dt>Sus aperturas vistas</dt><dd>${mod.first.map(num).join(", ")}</dd><dt>Mejores precios vistos</dt><dd>${mod.best.map(num).join(", ")}</dd><dt>Mensajes hasta su final (mediana)</dt><dd>${mod.patience ?? "—"}</dd><dt>Veces que mueve su precio (mediana)</dt><dd>${mod.moves_median ?? "—"}</dd>` : ""}</dl>`
+    : `<h3>Lo que el agente hará la próxima vez</h3><p class="muted">Sin conversaciones con regateo nuestras de este tipo, usa el ritmo por defecto.</p>`;
+  const f = sm.fit || {};
+  const fitTxt = f.n ? `Con ${f.n} conversaciones: precio final ≈ ${num(f.a)} ${f.b < 0 ? "−" : "+"} ${num(Math.abs(f.b), 2)} × primera bajada, correlación ${num(f.r, 2)}. ${Math.abs(f.r) > .6 ? "Parece que su primer movimiento delata su suelo." : "Relación débil: no nos fiamos todavía."}` : "";
+  const body = `${chips}
+    <div class="facts"><div><b>${mine.length}</b><span>hilos nuestros</span></div><div><b>${oth.length}</b><span>hilos de otros equipos en el feed</span></div>
+      <div><b>${P(sm.first_median)}</b><span>abre ${buy ? "pidiendo" : "pagando"} (mediana)</span></div><div><b>${P(sm.deal_median)}</b><span>precio de los tratos (mediana)</span></div><div><b>${P(sm.deal_best)}</b><span>mejor trato visto</span></div></div>
+    <div class="cols" style="margin-top:22px"><div><h3>Cómo se mueve su precio mientras hablamos</h3>${legend([["Nosotros", "var(--us)"], ["Otros equipos", "var(--other)"], ["trato cerrado", "var(--ink)", true]])}${ladderChart(all, id, buy)}
+      <p class="note">Cada línea es una conversación: su precio tras cada mensaje nuestro. Pulsa una para abrirla.</p></div>
+      <div>${planBox}</div></div>
+    <div class="cols even" style="margin-top:26px"><div><h3>¿Su primer movimiento adelanta dónde acaba?</h3>${legend([["Nosotros", "var(--us)", true], ["Otros", "var(--other)", true]])}${scatter(sm.points || [], f, id)}<p class="note">${esc(fitTxt)} Círculo lleno = trato; vacío = sin trato.</p></div>
+      <div><h3>Precios de los tratos en el tiempo</h3>${legend([["Nosotros", "var(--us)", true], ["Otros", "var(--other)", true]])}${strip(all, id)}</div></div>`;
+  const detail = selThread && selThread.dealer === id ? threadDetail(selThread) : "";
+  return hdr + prof + `<h2>${esc(kind ? kindLabel(kind) : "")}</h2>` + body +
+    `<h2>Nuestras conversaciones</h2>${ledger(mineAll, id, sel, false)}` + (selThread && selThread.source === "ours" ? `<div style="margin-top:22px">${detail}</div>` : "") +
+    `<h2>Conversaciones de otros equipos</h2><p class="sub">Del feed público: vemos los precios de ambos y lo que dice el dealer, no lo que dicen los equipos.</p>${ledger(othAll, id, sel, true)}` + (selThread && selThread.source === "feed" ? `<div style="margin-top:22px">${detail}</div>` : "") + notesFor(id, dl);
+}
+function notesFor(id, dl) {
+  const key = Object.keys(D.notes).find(k => k.toLowerCase().includes(String(dl.name || id).split(" ")[0].toLowerCase()));
+  return key ? `<h2>Lo que hemos anotado</h2><div class="panel">${md(D.notes[key])}</div>` : "";
+}
+
+function pageDuelos(sel) {
+  const ds = D.duels, d = sel ? ds.find(x => x.id === +sel) : null;
+  const sumRows = D.duel_summary.map(s => `<tr><td>${s.role === "buyer" ? "Comprador" : "Vendedor"}</td><td class="r">${s.duels}</td><td class="r">${s.deals}</td><td class="r">${num(s.deal_rate * 100, 0)} %</td><td class="r">${s.mean_share != null ? num(s.mean_share * 100, 1) + " %" : "—"}</td><td class="r">${num(s.mean_rounds)}</td><td class="r">${s.rival_open != null ? num(s.rival_open * 100, 0) + " %" : "—"}</td></tr>`).join("");
+  const sched = (D.upcoming || []).filter(u => u.action === "duels");
+  const list = `<div class="scroll"><table><thead><tr><th>Duelo</th><th>Sesión</th><th>Rol</th><th>Objeto</th><th class="r">Límite</th><th>Resultado</th><th class="r">Rondas</th><th class="r">Puntos</th></tr></thead><tbody>
+    ${ds.map(x => `<tr class="pick ${d && d.id === x.id ? "sel" : ""}" tabindex="0" data-go="${hash("duelos", x.id)}"><td><b>${x.id}</b></td><td>${x.session ?? ""}</td><td>${x.role === "buyer" ? "compra" : "vende"}</td><td>${esc(x.item)}</td><td class="r">${num(x.limit)}</td>
+    <td>${x.status === "deal" ? `<span class="tag deal">Trato a ${P(x.price)}</span>` : x.status === "live" ? `<span class="tag live">En curso</span>` : `<span class="tag none">Sin trato</span>`}</td><td class="r">${x.rounds ?? "—"}</td><td class="r">${x.result != null ? num(x.result) : "—"}</td></tr>`).join("")}</tbody></table></div>`;
+  return `<h1>Duelos</h1><p class="sub">Un torneo contra los otros equipos: un rival con alias, un límite privado nuestro y un trato que se encoge con cada ronda de charla. Los precios los decide el código (<span class="mono">bz/duel.py</span>); el texto solo los acompaña.</p>
+    ${ds.length ? `<h2>Resumen por rol</h2><table><thead><tr><th>Rol</th><th class="r">Duelos</th><th class="r">Tratos</th><th class="r">% de tratos</th><th class="r">Puntos / límite</th><th class="r">Rondas</th><th class="r">Apertura rival / límite</th></tr></thead><tbody>${sumRows}</tbody></table>
+    <p class="note">«Puntos / límite» es lo que nos quedó tras el descuento por rondas, dividido por nuestro límite, para comparar duelos de distinto tamaño. Apertura rival / límite: lo lejos que abre el rival de nuestro límite (100 % = pide exactamente nuestro tope).</p>` : `<div class="empty">Aún no hay duelos guardados. Se leen con la clave del equipo.</div>`}
+    ${sched.length ? `<p class="note">Programados: ${sched.map(s => esc(s.note)).join(" · ")}.</p>` : ""}
+    <h2>Todos los duelos</h2>${list}${d ? `<div style="margin-top:22px">${duelDetail(d)}</div>` : ""}`;
+}
+function duelDetail(d) {
+  const buy = d.role === "buyer", pr = d.messages.filter(m => m.price != null);
+  const rows = d.messages.map(m => ({who: m.who === "us" ? "us" : "team", tick: m.tick, price: m.price, text: m.text, final: false, status: null, sender: d.rival}));
+  let last = {}; for (const r of rows) if (r.price != null) { r.step = last[r.who] != null ? r.price - last[r.who] : null; last[r.who] = r.price; }
+  const surplus = d.price != null ? (buy ? d.limit - d.price : d.price - d.limit) : null;
+  const calc = surplus != null && d.decay != null && d.rounds != null ? surplus * Math.pow(1 - d.decay, d.rounds) : null;
+  const params = [["Rol", buy ? "comprador" : "vendedor"], ["Objeto", d.item], ["Qué es nuestro límite", d.limit_meaning || "—"], ["Nuestro límite", P(d.limit)], ["Rival", d.rival],
+    ["Temas", (d.issues || []).join(" y ")], ["Descuento por ronda", d.decay != null ? num(d.decay * 100, 0) + " %" : "—"], ["Fecha límite", `tick ${d.deadline}`],
+    ["Apertura nuestra / límite", d.our_open_share != null ? num(d.our_open_share * 100, 0) + " %" : "—"], ["Apertura rival / límite", d.rival_open_share != null ? num(d.rival_open_share * 100, 0) + " %" : "—"]];
+  if (d.days_weight != null) params.push(["Peso por día", `${num(d.days_weight, 2)} (${d.days_meaning || ""})`]);
+  const formula = calc != null ? `excedente = ${buy ? "límite − precio" : "precio − límite"} = ${num(d.limit)} ${buy ? "−" : "−"} ${num(d.price)} → ${num(surplus)}
+valor del trato = excedente × (1 − descuento)^rondas
+               = ${num(surplus)} × (1 − ${num(d.decay, 2)})^${d.rounds} = ${num(calc, 2)}
+resultado guardado por la plataforma: ${num(d.result, 2)}` : "Sin trato: no hay excedente que calcular (0 puntos).";
+  const dec = d.decisions.length ? `<h3 style="margin-top:22px">Decisiones del agente en este duelo</h3><div class="scroll"><table><thead><tr><th>Tick</th><th>Acción</th><th class="r">Precio</th><th class="r">Días</th><th>Por qué</th><th class="r">U objetivo</th><th class="r">U suya</th><th class="r">Paso esperado</th><th class="r">Elasticidad</th><th class="r">Ritmo</th><th class="r">Quedan</th><th class="r">Brazo</th></tr></thead><tbody>
+    ${d.decisions.map(e => `<tr><td>${e.tick}</td><td>${esc(e.action)}</td><td class="r">${e.price ?? ""}</td><td class="r">${e.days ?? ""}</td><td>${esc(e.why || "")}</td><td class="r">${e.u_target ?? ""}</td><td class="r">${e.u_his ?? ""}</td><td class="r">${e.next_step ?? ""}</td><td class="r">${e.elastic ?? ""}</td><td class="r">${e.ratio ?? ""}</td><td class="r">${e.left ?? ""}</td><td class="r">${e.arm ?? ""}</td></tr>`).join("")}</tbody></table></div>
+    <p class="note">U = utilidad para nosotros (excedente + peso×días). Elasticidad: cuánto responde el rival a un paso nuestro. Ritmo: cuánto de su último paso repite en el siguiente.</p>`
+    : `<p class="note">No hay decisiones guardadas de este duelo: <span class="mono">logs/duels.jsonl</span> solo se llena cuando juega <span class="mono">duels.py</span> en este equipo.</p>`;
+  const talk = d.messages.map(m => { const c = m.who === "us" ? "var(--us)" : "var(--rival)";
+    return `<li class="${m.who === "us" ? "us" : "rival"}" style="--c:${c}"><div class="who"><b>${m.who === "us" ? "Nosotros" : esc(d.rival)}</b>tick ${m.tick}</div><p class="txt">${esc(m.text || "")}</p><div class="price">${m.price != null ? `<b>${num(m.price)} P</b>${m.days != null ? `<small>día ${m.days}</small>` : ""}` : ""}</div></li>`; }).join("");
+  return `<section class="panel"><h3>Duelo ${d.id} · ${esc(d.item)} · ${d.status === "deal" ? `<span class="tag deal">Trato a ${P(d.price)}</span>` : `<span class="tag none">${d.status === "live" ? "En curso" : "Sin trato"}</span>`}</h3>
+    ${legend([["Nosotros", "var(--us)"], [d.rival, "var(--rival)"]])}
+    ${pathChart(rows, {limit: d.limit, deal: d.status === "deal" ? d.price : null, buy, dealerName: d.rival, dcolor: "var(--rival)", teamName: d.rival, teamColor: "var(--rival)", aria: `Camino de precios del duelo ${d.id}`})}
+    <div class="cols" style="margin-top:20px"><div><h3>Parámetros</h3><dl class="kv">${params.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></div><div><h3>Fórmula y resultado</h3><pre class="f">${esc(formula)}</pre></div></div>
+    ${dec}<h3 style="margin-top:22px">La conversación</h3><ol class="talk">${talk}</ol></section>`;
+}
+
+function pageEquipos(sel, sortKey) {
+  const cols = [["rank", "Pos."], ["name", "Equipo"], ["score", "Puntos"], ["dealer_threads", "Hilos con dealers"], ["dealer_deals", "Tratos"], ["team_trades", "Cambios entre equipos"], ["offers", "Ofertas"], ["level", "Nivel"], ["album_filled", "Álbum"], ["luck", "Suerte"], ["last_tick", "Visto en tick"]];
+  const key = sortKey || "rank", dir = key === "name" || key === "rank" ? 1 : -1;
+  const teams = [...D.teams].sort((a, b) => dir * ((a[key] ?? -1e9) > (b[key] ?? -1e9) ? 1 : -1));
+  const max = Math.max(...D.teams.map(t => t.score || 0), 1);
+  const tbl = `<div class="scroll"><table><thead><tr>${cols.map(([k, n]) => `<th class="${k === "name" || k === "rank" ? "" : "r"}"><button data-sort="${k}" aria-label="Ordenar por ${n}">${n}${key === k ? " ↓" : ""}</button></th>`).join("")}</tr></thead><tbody>
+    ${teams.map(t => `<tr class="pick ${sel === t.team ? "sel" : ""}" tabindex="0" data-go="${hash("equipos", t.team)}" style="${t.team === ME ? "font-weight:700" : ""}"><td>${t.rank}</td><td>${t.team === ME ? `<span class="dot"></span>` : ""}${esc(t.name)}${t.venue ? ` <span class="faint small">${esc(t.venue)}</span>` : ""}</td>
+    <td class="r"><div style="display:grid;grid-template-columns:120px 52px;gap:8px;align-items:center;justify-content:end"><svg viewBox="0 0 120 10" width="120" height="10" aria-hidden="true"><rect width="${(t.negotiating || 0) / max * 120}" height="10" fill="var(--ink)" rx="2"/><rect x="${(t.negotiating || 0) / max * 120 + 1}" width="${(t.market || 0) / max * 120}" height="10" fill="var(--faint)" rx="2"/></svg><span>${num(t.score, 2)}</span></div></td>
+    <td class="r">${t.dealer_threads || 0}</td><td class="r">${t.dealer_deals || 0}</td><td class="r">${t.team_trades || 0}</td><td class="r">${t.offers || 0}</td><td class="r">${t.level}</td><td class="r">${t.album_filled}/${t.album_slots}</td><td class="r">${num(t.luck)}</td><td class="r">${t.last_tick || "—"}</td></tr>`).join("")}</tbody></table></div>
+    <p class="note">Barra: oscuro = puntos de negociación, claro = de mercado. Hilos, tratos, cambios y ofertas son solo lo que cae en el feed público de ${D.feed_span ? "los ticks " + D.feed_span.join("–") : "ahora"}: sirven para comparar actividad, no para sumar. «Suerte» es lo que sacaron de los sobres (no puntúa).</p>`;
+  const t = sel && D.teams.find(x => x.team === sel);
+  let detail = "";
+  if (t) {
+    const th = D.others.filter(x => x.team === sel), tr = D.trades.filter(x => (x.parties || []).includes(sel));
+    detail = `<h2>${esc(t.name)}</h2><div class="facts"><div><b>${t.rank}º</b><span>posición</span></div><div><b>${num(t.negotiating, 2)}</b><span>negociación</span></div><div><b>${num(t.market, 2)}</b><span>mercado</span></div><div><b>${t.pages_complete}</b><span>páginas completas</span></div></div>
+      <p class="note">Carta más rara: ${esc(t.rarest || "—")}.</p>
+      <h3 style="margin-top:20px">Sus conversaciones con dealers en el feed</h3>${th.length ? ledger(th, null, null, false) : `<div class="empty">No aparece en el feed de ahora.</div>`}
+      <h3 style="margin-top:20px">Sus cambios</h3>${tradeTable(tr)}`;
+  }
+  return `<h1>Otros equipos</h1><p class="sub">El ranking público y lo que dejan ver en el feed: sus regateos con dealers y sus cambios. Las cartas, valores y límites de cada equipo son privados.</p>${tbl}${detail}
+    ${t ? "" : `<h2>Últimos cambios en el mercado</h2>${tradeTable(D.trades.slice(-30).reverse())}`}`;
+}
+const tradeTable = tr => tr.length ? `<div class="scroll"><table><thead><tr><th>Tick</th><th>Entre</th><th>Qué</th><th class="r">Precio</th><th>Dónde</th></tr></thead><tbody>${tr.map(x => `<tr><td>${x.tick}</td><td>${(x.parties || []).map(esc).join(" ↔ ")}</td><td>${(x.items || []).map(i => esc(i).replace(/\((\w+)\)/, (m, r) => `(${RAR[r] || r})`)).join(", ")}</td><td class="r">${P(x.price)}</td><td>${esc(x.persona ? "dealer " + x.persona : x.venue || "")}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Sin cambios a la vista.</div>`;
+
+function pageFormulas() {
+  const F = D.formulas, c = F.constants, v = F.values;
+  const aff = v && v.affinity ? Object.entries(v.affinity).map(([k, a]) => `<tr><td>${k}</td><td class="r">×${num(a, 2)}</td></tr>`).join("") : "";
+  const packs = v ? v.packs.map(p => `<tr><td>${esc(PACK[p.pack] || p.pack)}</td><td class="r">${num(p.neutral)}</td><td class="r"><b>${num(p.worth, 1)}</b></td><td class="r"><b>${p.cap}</b></td></tr>`).join("") : "";
+  const sp = v ? v.spares.map(s => `<tr><td>${esc(s.ref)} ${esc(s.name || "")}</td><td>${esc(RAR[s.rarity] || s.rarity || "")}</td><td class="r">${num(s.worth, 2)}</td><td class="r"><b>${s.floor}</b></td></tr>`).join("") : "";
+  const block = (title, body) => `<section style="margin-top:34px"><h2 style="margin-top:0">${title}</h2>${body}</section>`;
+  const tr = D.traits;
+  return `<h1>Fórmulas y parámetros</h1><p class="sub">Todo lo que decide un precio, con los números de hoy. Las constantes se leen del código, así que esta página no se queda atrás.</p>
+  ${block("1 · Cuánto vale algo para nosotros", `<pre class="f">valor de una carta = precio de libro × afinidad del barrio × factor de copia
+factor de copia  = ${v ? v.marginals.map(x => num(x, 2)).join(" · ") : "1 · 0,25 · 0,1"}   (1ª copia · 2ª · 3ª y siguientes)
+valor de un sobre = Σ por casilla (probabilidad de cada rareza × valor medio de una carta de esa rareza)
+
+tope al comprar    = ⌊ valor × (1 − margen) ⌋        margen = ${num(c.margin, 2)}
+mínimo al vender   = ⌈ valor de la última copia ⌉</pre>
+    ${v ? `<div class="cols even"><div><h3>Precio de libro y afinidad (privada)</h3><div class="scroll"><table><tbody>${Object.entries(v.book).map(([k, b]) => `<tr><td>${esc(RAR[k] || k)}</td><td class="r">${b} P</td></tr>`).join("")}</tbody></table></div>
+      <table style="margin-top:12px"><tbody>${aff}</tbody></table></div>
+      <div><h3>Sobres hoy</h3><table><thead><tr><th>Sobre</th><th class="r">Neutral</th><th class="r">Vale para nosotros</th><th class="r">Tope</th></tr></thead><tbody>${packs}</tbody></table>
+      <h3 style="margin-top:16px">Repetidas que podemos vender</h3><table><thead><tr><th>Carta</th><th>Rareza</th><th class="r">Vale</th><th class="r">Mínimo</th></tr></thead><tbody>${sp || `<tr><td colspan="4" class="muted">Sin repetidas.</td></tr>`}</tbody></table></div></div>
+      <p class="note">Los valores de página completa no están en estas cifras: una carta que completa una página vale más de lo que dice la fórmula.</p>` : `<div class="empty">Hace falta la clave del equipo para ver los valores concretos.</div>`}`)}
+  ${block("2 · El regateo con un dealer", `<pre class="f">primer precio nuestro = mitad del precio de lista (comprar) · 120 % de la lista (vender), sin pasar de nuestro límite
+paso = máx(1, |meta − último precio nuestro| ÷ (paciencia − mensajes enviados + 1))     si conocemos su paciencia
+paso = máx(1, |límite − último precio nuestro| × ${num(c.step_frac, 2)})                       si no
+tras llegar a su mejor precio histórico − 1 (comprar): solo pasos de 1 P
+cada mensaje lleva un precio nuevo (repetir no la mueve) · máximo ${c.max_msgs} mensajes</pre>
+    <pre class="f">aceptamos su oferta si está dentro de nuestro límite y se cumple alguna:
+  · está a ≤ ${c.accept_gap} P de nuestro último precio
+  · es su oferta final (marcada, o dicha con palabras: «lo tomas o te lo quedas»)
+  · es igual o mejor que nuestro último precio
+  · es su mejor precio histórico y no se movió tras nuestra última concesión
+si su final queda fuera de nuestro límite: cerramos y no hay trato</pre>`)}
+  ${block("3 · Lo que aprende de cada dealer", `<pre class="f">objetivo   = su mejor precio histórico en ese tipo de trato (antes: la mediana)
+aceptar en = su mejor precio histórico
+paciencia  = (mediana de mensajes nuestros hasta su final) − 2
+
+sin datos: paciencia = ⌈ mensajes por rasgo × rasgo de paciencia del dealer ⌉
+mensajes por rasgo = mediana de (mensajes hasta su final ÷ su paciencia) entre los dealers conocidos
+                   = ${num(c.messages_per_trait_seen, 2)} hoy (valor de arranque: ${c.messages_per_trait_default})</pre>
+    <table><thead><tr><th>Dealer</th>${Object.keys(TRAITS).map(k => `<th class="r">${TRAITS[k][0]}</th>`).join("")}</tr></thead><tbody>${Object.entries(tr).map(([id, t]) => `<tr><td><span class="dot" style="--dc:${dcolor(id)}"></span>${esc(dname(id))}</td>${Object.keys(TRAITS).map(k => `<td class="r">${t[k] ?? ""}</td>`).join("")}</tr>`).join("")}</tbody></table>`)}
+  ${block("4 · Ofertas que nos hacen otros equipos", `<pre class="f">excedente = valor de lo que recibimos + efectivo recibido − valor de lo que damos − efectivo pagado − comisión
+comisión  = ⌈ puntos base × efectivo ÷ 10000 ⌉ + comisión por carta × nº de cartas      El Rastro: ${c.house_fee_bps / 100} % + ${c.house_fee_per_card} P por carta
+margen    = máx(${num(c.trade_min_surplus)} P, ${num(c.trade_min_share * 100, 0)} % de lo que ponemos)
+aceptar si excedente ≥ margen · contraofertar el efectivo que lo deje en el margen · si no entendemos qué es: lo decide una persona</pre>`)}
+  ${block("5 · Duelos", `<pre class="f">valor del trato = excedente × (1 − descuento)^rondas
+utilidad U       = excedente de precio + peso por día × días
+objetivo tras k intercambios = U_apertura − ((k ÷ ${c.duel_rounds})^(1 ÷ ${c.duel_beta}) × (U_apertura − reserva))
+apertura         = ${num(c.duel_open_frac * 100, 0)} % de nuestro límite como excedente (comprador: pide menos; vendedor: más)
+reserva          = máx(1, 5 % del límite)
+paso esperado del rival = máx(elasticidad × nuestro paso, su último paso × ritmo)
+aceptamos si lo suyo ≥ nuestra siguiente contraoferta, o si su respuesta esperada no compensa otra ronda, o si queda poco plazo
+nunca: cruzar nuestro límite · repetir una oferta · hablar dos veces seguidas sin respuesta</pre>`)}
+  ${block("6 · Cómo puntúa la plataforma", `<table><thead><tr><th>Parte</th><th class="r">Peso</th><th>Qué cuenta</th></tr></thead><tbody>
+    <tr><td>Negociación</td><td class="r">30</td><td>Parte de cada trato que nos quedamos en duelos · escalera de dealers (nuestros 3 mejores tratos por nivel; el que falta cuenta cero) · valor ganado con otros equipos</td></tr>
+    <tr><td>Mercado</td><td class="r">30</td><td>Prueba de mercado de nuestro puesto · valor creado entre otros equipos en él</td></tr>
+    <tr><td>Jurado</td><td class="r">40</td><td>Ideas y trabajo</td></tr></tbody></table>
+    <p class="note">No cuentan el número de tratos, las comisiones ganadas, lo que sale de un sobre, regalos ni extras de los organizadores. Cada día es una ronda y se promedian; el viernes cuenta la mitad.</p>
+    ${D.rounds ? `<table style="margin-top:10px"><tbody>${D.rounds.map(r => `<tr><td>${esc(r.name)}</td><td class="r">peso ${r.weight}</td><td>${esc(r.status)}</td></tr>`).join("")}</tbody></table>` : ""}`)}
+  ${D.trader.length ? block("7 · Últimas ofertas que juzgó el agente", `<div class="scroll"><table><thead><tr><th>Tick</th><th>De</th><th class="r">Recibimos</th><th class="r">Damos</th><th class="r">Comisión</th><th class="r">Excedente</th><th>Decisión</th></tr></thead><tbody>${D.trader.map(t => `<tr><td>${t.tick}</td><td>${esc(t.maker)}</td><td class="r">${num(t.got)} + ${t.cash_in} P</td><td class="r">${num(t.lost)} + ${t.cash_out} P</td><td class="r">${t.fee}</td><td class="r">${num(t.surplus)}</td><td>${esc(({accept: "aceptar", counter: "contraoferta", ignore: "ignorar", human: "lo decide una persona"})[t.action] || t.action)}: ${esc(t.why)}</td></tr>`).join("")}</tbody></table></div>`) : ""}`;
+}
+
+/* ============================================================ router */
+const PAGES = [["resumen", "Resumen"], ...Object.keys(D.dealers).map(id => [id, D.dealers[id].name]), ["duelos", "Duelos"], ["equipos", "Otros equipos"], ["formulas", "Fórmulas"]];
+const state = {kind: {}, sort: null};
+function route() {
+  const [page = "resumen", a, b] = location.hash.slice(1).split("/");
+  const known = PAGES.find(p => p[0] === page) ? page : "resumen";
+  $("#line").innerHTML = PAGES.map(([id, name], i) => `<li class="${id === known ? "on" : ""}" style="--i:${i};--st:${id === "resumen" || id === "formulas" ? "var(--us)" : id === "duelos" ? "var(--rival)" : id === "equipos" ? "var(--other)" : dcolor(id)}"><a href="${hash(id)}" ${id === known ? 'aria-current="page"' : ""}>${esc(name)}</a></li>`).join("");
+  let html;
+  if (known === "resumen") html = pageResumen();
+  else if (known === "duelos") html = pageDuelos(a);
+  else if (known === "equipos") html = pageEquipos(a, state.sort);
+  else if (known === "formulas") html = pageFormulas();
+  else html = pageDealer(known, a && b ? {source: a, id: +b} : null, state.kind[known]);
+  $("#main").innerHTML = html;
+  if (a && (b || known === "duelos")) { const el = $("#detail") || $("#main section.panel"); if (el) el.scrollIntoView({block: "start"}); }
+  else if (!a) scrollTo(0, 0);
+  document.title = `${PAGES.find(p => p[0] === known)[1]} · Regateos`;
+}
+document.addEventListener("click", e => {
+  const go = e.target.closest("[data-go]"); if (go) { location.hash = go.dataset.go; return; }
+  const k = e.target.closest("[data-kind]"); if (k) { state.kind[location.hash.slice(1).split("/")[0]] = k.dataset.kind; const y = scrollY; route(); scrollTo(0, y); return; }
+  const s = e.target.closest("[data-sort]"); if (s) { state.sort = s.dataset.sort; const y = scrollY; route(); scrollTo(0, y); }
+});
+document.addEventListener("keydown", e => { if (e.key === "Enter") { const go = e.target.closest && e.target.closest("tr[data-go]"); if (go) location.hash = go.dataset.go; } });
+addEventListener("hashchange", route);
+$("#badge").textContent = String(ME || "").replace(/^\D+0*/, "") || "·";
+$("#meta").textContent = D.clock ? `${ME} · tick ${D.clock.tick}` : ME;
+$("#foot").innerHTML = `Actualizado ${esc(D.built)}<br>Para refrescar: <span class="mono">python3 dashboard.py</span>`;
+route();
+</script>
+</body>
+</html>
