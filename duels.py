@@ -64,8 +64,9 @@ def main() -> None:
     ap.add_argument("--ab", default=None, metavar="A,B",
                     help="split test: opening shares to alternate by duel id, e.g. 0.45,0.25 (share of our limit we ask as "
                          f"surplus; default {OPEN_FRAC} for every duel). Score the result with analyze_duels.py")
-    ap.add_argument("--policy", choices=("v1", "v2"), default="v2",
-                    help="v2 (default): read the bot, bz/duel.decide2. v1: the Duels I logic, bz/duel.decide")
+    ap.add_argument("--policy", choices=("v1", "v2"), default="v1",
+                    help="v1 (default): the Duels I logic, bz/duel.decide. v2: read the bot, bz/duel.decide2 "
+                         "(NOT approved for live play yet: Thameur studies the waiting strategy first)")
     ap.add_argument("--open", default=f"{OPEN2['buyer']},{OPEN2['seller']}", metavar="B,S",
                     help="v2 first offer as a share of our limit, buyer,seller (tests/sim_duel2.py)")
     args = ap.parse_args()

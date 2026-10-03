@@ -59,6 +59,11 @@ assert a["action"] == "accept", a; checks += 1
 d = duel("buyer", 128, [], None, deadline=525)
 a = decide2(d, 512)
 assert a["action"] == "offer" and a["price"] == 96, a; checks += 1
+#    a rival who has said nothing by tick 1-2 never makes us wait: some never open (2317, 2380, 2381 scored 0)
+for t_now in (501, 502):
+    a = decide2(duel("seller", 60, [], None, deadline=516), t_now)
+    assert a["action"] == "offer" and a["price"] == 78, a
+checks += 1
 # 5. 2549: he opens inside with a big surplus (125 vs our cost 92): watch his first moves, then counter once
 d = duel("seller", 92, [m(569, "R", 125)], {"price": 125, "days": None}, deadline=585)
 assert decide2(d, 570)["action"] == "wait"
