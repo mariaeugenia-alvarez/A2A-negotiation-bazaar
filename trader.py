@@ -23,7 +23,7 @@ from agent import connect
 from bazaar_sdk import BazaarError
 from bz import log
 from bz.state import State
-from bz.trade import GameValues, anchor, cost, counter_body, is_lowball, judge
+from bz.trade import GameValues, anchor, cost, counter_body, is_lowball, judge, wanted_refs
 
 PAUSE = os.path.join(log.LOG_DIR, "trader.pause")
 ACCEPTS = os.path.join(log.LOG_DIR, "trader_accept.jsonl")
@@ -56,17 +56,15 @@ def venue_fees(b) -> dict:
 def single_card_bid(o: dict):
     """(card, cash) when an offer pays cash for exactly one card, else None: what someone is willing to pay for it."""
     give, want = o.get("give") or {}, o.get("want") or {}
-    refs = [t.partition(":")[2] for t in want.get("types") or [] if t.startswith("card:")]
-    refs += [a.get("ref") for a in want.get("assets") or []]
+    refs = wanted_refs(o)
     if give.get("cash") and len(refs) == 1 and not give.get("assets") and not want.get("cash"):
         return refs[0], int(give["cash"])
     return None
 
 
 def refs_of(o: dict) -> set:
-    g, w = o.get("give") or {}, o.get("want") or {}
-    return ({a.get("ref") for a in (g.get("assets") or []) + (w.get("assets") or [])}
-            | {t.partition(":")[2] for t in w.get("types") or []})
+    g = o.get("give") or {}
+    return {a.get("ref") for a in g.get("assets") or []} | set(wanted_refs(o))
 
 
 def settlement_for(b, me_id: str, refs: set, since: int):
@@ -97,6 +95,8 @@ def main() -> None:
     ap.add_argument("--live", action="store_true", help="act on team offers addressed to us: accept clear wins, send counters")
     ap.add_argument("--live-boards", action="store_true", help="with --live: also accept clear wins from the public boards")
     ap.add_argument("--budget", type=int, default=BOARD_BUDGET, help="most we spend on public-board accepts (cash + fee)")
+    ap.add_argument("--cancel-stale-bids", action="store_true",
+                    help="with --live: cancel our open bid for a card we already hold (off: only warn)")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--no-boards", dest="boards", action="store_false", help="do not scan the public boards")
     args = ap.parse_args()
@@ -128,8 +128,21 @@ def main() -> None:
                 value_cache, holdings = {}, now_holdings
             values, by_ref, missing = GameValues(b, st.me["assets"], value_cache), st.by_ref(), st.missing()
             mine = b.my_offers().get("offers") or []
-            reserved = {a["id"] for o in mine if o.get("maker") == me_id and o.get("status") == "open"
-                        for a in (o.get("give") or {}).get("assets") or []}
+            ours_open = [o for o in mine if o.get("maker") == me_id and o.get("status") == "open"]
+            reserved = {a["id"] for o in ours_open for a in (o.get("give") or {}).get("assets") or []}
+            # our open bids (whoever posted them: a script or a person on our key) promise cash and ask for cards
+            bids_open = [o for o in ours_open if (o.get("give") or {}).get("cash") and wanted_refs(o)]
+            committed = sum(int(o["give"]["cash"]) for o in bids_open)
+            pending = {r for o in bids_open for r in wanted_refs(o)}
+            free_cash = max(0, st.cash - committed)
+            stale = [o for o in bids_open if any(r in by_ref for r in wanted_refs(o))]
+            for o in stale:  # we got the card another way: if this bid fills, we pay for a duplicate worth ~25 %
+                key = ("stale", o["id"])
+                if key not in seen:
+                    seen.add(key)
+                    log.event("trader_stale_bid", tick=tick, offer=o["id"], cards=wanted_refs(o), cash=o["give"]["cash"])
+                    log.say(f"[t{tick}] STALE BID {o['id']}: {o['give']['cash']} P for {wanted_refs(o)}, which we already hold"
+                            + ("" if args.cancel_stale_bids else " (cancel it by hand, or run with --cancel-stale-bids)"))
             todo = [(o, "to_us") for o in mine if o.get("to") == me_id]
             if args.boards:
                 if tick - boards_at >= 10:  # which boards hold offers: look at all of them now and then
@@ -149,7 +162,7 @@ def main() -> None:
             for o, source in todo:
                 if o.get("status") != "open":
                     continue
-                d = judge(o, values, by_ref, st.cash, fees, missing, me_id, reserved)
+                d = judge(o, values, by_ref, free_cash, fees, missing, me_id, reserved, pending)
                 sale = single_card_bid(o)
                 if d["action"] == "accept" and sale and sale[1] < best_bid(sale[0]):  # someone recently paid more
                     d = {**d, "action": "counter", "counter_cash": best_bid(sale[0]),
@@ -176,6 +189,14 @@ def main() -> None:
             if args.live and not acting and tick % 10 == 0:
                 log.say("trader: paused (logs/trader.pause)")
             if acting:
+                if args.cancel_stale_bids:
+                    for o in stale:
+                        try:
+                            b.cancel(o["id"])
+                            log.event("trader_cancel", tick=tick, offer=o["id"], cards=wanted_refs(o), why="stale bid")
+                            log.say(f"[t{tick}] CANCELLED stale bid {o['id']} for {wanted_refs(o)}")
+                        except BazaarError as e:
+                            log.say(f"[t{tick}] cancel {o['id']} refused: {e}")
                 if tick >= cool_until:
                     left = args.budget - spent_on_boards()
                     pool = [x for x in decisions if x[2]["action"] == "accept"

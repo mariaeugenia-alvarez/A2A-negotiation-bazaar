@@ -134,4 +134,12 @@ assert counter_body(o17, a, 81) == {"give": {"assets": [135]}, "want": {"cash": 
 swap = offer({"cash": 10, "assets": [card(70, "LAV-03")]}, {"types": ["card:MAL-10"]})
 d = run(swap, held)
 assert d["action"] != "counter" or counter_body(swap, d, anchor(d) or 1) is None, d; checks += 3
+# 12. our own open bids (posted in bulk at tick 378): a card we already bid for goes to a person, never bought twice
+from bz.trade import wanted_refs  # noqa: E402
+ask = offer({"assets": [card(80, "LAV-03")]}, {"cash": 5}, venue="v02", maker="t06")
+assert run(ask, [])["action"] == "accept"
+d = judge(ask, Valuer(CATALOG, AFF, {}), {}, 300, FEES, MISSING, "t09", pending={"LAV-03"})
+assert d["action"] == "human" and "already bid" in d["why"], d
+assert wanted_refs({"want": {"cards": ["RET-02"]}}) == ["RET-02"]
+assert wanted_refs({"want": {"types": ["card:MAL-06"], "assets": [{"ref": "SAL-01"}]}}) == ["MAL-06", "SAL-01"]; checks += 3
 print(f"test_trade: {checks} checks passed")

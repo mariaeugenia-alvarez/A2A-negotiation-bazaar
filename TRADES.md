@@ -10,9 +10,26 @@ offers ("settled") and each card's history (`GET /api/cards/{id}`). Value = what
 |---|---|---|---|---|---|---|---|
 | 331 | **Sold MAL-10** to Team 13 | 65 | paid by them | 63 | **+2** | trader.py (our counter to their 56 bid) | ⚠️ Sold cheap: Team 17 had a 70 bid open, Friday's bids reached 82. The card was also in counters to Team 17 (81) and Team 13 (73) at the same time. |
 | 353 | Bought LAV-04 from Team 18 (El Rastro ask) | 9 | 2, by us | 16 | **+5** | trader.py (`--live-boards`) | |
-| 380 | Bought MAL-07 from Team 6 (El Rastro) | 17 | 2 | 22.5 | +3.5 (if we paid the fee) | not trader.py (paused since 11:09) | Who made it: to confirm |
-| 380 | Bought SAL-08 from Team 2 (El Rastro) | 20 | 2 | 27.5 | +5.5 (if we paid the fee) | not trader.py | Who made it: to confirm |
-| 381 | Bought MAL-04 from Team 6 (El Rastro) | 8 | 2 | 9 | **−1** if we paid the fee, +1 if they did | not trader.py | ⚠️ A possible loss |
+| 380 | Bought MAL-07 from Team 6 (El Rastro) | 17 | 2, by them (they accepted our bid) | 22.5 | **+5.5** | our standing bid | See "Standing bids" below |
+| 380 | Bought SAL-08 from Team 2 (El Rastro) | 20 | 2, by them | 27.5 | **+7.5** | our standing bid | |
+| 381 | Bought MAL-04 from Team 6 (El Rastro) | 8 | 2, by them | 9 | **+1** | our standing bid | |
+| 383 | Bought SAL-05 from Team 12 (El Rastro) | 8 | by them | 11 | **+3** | our standing bid | |
+
+### Standing bids (posted on our key at ticks 378–379)
+
+- **16 public bids** on El Rastro (`to: null`, expiring at 438–439), found in the feed by the other Claude session. The amounts:
+  - 8 P: MAL-04, SAL-05, RET-02 to RET-05
+  - 17 P: MAL-06, MAL-07
+  - 20 P: SAL-06, SAL-08
+  - 22 P: RET-06, RET-07
+  - 50 P: SAL-09, SAL-10
+  - 52 P: RET-09, RET-10
+- **Every bid was below our value for a first copy** when it was posted.
+- **Not posted by trader.py:** its counters always name the other team (`to=<maker>`). Which process posted them is unknown: a bulk script or a one-off command on our key.
+- **Four filled** (above).
+- **The four big ones (SAL-09, SAL-10, RET-09, RET-10, 204 P together) were cancelled at tick 385** before anything filled them.
+- At tick ~390, 8 are open with 107–113 P committed and 324 P of cash.
+- **Risk:** a standing bid is never re-checked. If we get that card another way first, a later fill buys a duplicate worth about 25%. `trader.py` now warns about such a "stale bid", cancels it only with `--cancel-stale-bids`, never buys a card we already bid for, and counts only free cash (cash minus open bids).
 
 ## Dealer deals (feed `ladder_points`)
 

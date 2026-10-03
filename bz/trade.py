@@ -101,10 +101,19 @@ def counter_body(offer: dict, d: dict, price: int):
     return None
 
 
+def wanted_refs(o: dict) -> list:
+    """The cards an offer asks for, whatever the field: types "card:X", named assets, or "cards"."""
+    w = o.get("want") or {}
+    return ([t.partition(":")[2] for t in w.get("types") or [] if t.startswith("card:")]
+            + [a.get("ref") for a in w.get("assets") or []] + list(w.get("cards") or []))
+
+
 def judge(offer: dict, values, by_ref: dict, cash: int, fees: dict, missing: dict, me_id: str,
-          reserved=frozenset()) -> dict:
+          reserved=frozenset(), pending=frozenset()) -> dict:
     """values: GameValues (live) or a bz.price.Valuer (wrapped in FormulaValues, for tests).
-    reserved: asset ids already given in one of our open offers; they are never offered or handed over twice."""
+    reserved: asset ids already given in one of our open offers; they are never offered or handed over twice.
+    pending: cards our own open bids already ask for. Getting one here too could leave us a duplicate worth ~25 %
+    when the bid fills, so those go to a person. cash: pass what is free, i.e. minus the cash our open bids promise."""
     if hasattr(values, "card_value"):
         values = FormulaValues(values, by_ref)
     out = {"offer": offer.get("id"), "maker": offer.get("maker"), "venue": offer.get("venue")}
@@ -152,6 +161,8 @@ def judge(offer: dict, values, by_ref: dict, cash: int, fees: dict, missing: dic
         ref = a.get("ref")
         if a.get("kind") != "card":
             return {**out, "action": "human", "why": f"offers {a.get('kind')} {ref}: not valued yet"}
+        if ref in pending:
+            return {**out, "action": "human", "why": f"we already bid for {ref}: if both fill, one copy is worth ~25 %"}
         s = ref.split("-")[0]
         if len(missing.get(s, [])) == 1 and ref in missing[s]:
             return {**out, "action": "human", "why": f"{ref} completes the {s} page: decide by hand"}
