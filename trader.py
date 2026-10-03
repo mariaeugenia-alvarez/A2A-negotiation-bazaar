@@ -138,10 +138,13 @@ def main() -> None:
             reserved = {a["id"] for o in ours_open for a in (o.get("give") or {}).get("assets") or []}
             # our open bids (whoever posted them: a script or a person on our key) promise cash and ask for cards
             bids_open = [o for o in ours_open if (o.get("give") or {}).get("cash") and wanted_refs(o)]
-            committed = sum(int(o["give"]["cash"]) for o in bids_open)
-            pending = {r for o in bids_open for r in wanted_refs(o)}
+            committed = sum(int(o["give"]["cash"]) for o in bids_open)  # every bid promises cash, counters included
+            # only PUBLIC bids (no "to") are standing bids for missing cards. A counter to one team may be a
+            # deliberate bid for a second copy below its value: it is neither pending nor stale.
+            public_bids = [o for o in bids_open if not o.get("to")]
+            pending = {r for o in public_bids for r in wanted_refs(o)}
             free_cash = max(0, st.cash - committed)
-            stale = [o for o in bids_open if any(r in by_ref for r in wanted_refs(o))]
+            stale = [o for o in public_bids if any(r in by_ref for r in wanted_refs(o))]
             for o in stale:  # we got the card another way: if this bid fills, we pay for a duplicate worth ~25 %
                 key = ("stale", o["id"])
                 if key not in seen:
