@@ -29,7 +29,7 @@ máquina de Thameur**. Todos gastan la misma caja, así que hay que avisarse ant
 |---|---|---|---|---|---|
 | L1 | **Puntuación** | siempre | `logs/score.jsonl`: nuestros números, la etiqueta, el líder y la mediana | Un experimento solo se lee si nuestro número se movió **y** el líder y la mediana se movieron menos. La negociación es relativa ✅: comparar siempre con la mediana | Poner la etiqueta antes de cada experimento |
 | L2 | **Ofertas que nos hacen** | cada tick | `logs/trader.jsonl` | Cada aceptación debe ganar valor. Nunca vender por debajo de nuestro valor ni una carta que nos falte para una página | `trader.py`; EN VIVO solo con el visto bueno de Maru (`logs/trader.pause` existe desde las 11:09, así que está en pausa) |
-| L3 | **Duelos** | cada sesión | Tasa de tratos, resultado por trato, rondas, duelos sin respuesta, cuántos bots ceden solos | **Base de Duelos I:** 18 tratos de 30, 13,3 por trato; tratos en ≤ 2 rondas 20,4 frente a ≥ 4 rondas 5,7; **8 duelos perdidos por nuestro silencio**. Objetivo Duelos II: 0 sin respuesta, ≥ 80 % de tratos, mediana ≤ 2 rondas, ≥ 18 por trato. **Interruptor de seguridad:** tras la primera oleada, si se cierran < 70 % de los duelos o los bots dejan de ceder solos → reiniciar con `--policy v1` | `duels_watch.py` en la máquina de Thameur, `observe.py tag D2`, luego `analyze_duels.py` |
+| L3 | **Duelos** | cada sesión | Tasa de tratos, resultado por trato, rondas, duelos sin respuesta, cuántos bots ceden solos | **Base de Duelos I:** 18 tratos de 34, 13,3 por trato; tratos en ≤ 2 rondas 20,4 frente a ≥ 4 rondas 5,7; **8 duelos perdidos por nuestro silencio**. Objetivo Duelos II: 0 sin respuesta, ≥ 80 % de tratos, mediana ≤ 2 rondas, ≥ 18 por trato. **Interruptor de seguridad:** tras la primera oleada, si se cierran < 70 % de los duelos o los bots dejan de ceder solos → reiniciar con `--policy v1` | `duels_watch.py` en la máquina de Thameur, `observe.py tag D2`, luego `analyze_duels.py` |
 | L4 | **Quoter** | cada tick cuando esté EN VIVO | Ventas/compras llenadas, `neg_points`, avisos | Cada compra o venta llenada debe subir `neg_points`. Si una lo baja, o aparece un aviso STALE / FOREIGN, pausar (`touch logs/trader.pause`) y mirar | `trader.py --quotes --live` tras el visto bueno de Maru |
 | L5 | **Dealers** | por dealer | Hilos, `ladder_points`, `neg_points` | Los dealers dan muy poca puntuación (0,14). Tratar solo por valor: cartas de página por debajo de su valor, repetidas por encima. **Ninguna venta por debajo de nuestro valor, ninguna carta de página** | Scripts de Maru, `--model predict` |
 | L6 | **Market Test** | cada 2 h | `bench_efficiency`, `market` nuestro y del mejor equipo | El puesto gratis dio 0,933 → mercado 7,5. **Desde el tick 575 lo sustituye nuestro puesto propio v21** (sin broker visto aún). Si v21 saca menos de 7,5 en el Market Test 3 → ponerle un broker pasa a ser la primera tarea de mercado | Solo lectura |
@@ -39,20 +39,19 @@ máquina de Thameur**. Todos gastan la misma caja, así que hay que avisarse ant
 
 | ≈ Cuándo | Qué hacer |
 |---|---|
-| 13:50 · 15:50 · 17:50 | Market Tests: apuntar nuestros números y los del mejor equipo (L6) |
-| **16:00–18:00** | **Fiebre de Salamanca de Pilar (+25 % sobre catálogo).** Antes, el equipo decide: vender Salamanca o completar la página |
-| **18:00** | Ensayo en seco `python3 duels.py --dry` en un duelo de dos temas: comprobar `days` y el signo de `days_meaning`. Luego arrancar `python3 duels_watch.py` en la máquina de Thameur (v2, la jugada de esperar) |
-| **18:30** | **Duelos II** (8 % por ronda, 16 ticks, hasta 6 a la vez). `observe.py tag D2`. Después `analyze_duels.py` y aplicar L3 |
-| 19:50 · **21:30 (duro)** · 21:50 | Market Tests |
+| 17:55 · 19:55 · 21:55 | Market Tests: apuntar nuestros números y los del mejor equipo (L6) |
+| **18:05–20:05** | **Fiebre de Salamanca de Pilar (+25 % sobre catálogo).** Antes, el equipo decide: vender Salamanca o completar la página |
+| **ya en marcha** | `python3 duels_watch.py` corre en la máquina de Thameur desde las 15:52 (v2, la jugada de esperar) |
+| **≈20:35** | **Duelos II** (8 % por ronda, 16 ticks, hasta 6 a la vez). `observe.py tag D2`. Comprobación de la lectura del día al abrir. Revisión a las 21:00, luego `analyze_duels.py` y aplicar L3 |
 | 23:00 | Cierran las puertas |
-| **Domingo** | 09:00 abre (ticks de 15 s). ≈09:30 ronda 3 desde cero, sale Chamberí, +150 P. **≈11:30 Duelos III** (10 %, 12 ticks = 3 min). ≈14:30 cierran los dealers + **Gran Final** (10 %, 12 ticks). ≈15:30 se congela la puntuación |
+| **Domingo** | 09:00 abre (ticks de 15 s). ≈09:35 Market Test duro. ≈11:35 ronda 3 desde cero, sale Chamberí, +150 P. **≈13:35 Duelos III** (10 %, 12 ticks = 3 min). 15:00 cierre. Gran Final / congelación ❓ (después de las 15:00 en el calendario actual) |
 
 ## 4. Lista de trabajo (en este orden)
 
 1. ✅ **Lógica de duelos para Duelos II** (`bz/duel.py` v2, sesión del trader): doctrina aprobada a las 13:35, jugada de esperar aprobada a las 14:00 (`ONE_SHEET.es.md` §VI). Por defecto `--policy v2`; `--policy v1` es el interruptor de seguridad. Día de entrega: solo hipótesis.
 2. **Guardián de dealers** (Maru): `sell-spares` solo vende repetidas, nunca por debajo de `sell_floor`; `--limit` limitado a `sell_floor`/`buy_cap` (15:36). **Hecho.**
 3. **Quoter EN VIVO** con el visto bueno de Maru (180 P en pujas, +79 de valor si todo se llena). La caja tiene 48 P tras la fianza de v21: poner `--quote-budget` a lo que haya.
-4. **Broker:** v21 está abierto sin broker. Leer L6 en el próximo Market Test y decidir entonces, no a las 21:30.
+4. **Broker:** v21 está abierto sin broker. Leer L6 en el próximo Market Test y decidir entonces, no en el test duro.
 
 ## 5. Preguntas abiertas que deben responder los experimentos
 - La fórmula exacta de `neg_points`, `duel_points` y `ladder_points` a los 30 puntos de negociación.

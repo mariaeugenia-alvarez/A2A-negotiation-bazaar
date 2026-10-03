@@ -28,7 +28,7 @@ them spend the same cash, so tell each other before a big purchase or before pos
 |---|---|---|---|---|---|
 | L1 | **Score** | always on | `logs/score.jsonl`: our numbers, the tag, the leader and the median | An experiment is read only if our number moved **and** the leader and median moved less. The negotiating score is relative ✅, so always compare with the median | Set the tag before each experiment |
 | L2 | **Offers to us** | every tick | `logs/trader.jsonl` | Every accept must gain value. Never sell below our value or a card we need for a page | `trader.py`; LIVE only with Maru's OK (`logs/trader.pause` exists since 11:09, so it is paused) |
-| L3 | **Duels** | each session | Deal rate, result per deal, rounds, unanswered duels, how many bots concede on their own | **Duels I baseline:** 18 deals of 30, result 13.3 per deal, deals in ≤ 2 rounds 20.4 vs ≥ 4 rounds 5.7, **8 duels lost to our silence**. Duels II target: 0 unanswered, ≥ 80% deals, median ≤ 2 rounds, ≥ 18 per deal. **Safety switch:** after the first wave, if < 70% of duels close or the bots stop conceding on their own → restart with `--policy v1` | `duels_watch.py` on Thameur's machine, `observe.py tag D2`, then `analyze_duels.py` |
+| L3 | **Duels** | each session | Deal rate, result per deal, rounds, unanswered duels, how many bots concede on their own | **Duels I baseline:** 18 deals of 34, result 13.3 per deal, deals in ≤ 2 rounds 20.4 vs ≥ 4 rounds 5.7, **8 duels lost to our silence**. Duels II target: 0 unanswered, ≥ 80% deals, median ≤ 2 rounds, ≥ 18 per deal. **Safety switch:** after the first wave, if < 70% of duels close or the bots stop conceding on their own → restart with `--policy v1` | `duels_watch.py` on Thameur's machine, `observe.py tag D2`, then `analyze_duels.py` |
 | L4 | **Quoter** | every tick once LIVE | Fills, `neg_points`, alerts | Each fill must raise `neg_points`. If a fill lowers it, or a STALE / FOREIGN alert appears, pause (`touch logs/trader.pause`) and look | `trader.py --quotes --live` after Maru's OK |
 | L5 | **Dealers** | per dealer | Thread logs, `ladder_points`, `neg_points` | Dealer score is tiny (0.14). Deal only for value: page cards below value, spares above it. **No sale below our value, no page card** | Maru's scripts, `--model predict` |
 | L6 | **Market Test** | every 2 h | `bench_efficiency`, `market` for us and the best team | Free stall gave 0.933 → market 7.5. **Since tick 575 our own venue v21 replaces it** (no broker seen yet). If v21 scores below 7.5 in Market Test 3 → a broker for it becomes the top market task | Read only |
@@ -38,20 +38,19 @@ them spend the same cash, so tell each other before a big purchase or before pos
 
 | ≈ When | Do |
 |---|---|
-| 13:50 · 15:50 · 17:50 | Market Tests: write down our numbers and the best team's (L6) |
-| **16:00–18:00** | **Pilar's Salamanca fever (+25% over book).** Team decides first: sell Salamanca or finish the page |
-| **18:00** | Dry run `python3 duels.py --dry` on a two-issue duel: check `days` and the sign of `days_meaning`. Then start `python3 duels_watch.py` on Thameur's machine (v2, the waiting play) |
-| **18:30** | **Duels II** (8% per round, 16 ticks, up to 6 at once). `observe.py tag D2`. Afterwards `analyze_duels.py` and apply L3 |
-| 19:50 · **21:30 (hard)** · 21:50 | Market Tests |
+| 17:55 · 19:55 · 21:55 | Market Tests: write down our numbers and the best team's (L6) |
+| **18:05–20:05** | **Pilar's Salamanca fever (+25% over book).** Team decides first: sell Salamanca or finish the page |
+| **already on** | `python3 duels_watch.py` runs on Thameur's machine since 15:52 (v2, the waiting play) |
+| **≈20:35** | **Duels II** (8% per round, 16 ticks, up to 6 at once). `observe.py tag D2`. Days-reading check when it opens. 21:00 review, then `analyze_duels.py` and apply L3 |
 | 23:00 | Doors close |
-| **Sunday** | 09:00 opens (15-second ticks). ≈09:30 round 3 at zero, Chamberí released, +150 P. **≈11:30 Duels III** (10%, 12 ticks = 3 min). ≈14:30 dealers close + **Grand Final** (10%, 12 ticks). ≈15:30 scores freeze |
+| **Sunday** | 09:00 opens (15-second ticks). ≈09:35 hard Market Test. ≈11:35 round 3 at zero, Chamberí released, +150 P. **≈13:35 Duels III** (10%, 12 ticks = 3 min). 15:00 close. Grand Final / freeze ❓ (after 15:00 in the current schedule) |
 
 ## 4. Build list (in this order)
 
 1. ✅ **Duel logic for Duels II** (`bz/duel.py` v2, trader session): doctrine approved 13:35, waiting play approved 14:00 (`ONE_SHEET.md` §VI). Default `--policy v2`; `--policy v1` is the safety switch. Delivery day: hypothesis only.
 2. **Dealer guard** (Maru): `sell-spares` sells only spares, never below `sell_floor`; `--limit` clamped to `sell_floor`/`buy_cap` (15:36). **Done.**
 3. **Quoter LIVE** with Maru's OK (180 P of bids, +79 of value if all fill). Cash is 48 P after the v21 bond: set `--quote-budget` to what we have.
-4. **Broker:** v21 is open without one. Read L6 at the next Market Test and decide then, not at 21:30.
+4. **Broker:** v21 is open without one. Read L6 at the next Market Test and decide then, not at the hard test.
 
 ## 5. Open questions the experiments must answer
 - The exact formula from `neg_points`, `duel_points` and `ladder_points` to the 30 negotiating points.

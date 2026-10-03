@@ -3,6 +3,7 @@
 Saturday 3 Oct 2026, 13:05 (tick 583) · Team 9 · Spanish version: `ONE_SHEET.es.md` · Loops and experiments: `PLAYBOOK.md`
 **This sheet is the source of truth for today and tomorrow.** Strategy approved by Thameur at 13:35, except the delivery day, which stays a hypothesis. If another document disagrees, this one wins. Fix the
 other document.
+**Clock note:** the game paused 13:14–15:34, so every time below comes from `/api/schedule` at 16:31 (game hour 7.6). Re-read it if the game pauses again.
 Sources: `RULES.md`, kickoff slides, Day 2 Hints, **organisers' Duels slides**, `GET /api/schedule`, our logs
 (`logs/score.jsonl`, `logs/duels/`, `TRADES.md`, `DEALERS.md`).
 ✅ = checked in a source or our data · ⚠️ = my inference · ❓ = unknown
@@ -20,7 +21,7 @@ and every round of talk costs points. Section VIII says what we kept and what we
 | Negotiating (of 30) | 4.8 | 12.7 | **Relative to the field**: the median team went 10.8 → 16.2 |
 | Market (of 30) | 4.8 | 7.5 | Free stall. Market Test efficiency 0.899 → 0.933. Top teams 10.6–12.1 |
 | `neg_points` (team trades) | 0 | **23.5** | Our biggest source. ≈ the value we gained in team trades (+24 by `TRADES.md`) ⚠️ |
-| `duel_points` | 0 | **5.98** | Duels I: 18 deals out of 30 |
+| `duel_points` | 0 | **5.98** | Duels I: 18 deals out of 34 |
 | `ladder_points` (dealers) | 0 | **0.14** | 13 dealer deals moved it almost nothing |
 | Cash · cards | 501 P | 326 P · 33 cards | **Lavapiés page complete** (+106 P of value on each of its cards) |
 
@@ -36,11 +37,11 @@ Because the score is relative, standing still loses rank.
 
 | Lane | Specific target | Why it is reachable |
 |---|---|---|
-| **Duels II (≈18:30)** | **No duel left unanswered.** Deal rate ≥ 80%. Median ≤ 2 rounds. Average result per deal ≥ 18 | Duels I: deals in ≤ 2 rounds averaged **20.4**, deals in ≥ 4 rounds averaged **5.7**. Our silence cost us 8 duels |
+| **Duels II (≈20:35)** | **No duel left unanswered.** Deal rate ≥ 80%. Median ≤ 2 rounds. Average result per deal ≥ 18 | Duels I: deals in ≤ 2 rounds averaged **20.4**, deals in ≥ 4 rounds averaged **5.7**. Our silence cost us 8 duels |
 | **Team trades** | `neg_points` 23.5 → **45** by 23:00. Every trade must gain value | Six small trades already gave +24. The quoter is ready (not live) |
 | **Pages** | Complete **Salamanca** (missing SAL-06, 07, 09, 10). Never break Lavapiés | Page bonus = +25% of the page total on every card of the page ✅ |
 | **Dealers** | Only trades that gain value: page cards bought below their value, spares sold above it. **Never a sale below our value, never a page card** | Dealer score is tiny. Their use is cheap cards and unlocks, not points |
-| **Market** | Keep 7.5 or better. v21 is open without a broker (VII): decide on Maru's broker **before the next Market Test**, not at the hard one (≈21:30) | Top teams are at 10.6–12.1 |
+| **Market** | Keep 7.5 or better. v21 is open without a broker (VII): decide on Maru's broker **before the next Market Test**, not at the hard one (now Sunday ≈09:35) | Top teams are at 10.6–12.1 |
 
 Voss's four goal steps: set it, write it down, say it to a teammate (Maru), carry it in. **The worst case we refuse:**
 a deal outside our limit, a sale below our value, a duel with no answer.
@@ -57,7 +58,7 @@ a deal outside our limit, a sale below our value, a duel with no answer.
 - **Measured:** duel score = **our surplus × (1 − decay)^rounds**, exactly. Duel 2549: surplus 33 × 0.94 = 31.0. Duel 2327: 40 × 0.94² = 35.3 ✅.
 - **New from the organisers:** you meet **every team twice** (once as seller, once as buyer). One message per tick. An accept settles next tick. The duel lanes have their own rate limits and never block trading ✅.
 - **New from the schedule:** Duels II has **8% decay, 16 ticks, up to 6 duels at once**. Duels III and the Final have **10% decay and only 12 ticks** (3 minutes at Sunday's 15-second ticks) ✅.
-- **New:** Doña Pilar trades. Salamanca fever **≈16:00–18:00**: she pays 25% over book for Salamanca ✅ (schedule).
+- **New:** Doña Pilar trades. Salamanca fever **≈18:05–20:05**: she pays 25% over book for Salamanca ✅ (schedule).
 - **New:** Radio Rastro (`GET /api/news`). Some items are true and move the market, some are rumours ✅. Treat news as a hint, never as a fact.
 - **Warning:** at tick 567 `neg_points` fell for the first time (24.2 → 23.5), right after the dealer scripts sold MAL-08 (21 P, worth 22.5) and SAL-07 (24 P, worth 27.5: our only copy, so Salamanca now misses it again) to Pilar. Cause not proven ⚠️: `DEALERS.md` measured on Friday that dealer deals did not move `neg_points`, so look elsewhere too. Hard rule 2 now covers it.
 
@@ -129,7 +130,7 @@ built so we can close in one or two rounds without losing the pie."*
 ### What Duels I taught us ✅ (30 duels, session 2, from `logs/duels/`)
 | Fact | Number |
 |---|---|
-| Deals | 18 of 30 (60%). Practice: 53% |
+| Deals | 18 of 34 (53%); 16 no-deals, 6 with a silent rival. Practice: 53% |
 | **Deals in ≤ 2 rounds** | 8 deals, average result **20.4** |
 | **Deals in ≥ 4 rounds** | 8 deals, average result **5.7**. Worst: duel 2486, 9 rounds, result 0.6 |
 | **Our agent went silent from tick 503 to 553** | **8 duels lost:** 5 where the rival offered inside our limit (2485: he climbed to 106 over our cost of 85, no answer from us) and 3 where we never opened. About +60 of result missed (≈ +25% on our total) |
@@ -181,14 +182,14 @@ built so we can close in one or two rounds without losing the pie."*
 - ✅ Each side has a private `your_days_weight` (a gain or a cost per day). The deal is worth price surplus + weight × day to each side. The organisers: "give the day to whoever cares more, trade it for price".
 - **Thameur's direction:** use the day as **leverage combined with our price**, not as an automatic push to day 0 or 10.
 - **Hypothesis to test in Duels II:** read which day he asks for first and how much price he gives when the day moves. Then offer packages where we give ground on the day he cares about and take it back in price. Compare result per deal with and without day moves.
-- **Before 18:30:** `duels.py --dry` on a two-issue duel, check that `days_meaning` is read with the right sign.
+- **When Duels II opens (≈20:35):** check that `days_meaning` is read with the right sign (scheduled check in this session).
 
 ### Duels calendar ✅ (from `/api/schedule`, Madrid time estimated from tick 583 at 13:03)
 | Session | Real time ≈ | Clock | Decay per round | At once | Issues |
 |---|---|---|---|---|---|
-| Duels II | **Sat 18:30** | 16 ticks (8 min) | 8% | up to 6 | price + day |
-| Duels III | **Sun 11:30** | 12 ticks (3 min) | 10% | up to 4 | price + day |
-| Grand Final | **Sun 14:30** | 12 ticks (3 min) | 10% | up to 4 | price + day, on the big screen |
+| Duels II | **Sat ≈20:35** | 16 ticks (8 min) | 8% | up to 6 | price + day |
+| Duels III | **Sun ≈13:35** ⚠️ | 12 ticks (3 min) | 10% | up to 4 | price + day |
+| Grand Final | **Sun ❓** (game hour 21.65 falls after Sunday's 15:00 close in the current schedule; watch `/api/schedule`) | 12 ticks (3 min) | 10% | up to 4 | price + day, on the big screen |
 
 ---
 
@@ -202,13 +203,13 @@ built so we can close in one or two rounds without losing the pie."*
 ### Dealers (Maru's scripts: `agent.py`, `bz/predict.py`, `DEALERS.md`) ✅
 - **Abuela:** her first answer gives away her limit (L = A − 2·d1). Model error ≈ 0.4–0.7 P.
 - **El Chato:** schedule a·k², never gives more than our step. Model exact 77–98%. Rares 97 → 79 in 6 answers.
-- **Pilar:** buys MAL/SAL near book. **Salamanca fever ≈16:00–18:00 (+25% over book).** Decision for the team: sell her Salamanca only if we give up on completing Salamanca.
+- **Pilar:** buys MAL/SAL near book. **Salamanca fever ≈18:05–20:05 (+25% over book).** Decision for the team: sell her Salamanca only if we give up on completing Salamanca.
 - **Guard (Maru):** `agent.py sell-spares` only sells copies beyond the first and never below `sell_floor(value)`. `--limit` can no longer cross `sell_floor`/`buy_cap` (15:36). Crossing the value bound needs Maru's OK with the loss in primas (`CLAUDE.md`).
 
 ### Market ✅
 - Free stall: efficiency 0.933, market 7.5. Top teams 10.6–12.1.
-- ✅ **At tick 575 someone on our key opened our own venue v21** (board, 0% fee, 270 P with a 250 P bond that comes back later). The free stall v12 closed. Cash fell to 75 P. No broker runs for v21 on Thameur's machine. A board without a broker scored 3.33 in Market Test 1 (Team 13). ❓ Who opened it, and does Maru's broker (`broker.py`, c9d2ea1) run for it before Market Test 3 (≈13:50)?
-- Market Tests at ≈13:50, 15:50, 17:50, 19:50, **21:30 (hard: firmer, more impatient traders)**, 21:50. Sunday every 2 h from ≈10:00.
+- ✅ **At tick 575 someone on our key opened our own venue v21** (board, 0% fee, 270 P with a 250 P bond that comes back later). The free stall v12 closed. Cash fell to 75 P. No broker runs for v21 on Thameur's machine. A board without a broker scored 3.33 in Market Test 1 (Team 13). ❓ Who opened it, and does Maru's broker (`broker.py`, c9d2ea1) run for it before the next Market Test (≈17:55)?
+- Market Tests at ≈17:55, 19:55, 21:55. **The hard test (firmer, more impatient traders) moved to Sunday ≈09:35**, then ≈09:55, 11:55, 13:55.
 
 ---
 
@@ -235,18 +236,18 @@ built so we can close in one or two rounds without losing the pie."*
 ### Today (Madrid, estimated from the schedule)
 | ≈ When | What | Who |
 |---|---|---|
-| 13:50 | Market Test 3 | read only |
-| 15:50 | Market Test 4 | read only |
-| **16:00–18:00** | **Pilar's Salamanca fever** | dealer scripts (Maru), only if the team agrees |
-| 17:50 | Market Test 5 | |
-| **18:00** | **Dry run `python3 duels.py --dry` on a two-issue duel. Then start `python3 duels_watch.py` on Thameur's machine** (v2 = the waiting play, approved 14:00; `--policy v1` = safety switch) | trader session + Thameur |
-| **18:30** | **Duels II** (8%, 16 ticks, up to 6 at once) | `duels.py` |
-| 19:50 · 21:30 (hard) · 21:50 | Market Tests | |
+| 17:55 | Market Test 4 | read only |
+| **18:05–20:05** | **Pilar's Salamanca fever** | dealer scripts (Maru), only if the team agrees |
+| 19:55 | Market Test 5 | |
+| **already on** | **`python3 duels_watch.py` runs on Thameur's machine since 15:52** (v2 = the waiting play, approved 14:00; `--policy v1` = safety switch) | trader session + Thameur |
+| **≈20:35** | **Duels II** (8%, 16 ticks, up to 6 at once). Days-reading check when it opens | `duels.py` |
+| 21:00 | Review of Duels II and the algorithm for Sunday (reminder set) | Thameur + this session |
+| 21:55 | Market Test 6 | |
 | 23:00 | Doors close | |
 
 ### Sunday
-≈09:00 opens (15-second ticks) · ≈09:30 round 3 starts at zero, **Chamberí released**, +150 P for everyone ·
-**≈11:30 Duels III** · ≈14:30 dealers close and **Grand Final** duels · 15:00 doors close · ≈15:30 scores freeze.
+09:00 opens (15-second ticks) · ≈09:35 hard Market Test · ≈11:35 round 3 starts at zero, **Chamberí released**, +150 P for everyone ·
+**≈13:35 Duels III** ⚠️ · 15:00 doors close. Grand Final, dealer close and freeze: ❓ the current schedule puts them after 15:00, so it will probably change again.
 
 ### Decisions for Thameur and Maru now
 1. **Quoter LIVE?** 180 P of standing bids for page cards, +79 of value if all fill. Cash is 48 P: with what budget?

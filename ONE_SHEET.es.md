@@ -3,6 +3,7 @@
 Sábado 3 oct 2026, 13:05 (tick 583) · Equipo 9 · Versión en inglés: `ONE_SHEET.md` · Ciclos y experimentos: `PLAYBOOK.es.md`
 **Esta hoja es la fuente de verdad para hoy y mañana.** Estrategia aprobada por Thameur a las 13:35, salvo el día de entrega, que sigue siendo una hipótesis. Si otro documento dice otra cosa, manda esta. Corrige el
 otro documento.
+**Nota del reloj:** el juego se paró de 13:14 a 15:34, así que todas las horas vienen de `/api/schedule` a las 16:31 (hora de juego 7,6). Volver a leerlo si el juego se para otra vez.
 Fuentes: `RULES.md`, diapositivas del kickoff, Pistas del Día 2, **diapositivas de Duelos de la organización**,
 `GET /api/schedule`, nuestros registros (`logs/score.jsonl`, `logs/duels/`, `TRADES.md`, `DEALERS.md`).
 ✅ = comprobado en una fuente o en nuestros datos · ⚠️ = inferencia mía · ❓ = no sabemos
@@ -20,7 +21,7 @@ precios y cada ronda de charla cuesta puntos. La sección VIII dice qué tomamos
 | Negociación (de 30) | 4,8 | 12,7 | **Relativa al resto**: el equipo mediano pasó de 10,8 a 16,2 |
 | Mercado (de 30) | 4,8 | 7,5 | Puesto gratis. Eficiencia del Market Test 0,899 → 0,933. Los mejores: 10,6–12,1 |
 | `neg_points` (tratos con equipos) | 0 | **23,5** | Nuestra mayor fuente. ≈ el valor ganado en tratos con equipos (+24 según `TRADES.md`) ⚠️ |
-| `duel_points` | 0 | **5,98** | Duelos I: 18 tratos de 30 |
+| `duel_points` | 0 | **5,98** | Duelos I: 18 tratos de 34 |
 | `ladder_points` (dealers) | 0 | **0,14** | 13 tratos con dealers casi no lo movieron |
 | Dinero · cartas | 501 P | 326 P · 33 cartas | **Página de Lavapiés completa** (+106 P de valor en cada una de sus cartas) |
 
@@ -36,11 +37,11 @@ puntos. Como la puntuación es relativa, quedarse quieto hace perder puestos.
 
 | Carril | Objetivo concreto | Por qué es alcanzable |
 |---|---|---|
-| **Duelos II (≈18:30)** | **Ningún duelo sin respuesta.** Tratos ≥ 80 %. Mediana ≤ 2 rondas. Resultado medio por trato ≥ 18 | Duelos I: los tratos en ≤ 2 rondas dieron de media **20,4**; los de ≥ 4 rondas, **5,7**. Nuestro silencio nos costó 8 duelos |
+| **Duelos II (≈20:35)** | **Ningún duelo sin respuesta.** Tratos ≥ 80 %. Mediana ≤ 2 rondas. Resultado medio por trato ≥ 18 | Duelos I: los tratos en ≤ 2 rondas dieron de media **20,4**; los de ≥ 4 rondas, **5,7**. Nuestro silencio nos costó 8 duelos |
 | **Tratos con equipos** | `neg_points` de 23,5 a **45** a las 23:00. Cada trato debe ganar valor | Seis tratos pequeños ya dieron +24. El quoter está listo (no en vivo) |
 | **Páginas** | Completar **Salamanca** (faltan SAL-06, 07, 09, 10). No romper nunca Lavapiés | Bono de página = +25 % del total de la página en cada carta ✅ |
 | **Dealers** | Solo tratos que ganen valor: cartas de página compradas por debajo de su valor, repetidas vendidas por encima. **Nunca una venta por debajo de nuestro valor, nunca una carta de página** | Los dealers dan muy pocos puntos. Sirven para cartas baratas y desbloqueos, no para puntos |
-| **Mercado** | Mantener 7,5 o más. v21 está abierto sin broker (VII): decidir sobre el broker de Maru **antes del próximo Market Test**, no en el duro (≈21:30) | Los mejores equipos están en 10,6–12,1 |
+| **Mercado** | Mantener 7,5 o más. v21 está abierto sin broker (VII): decidir sobre el broker de Maru **antes del próximo Market Test**, no en el duro (ahora domingo ≈09:35) | Los mejores equipos están en 10,6–12,1 |
 
 Los cuatro pasos de Voss para la meta: fijarla, escribirla, decírsela a una compañera (Maru), llevarla encima.
 **El peor caso que no aceptamos:** un trato fuera de nuestro límite, una venta por debajo de nuestro valor, un duelo sin
@@ -58,7 +59,7 @@ respuesta.
 - **Medido:** puntuación del duelo = **nuestro excedente × (1 − decaimiento)^rondas**, exacto. Duelo 2549: excedente 33 × 0,94 = 31,0. Duelo 2327: 40 × 0,94² = 35,3 ✅.
 - **Nuevo de la organización:** te enfrentas a **cada equipo dos veces** (una como vendedor, otra como comprador). Un mensaje por tick. Un acuerdo se liquida en el tick siguiente. Los duelos tienen sus propios límites y nunca bloquean el comercio ✅.
 - **Nuevo en el calendario:** Duelos II con **8 % de decaimiento, 16 ticks y hasta 6 duelos a la vez**. Duelos III y la Final con **10 % y solo 12 ticks** (3 minutos con los ticks de 15 s del domingo) ✅.
-- **Nuevo:** Doña Pilar comercia. Fiebre de Salamanca **≈16:00–18:00**: paga un 25 % sobre catálogo por Salamanca ✅ (calendario).
+- **Nuevo:** Doña Pilar comercia. Fiebre de Salamanca **≈18:05–20:05**: paga un 25 % sobre catálogo por Salamanca ✅ (calendario).
 - **Nuevo:** Radio Rastro (`GET /api/news`). Algunas noticias son ciertas y mueven el mercado; otras son rumores ✅. Tratar las noticias como pista, nunca como hecho.
 - **Aviso:** en el tick 567 `neg_points` bajó por primera vez (24,2 → 23,5), justo después de que los scripts de dealers vendieran a Pilar MAL-08 (21 P, vale 22,5) y SAL-07 (24 P, vale 27,5: nuestra única copia, así que a Salamanca vuelve a faltarle). Causa sin probar ⚠️: `DEALERS.md` midió el viernes que los tratos con dealers no movían `neg_points`, así que hay que buscar también en otra parte. La regla fija 2 ya lo cubre.
 
@@ -131,7 +132,7 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 ### Lo que nos enseñaron los Duelos I ✅ (30 duelos, sesión 2, de `logs/duels/`)
 | Hecho | Cifra |
 |---|---|
-| Tratos | 18 de 30 (60 %). En práctica: 53 % |
+| Tratos | 18 de 34 (53 %); 16 sin trato, 6 con rival callado. En práctica: 53 % |
 | **Tratos en ≤ 2 rondas** | 8 tratos, resultado medio **20,4** |
 | **Tratos en ≥ 4 rondas** | 8 tratos, resultado medio **5,7**. El peor: duelo 2486, 9 rondas, resultado 0,6 |
 | **Nuestro agente calló del tick 503 al 553** | **8 duelos perdidos:** 5 en los que el rival ofreció dentro de nuestro límite (2485: subió hasta 106 sobre nuestro coste de 85, y no le contestamos) y 3 que ni abrimos. Unos +60 de resultado perdidos (≈ +25 % sobre nuestro total) |
@@ -183,14 +184,14 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 - ✅ Cada parte tiene un `your_days_weight` privado (una ganancia o un coste por día). El trato vale para cada parte excedente de precio + peso × día. La organización: «da el día a quien más lo valore y cámbialo por precio».
 - **Dirección de Thameur:** usar el día como **palanca combinada con nuestro precio**, no como un empujón automático al día 0 o 10.
 - **Hipótesis a probar en Duelos II:** leer qué día pide primero y cuánto precio da cuando el día se mueve. Luego ofrecer paquetes en los que cedemos en el día que le importa y lo recuperamos en precio. Comparar el resultado por trato con y sin movimientos de día.
-- **Antes de las 18:30:** `duels.py --dry` en un duelo de dos temas, y comprobar que `days_meaning` se lee con el signo correcto.
+- **Al abrir Duelos II (≈20:35):** comprobar que `days_meaning` se lee con el signo correcto (comprobación programada en esta sesión).
 
 ### Calendario de duelos ✅ (de `/api/schedule`, hora de Madrid estimada desde el tick 583 a las 13:03)
 | Sesión | Hora real ≈ | Reloj | Decaimiento por ronda | A la vez | Temas |
 |---|---|---|---|---|---|
-| Duelos II | **Sáb 18:30** | 16 ticks (8 min) | 8 % | hasta 6 | precio + día |
-| Duelos III | **Dom 11:30** | 12 ticks (3 min) | 10 % | hasta 4 | precio + día |
-| Gran Final | **Dom 14:30** | 12 ticks (3 min) | 10 % | hasta 4 | precio + día, en la pantalla grande |
+| Duelos II | **Sáb ≈20:35** | 16 ticks (8 min) | 8 % | hasta 6 | precio + día |
+| Duelos III | **Dom ≈13:35** ⚠️ | 12 ticks (3 min) | 10 % | hasta 4 | precio + día |
+| Gran Final | **Dom ❓** (la hora de juego 21,65 cae después del cierre de las 15:00 en el calendario actual; mirar `/api/schedule`) | 12 ticks (3 min) | 10 % | hasta 4 | precio + día, en la pantalla grande |
 
 ---
 
@@ -204,13 +205,13 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 ### Dealers (scripts de Maru: `agent.py`, `bz/predict.py`, `DEALERS.md`) ✅
 - **Abuela:** su primera respuesta delata su límite (L = A − 2·d1). Error del modelo ≈ 0,4–0,7 P.
 - **El Chato:** calendario a·k², nunca cede más que nuestro paso. Modelo exacto en 77–98 %. Raras de 97 a 79 en 6 respuestas.
-- **Pilar:** compra MAL/SAL cerca del catálogo. **Fiebre de Salamanca ≈16:00–18:00 (+25 % sobre catálogo).** Decisión del equipo: venderle Salamanca solo si renunciamos a completar Salamanca.
+- **Pilar:** compra MAL/SAL cerca del catálogo. **Fiebre de Salamanca ≈18:05–20:05 (+25 % sobre catálogo).** Decisión del equipo: venderle Salamanca solo si renunciamos a completar Salamanca.
 - **Guardián (Maru):** `agent.py sell-spares` solo vende copias a partir de la segunda y nunca por debajo de `sell_floor(valor)`. `--limit` ya no puede cruzar `sell_floor`/`buy_cap` (15:36). Cruzar el límite de valor necesita el visto bueno de Maru diciendo cuántas primas perdemos (`CLAUDE.md`).
 
 ### Mercado ✅
 - Puesto gratis: eficiencia 0,933, mercado 7,5. Los mejores equipos: 10,6–12,1.
-- ✅ **En el tick 575 alguien abrió con nuestra clave un puesto propio, v21** (tablón, 0 % de comisión, 270 P con una fianza de 250 P que se recupera más tarde). El puesto gratis v12 se cerró. La caja bajó a 75 P. En la máquina de Thameur no corre ningún broker para v21. Un tablón sin broker sacó 3,33 en el Market Test 1 (Equipo 13). ❓ ¿Quién lo abrió, y corre el broker de Maru (`broker.py`, c9d2ea1) antes del Market Test 3 (≈13:50)?
-- Market Tests a las ≈13:50, 15:50, 17:50, 19:50, **21:30 (duro: traders más firmes e impacientes)**, 21:50. El domingo, cada 2 h desde ≈10:00.
+- ✅ **En el tick 575 alguien abrió con nuestra clave un puesto propio, v21** (tablón, 0 % de comisión, 270 P con una fianza de 250 P que se recupera más tarde). El puesto gratis v12 se cerró. La caja bajó a 75 P. En la máquina de Thameur no corre ningún broker para v21. Un tablón sin broker sacó 3,33 en el Market Test 1 (Equipo 13). ❓ ¿Quién lo abrió, y corre el broker de Maru (`broker.py`, c9d2ea1) antes del próximo Market Test (≈17:55)?
+- Market Tests a las ≈17:55, 19:55, 21:55. **El test duro (traders más firmes e impacientes) pasa al domingo ≈09:35**, luego ≈09:55, 11:55, 13:55.
 
 ---
 
@@ -237,18 +238,18 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 ### Hoy (Madrid, estimado desde el calendario)
 | ≈ Cuándo | Qué | Quién |
 |---|---|---|
-| 13:50 | Market Test 3 | solo lectura |
-| 15:50 | Market Test 4 | solo lectura |
-| **16:00–18:00** | **Fiebre de Salamanca de Pilar** | scripts de dealers (Maru), solo si el equipo está de acuerdo |
-| 17:50 | Market Test 5 | |
-| **18:00** | **Ensayo en seco `python3 duels.py --dry` en un duelo de dos temas. Luego arrancar `python3 duels_watch.py` en la máquina de Thameur** (v2 = la jugada de esperar, aprobada a las 14:00; `--policy v1` = interruptor de seguridad) | sesión del trader + Thameur |
-| **18:30** | **Duelos II** (8 %, 16 ticks, hasta 6 a la vez) | `duels.py` |
-| 19:50 · 21:30 (duro) · 21:50 | Market Tests | |
+| 17:55 | Market Test 4 | solo lectura |
+| **18:05–20:05** | **Fiebre de Salamanca de Pilar** | scripts de dealers (Maru), solo si el equipo está de acuerdo |
+| 19:55 | Market Test 5 | |
+| **ya en marcha** | **`python3 duels_watch.py` corre en la máquina de Thameur desde las 15:52** (v2 = la jugada de esperar, aprobada a las 14:00; `--policy v1` = interruptor de seguridad) | sesión del trader + Thameur |
+| **≈20:35** | **Duelos II** (8 %, 16 ticks, hasta 6 a la vez). Comprobación de la lectura del día al abrir | `duels.py` |
+| 21:00 | Revisión de Duelos II y del algoritmo para el domingo (recordatorio puesto) | Thameur + esta sesión |
+| 21:55 | Market Test 6 | |
 | 23:00 | Cierran las puertas | |
 
 ### Domingo
-≈09:00 abre (ticks de 15 s) · ≈09:30 empieza la ronda 3 desde cero, **sale Chamberí**, +150 P para todos ·
-**≈11:30 Duelos III** · ≈14:30 cierran los dealers y **Gran Final** de duelos · 15:00 cierran las puertas · ≈15:30 se congela la puntuación.
+09:00 abre (ticks de 15 s) · ≈09:35 Market Test duro · ≈11:35 empieza la ronda 3 desde cero, **sale Chamberí**, +150 P para todos ·
+**≈13:35 Duelos III** ⚠️ · 15:00 cierran las puertas. Gran Final, cierre de dealers y congelación: ❓ el calendario actual los pone después de las 15:00, así que seguramente cambiará otra vez.
 
 ### Decisiones para Thameur y Maru ahora
 1. **¿Quoter EN VIVO?** 180 P en pujas fijas por cartas de página, +79 de valor si todo se llena. La caja tiene 48 P: ¿con qué presupuesto?
