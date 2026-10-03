@@ -264,6 +264,175 @@ def team_stats(events: list, threads: list, board: dict) -> list:
     return rows
 
 
+def team_demand(events: list, me: str, collection: dict = None) -> dict:
+    """The cards each other team asks for in public: offers that want a card and dealer threads to buy one.
+
+    Asking is not proof of missing it (values are private), and starting hands and pack contents are hidden.
+    A card counts as got when a settlement gave the team a copy at or after its last ask (5 ticks of slack).
+    """
+    want = defaultdict(dict)  # team -> ref -> row
+    got = defaultdict(dict)   # team -> ref -> last tick a copy reached it
+
+    def ask(team, ref, tick, via, bid=None):
+        if not team or team == me or not str(team).startswith("t"):
+            return
+        r = want[team].setdefault(ref, {"ref": ref, "n": 0, "offers": 0, "dealer": 0, "first": tick, "last": tick, "bid": None})
+        r["n"] += 1
+        r[via] += 1
+        r["last"] = max(r["last"], tick)
+        if bid:
+            r["bid"] = bid  # the latest bid, not the highest: prices move
+
+    for e in events:
+        p = e.get("payload") or {}
+        if e["type"] == "offer.listed":
+            o = p.get("offer") or {}
+            give = o.get("give") or {}
+            for ty in (o.get("want") or {}).get("types") or []:
+                if ty.startswith("card:"):
+                    alone = not give.get("assets") and not give.get("types")
+                    ask(o.get("maker"), ty[5:], e["tick"], "offers", give.get("cash") if alone else None)
+        elif e["type"] == "thread.opened" and p.get("kind") == "persona":
+            ref = ((p.get("topic") or {}).get("buy") or {}).get("card")
+            if ref:
+                ask(p.get("team"), ref, e["tick"], "dealer")
+        elif e["type"] == "settlement":
+            for it in p.get("items") or []:
+                if it.get("kind") == "card" and it.get("to"):
+                    got[it["to"]][it["ref"]] = e["tick"]
+
+    ours = {}
+    for s in (collection or {}).get("sets") or []:
+        for c in s["cards"]:
+            ours[c["ref"]] = {"n": c["n"], "floor": c.get("floor")}
+    teams = {}
+    for team, cards in want.items():
+        rows = []
+        for r in cards.values():
+            g = got[team].get(r["ref"])
+            r["got"] = g is not None and g >= r["last"] - 5
+            o = ours.get(r["ref"]) or {}
+            r["we_have"], r["floor"] = o.get("n", 0), o.get("floor")
+            rows.append(r)
+        rows.sort(key=lambda r: (r["got"], -r["n"], -r["last"]))
+        teams[team] = rows
+    # our spare copies that someone still asks for: where to offer them first
+    spare = defaultdict(list)
+    for team, rows in teams.items():
+        for r in rows:
+            if not r["got"] and r["we_have"] > 1:
+                spare[r["ref"]].append({"team": team, "n": r["n"], "last": r["last"], "bid": r["bid"]})
+    sell = [{"ref": ref, "floor": ours[ref]["floor"], "copies": ours[ref]["n"],
+             "teams": sorted(ts, key=lambda t: (-(t["bid"] or 0), -t["last"]))} for ref, ts in spare.items()]
+    sell.sort(key=lambda x: -len(x["teams"]))
+    return {"teams": teams, "sell": sell}
+
+
+def fetch_book(venues: list, offline: bool = False) -> dict:
+    """Every open offer on every open venue (public). Makers come as pseudonyms: team_market names them from the feed."""
+    if offline:
+        return {"offers": [], "errors": []}
+    from concurrent.futures import ThreadPoolExecutor
+    ids = [v.get("venue") or v.get("id") for v in venues if (v.get("status") or "open") == "open"]
+    ids = [i for i in ids if i]
+    if "rastro" not in ids:
+        ids.insert(0, "rastro")
+
+    def one(v):
+        try:
+            with urllib.request.urlopen(f"{PUBLIC}/api/venues/{v}/offers", timeout=10) as r:
+                return v, json.loads(r.read().decode("utf-8")).get("offers") or [], None
+        except Exception as e:
+            return v, [], f"{v}: {type(e).__name__}"
+
+    offers, errors = [], []
+    with ThreadPoolExecutor(8) as ex:
+        for v, offs, err in ex.map(one, ids):
+            offers += [{**o, "venue": o.get("venue") or v} for o in offs]
+            if err:
+                errors.append(err)
+    return {"offers": offers, "errors": errors}
+
+
+def _cards_of(leg: dict) -> list:
+    leg = leg or {}
+    return [a["ref"] for a in leg.get("assets") or [] if a.get("kind") == "card" and a.get("ref")] + \
+           [t[5:] for t in leg.get("types") or [] if t.startswith("card:")]
+
+
+def team_market(events: list, book: dict, demand: dict, collection: dict, me: str) -> dict:
+    """What the other teams sell now (open offers that give cards for cash) and the pairs a seller and a buyer make.
+
+    Buyers are open bids in the book (cash for a card) and, failing that, a team that asked for the card in the feed and
+    has not got it (its last bid is a hint, not a standing price). We appear as a buyer when the card is missing from a
+    page and the ask is within buy_cap. Prices are as listed: the venue's fee is not in them.
+    """
+    maker_of = {}
+    for e in events:
+        if e["type"] == "offer.listed":
+            o = (e.get("payload") or {}).get("offer") or {}
+            if o.get("id") is not None:
+                maker_of[o["id"]] = o.get("maker")
+    fee = {}
+    sells, bids, swaps = [], [], []
+    for o in book.get("offers") or []:
+        team = maker_of.get(o.get("id")) or o.get("maker")
+        known = str(team).startswith("t")
+        give, want = o.get("give") or {}, o.get("want") or {}
+        gc, wc = _cards_of(give), _cards_of(want)
+        row = {"offer": o.get("id"), "team": team if known else None, "alias": None if known else o.get("maker"),
+               "venue": o.get("venue"), "created": o.get("created_tick"), "expires": o.get("expires_tick"),
+               "to": o.get("to"), "ours": team == me}
+        if gc and not wc and want.get("cash"):
+            for ref in gc:  # a bundle is priced as a whole: say so instead of splitting the price
+                sells.append({**row, "ref": ref, "ask": want["cash"], "bundle": len(gc)})
+        elif wc and not gc and give.get("cash"):
+            for ref in wc:
+                bids.append({**row, "ref": ref, "bid": give["cash"], "bundle": len(wc)})
+        elif gc and wc:
+            swaps.append({**row, "give": gc, "want": wc, "cash_in": give.get("cash") or 0, "cash_out": want.get("cash") or 0})
+    sells.sort(key=lambda r: (r["ref"], r["ask"]))
+
+    missing = {}
+    for s in (collection or {}).get("sets") or []:
+        for c in s["cards"]:
+            if not c["n"] and c.get("cap") is not None:
+                missing[c["ref"]] = {"cap": c["cap"], "page": c["page"]}
+    pending = defaultdict(list)  # ref -> teams still asking in the feed
+    for team, rows in ((demand or {}).get("teams") or {}).items():
+        for r in rows:
+            if not r["got"]:
+                pending[r["ref"]].append({"team": team, "bid": r["bid"], "n": r["n"], "last": r["last"]})
+
+    pairs = []
+    for s in sells:
+        if s["to"] and s["to"] != me:
+            continue  # offered to one team only
+        buyers = {}
+        for b in bids:
+            if b["ref"] == s["ref"] and b["bundle"] == 1 and (b["team"] or b["alias"]) != (s["team"] or s["alias"]):
+                key = b["team"] or b["alias"]
+                if key not in buyers or b["bid"] > buyers[key]["bid"]:
+                    buyers[key] = {"buyer": key, "bid": b["bid"], "source": "puja abierta", "bid_offer": b["offer"],
+                                   "bid_venue": b["venue"]}
+        for p in pending.get(s["ref"], []):
+            if p["team"] != s["team"] and p["team"] not in buyers:
+                buyers[p["team"]] = {"buyer": p["team"], "bid": p["bid"], "source": f"la pidió ×{p['n']} (t{p['last']})",
+                                     "bid_offer": None, "bid_venue": None}
+        m = missing.get(s["ref"])
+        if m and not s["ours"] and m["page"]:
+            buyers[me] = {"buyer": me, "bid": m["cap"], "source": "nos falta (tope de compra)", "bid_offer": None,
+                          "bid_venue": None}
+        for b in buyers.values():
+            gap = None if b["bid"] is None else b["bid"] - s["ask"]
+            pairs.append({"ref": s["ref"], "seller": s["team"] or s["alias"], "seller_known": bool(s["team"]),
+                          "ask": s["ask"], "bundle": s["bundle"], "sell_offer": s["offer"], "sell_venue": s["venue"],
+                          **b, "gap": gap, "cross": gap is not None and gap >= 0 and s["bundle"] == 1})
+    pairs.sort(key=lambda p: (not p["cross"], p["gap"] is None, -(p["gap"] or 0), p["ref"]))
+    return {"sells": sells, "bids": bids, "swaps": swaps, "pairs": pairs, "book_size": len(book.get("offers") or []),
+            "errors": book.get("errors") or []}
+
+
 def team_trades(events: list) -> list:
     out = []
     for e in events:
@@ -672,6 +841,13 @@ def build(offline: bool = False, key: bool = True) -> dict:
             dec[int(e["duel"])].append({k: v for k, v in e.items() if k not in ("ts", "duel")})
     duels = [duel_view(d, dec.get(int(d["duel"]), [])) for d in load_duels(b)]
     dealers = {p["id"]: p for p in (pub.get("dealers") or {}).get("personas", [])}
+    collection = collection_view(st)
+    demand = team_demand(events, me, collection)
+    try:
+        venues = (pub.get("venues") or {}).get("venues") or []
+        tmarket = team_market(events, fetch_book(venues, offline), demand, collection, me)
+    except Exception as e:  # a bug here must not take the rest of the dashboard down
+        tmarket = {"error": f"{type(e).__name__}: {e}"}
     return {
         "built": time.strftime("%Y-%m-%d %H:%M:%S"), "offline": offline, "errors": pub.get("_errors"), "me": me,
         "clock": pub.get("clock"), "upcoming": ((pub.get("schedule") or {}).get("upcoming") or [])[:14],
@@ -687,5 +863,5 @@ def build(offline: bool = False, key: bool = True) -> dict:
         "duels": duels, "duel_summary": duel_summary(duels), "formulas": formulas(b, st, model, traits),
         "duel_live": duel_live(duels, pub.get("clock"), (pub.get("schedule") or {}).get("upcoming") or []),
         "market": market_view(pub, b, st, me), "notes": notes(), "testbed": testbed_view(),
-        "collection": collection_view(st),
+        "collection": collection, "demand": demand, "team_market": tmarket,
     }

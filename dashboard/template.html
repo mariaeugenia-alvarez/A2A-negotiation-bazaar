@@ -708,10 +708,63 @@ function pageEquipos(sel, sortKey) {
     detail = `<h2>${esc(t.name)}</h2><div class="facts"><div><b>${t.rank}º</b><span>posición</span></div><div><b>${num(t.negotiating, 2)}</b><span>negociación</span></div><div><b>${num(t.market, 2)}</b><span>mercado</span></div><div><b>${t.pages_complete}</b><span>páginas completas</span></div></div>
       <p class="note">Carta más rara: ${esc(t.rarest || "—")}.</p>
       <h3 style="margin-top:20px">Sus conversaciones con dealers en el feed</h3>${th.length ? ledger(th, null, null, false) : `<div class="empty">No aparece en el feed de ahora.</div>`}
+      <h3 style="margin-top:20px">Qué cartas busca</h3>${demandDetail(sel)}
       <h3 style="margin-top:20px">Sus cambios</h3>${tradeTable(tr)}`;
   }
   return `<h1>Otros equipos</h1><p class="sub">El ranking público y lo que dejan ver en el feed: sus regateos con dealers y sus cambios. Las cartas, valores y límites de cada equipo son privados.</p>${tbl}${detail}
-    ${t ? "" : `<h2>Últimos cambios en el mercado</h2>${tradeTable(D.trades.slice(-30).reverse())}`}`;
+    ${t ? "" : `<h2>Qué cartas buscan</h2>${demandTable()}<h2>Qué cartas venden</h2>${supplyTable()}<h2>Parejas de compra-venta</h2>${pairsTable()}<h2>Nuestras repetidas que alguien busca</h2>${demandSell()}<h2>Últimos cambios en el mercado</h2>${tradeTable(D.trades.slice(-30).reverse())}`}`;
+}
+/* demand: what each team asks for in public (offers wanting a card, dealer threads to buy one) */
+const demandNote = () => `<p class="note">Sale de las ofertas que piden una carta y de los hilos con dealers para comprar una carta concreta, en el feed guardado${D.feed_span ? ` (ticks ${D.feed_span.join("–")})` : ""}. ×N = veces que la han pedido; P = su última puja en efectivo. Tachada: le llegó una copia después de pedirla. ★ = la tenemos repetida. Pedir no prueba que les falte (los valores son privados) y no vemos su mano inicial ni sus sobres; algunos bots repiten la misma oferta muchas veces.</p>`;
+const demandChip = r => `<span class="tag ${r.got ? "none" : r.we_have > 1 ? "deal" : "live"}" style="${r.got ? "text-decoration:line-through;opacity:.55" : ""}" title="${esc(`${r.ref}: ${r.offers} ofertas, ${r.dealer} hilos con dealers, último tick ${r.last}${r.bid ? `, última puja ${r.bid} P` : ""}${r.we_have ? `, tenemos ${r.we_have}` : ""}`)}">${r.we_have > 1 ? "★ " : ""}${esc(r.ref)} ×${r.n}${r.bid && !r.got ? ` · ${r.bid} P` : ""}</span>`;
+function demandTable() {
+  const T = (D.demand || {}).teams || {};
+  const ids = Object.keys(T).sort((a, b) => (parseInt(a.slice(1)) || 99) - (parseInt(b.slice(1)) || 99));
+  if (!ids.length) return `<div class="empty">Nadie ha pedido una carta en el feed guardado.</div>`;
+  const name = id => (D.teams.find(t => t.team === id) || {}).name || id;
+  return `<div class="scroll"><table><thead><tr><th>Equipo</th><th class="r">Pendientes</th><th>Cartas (las más pedidas primero; 14 como mucho)</th></tr></thead><tbody>
+    ${ids.map(id => { const open = T[id].filter(r => !r.got); return `<tr class="pick" tabindex="0" data-go="${hash("equipos", id)}"><td style="white-space:nowrap">${esc(name(id))}</td><td class="r">${open.length}</td><td style="line-height:2">${T[id].slice(0, 14).map(demandChip).join(" ")}</td></tr>`; }).join("")}</tbody></table></div>${demandNote()}`;
+}
+function demandDetail(id) {
+  const rows = ((D.demand || {}).teams || {})[id] || [];
+  if (!rows.length) return `<div class="empty">No ha pedido ninguna carta en el feed guardado.</div>`;
+  return `<div class="scroll"><table><thead><tr><th>Carta</th><th class="r">Veces</th><th class="r">Ofertas</th><th class="r">Dealers</th><th class="r">Última puja</th><th class="r">Último tick</th><th>Estado</th><th class="r">Tenemos</th><th class="r">Mínimo de venta</th></tr></thead><tbody>
+    ${rows.map(r => `<tr style="${r.got ? "opacity:.55" : ""}"><td class="mono">${esc(r.ref)}</td><td class="r">${r.n}</td><td class="r">${r.offers}</td><td class="r">${r.dealer}</td><td class="r">${r.bid ? P(r.bid) : "—"}</td><td class="r">${r.last}</td><td>${r.got ? "la consiguió" : "la sigue buscando"}</td><td class="r">${r.we_have || "—"}</td><td class="r">${r.floor != null ? P(r.floor) : "—"}</td></tr>`).join("")}</tbody></table></div>${demandNote()}`;
+}
+/* supply and pairs: open offers on every venue (public book), makers named from the feed */
+const teamName = id => id === ME ? "nosotros" : ((D.teams.find(t => t.team === id) || {}).name || id);
+function supplyTable() {
+  const M = D.team_market;
+  if (!M) return `<div class="empty">Sin datos del libro de ofertas.</div>`;
+  if (M.error) return `<div class="empty">No se pudo leer el libro de ofertas: ${esc(M.error)}</div>`;
+  const by = {};
+  for (const s of M.sells) (by[s.team || s.alias] ||= []).push(s);
+  const ids = Object.keys(by).sort((a, b) => (a === ME) - (b === ME) || by[b].length - by[a].length);
+  if (!ids.length) return `<div class="empty">Nadie vende cartas por efectivo ahora mismo (${M.book_size} ofertas abiertas en total).</div>`;
+  const chip = s => `<span class="tag ${s.ours ? "none" : "live"}" title="${esc(`oferta ${s.offer} en ${s.venue} · creada t${s.created} · caduca t${s.expires}${s.bundle > 1 ? ` · lote de ${s.bundle} cartas por ${s.ask} P` : ""}${s.to ? ` · solo para ${s.to}` : ""}`)}">${esc(s.ref)} · ${s.ask} P${s.bundle > 1 ? ` (lote ×${s.bundle})` : ""}${s.venue !== "rastro" ? ` · ${esc(s.venue)}` : ""}</span>`;
+  return `<div class="scroll"><table><thead><tr><th>Equipo</th><th class="r">Ofertas</th><th>Cartas a la venta (precio pedido)</th></tr></thead><tbody>
+    ${ids.map(id => `<tr ${String(id).startsWith("t") && id !== ME ? `class="pick" tabindex="0" data-go="${hash("equipos", id)}"` : ""} style="${id === ME ? "font-weight:700" : ""}"><td style="white-space:nowrap">${esc(by[id][0].team ? teamName(id) : "anónimo " + id)}</td><td class="r">${by[id].length}</td><td style="line-height:2">${by[id].map(chip).join(" ")}</td></tr>`).join("")}</tbody></table></div>
+    <p class="note">Ofertas abiertas ahora en todos los venues (${M.book_size} en total: ${M.sells.length} ventas por efectivo, ${M.bids.length} pujas, ${M.swaps.length} cambios carta por carta). El venue da al vendedor un seudónimo; lo identificamos por el id de la oferta en el feed. El precio es el pedido: la comisión del venue va aparte.${M.errors.length ? ` No se pudo leer: ${esc(M.errors.join(", "))}.` : ""}</p>`;
+}
+function pairsTable() {
+  const M = D.team_market;
+  if (!M || M.error) return `<div class="empty">Sin libro de ofertas, no hay parejas.</div>`;
+  const P0 = M.pairs.filter(p => p.seller !== p.buyer);
+  if (!P0.length) return `<div class="empty">Ninguna carta a la venta tiene comprador a la vista.</div>`;
+  const gapCell = p => p.gap == null ? `<span class="muted">sin precio</span>` : p.cross ? `<b style="color:var(--ok)">+${p.gap} P · cruzan</b>` : `<span class="muted">${p.gap} P</span>`;
+  const who = (id, known = true) => id === ME ? `<b>nosotros</b>` : known ? esc(teamName(id)) : `anónimo ${esc(id)}`;
+  const rows = P0.slice(0, 80);
+  return `<div class="facts"><div><b>${P0.filter(p => p.cross).length}</b><span>parejas que ya cruzan</span></div><div><b>${P0.filter(p => p.source === "puja abierta").length}</b><span>con puja abierta</span></div><div><b>${P0.filter(p => p.buyer === ME).length}</b><span>donde compraríamos nosotros</span></div><div><b>${P0.length}</b><span>parejas en total</span></div></div>
+    <div class="scroll"><table><thead><tr><th>Carta</th><th>Vende</th><th class="r">Pide</th><th>Dónde</th><th>Compra</th><th class="r">Paga</th><th>Por qué cuenta como comprador</th><th class="r">Diferencia</th></tr></thead><tbody>
+    ${rows.map(p => `<tr style="${p.buyer === ME || p.seller === ME ? "font-weight:600" : ""}"><td class="mono">${esc(p.ref)}${p.bundle > 1 ? ` <span class="faint small">lote ×${p.bundle}</span>` : ""}</td><td>${who(p.seller, p.seller_known)}</td><td class="r">${P(p.ask)}</td><td class="small">${esc(p.sell_venue)} · #${p.sell_offer}</td><td>${who(p.buyer)}</td><td class="r">${p.bid != null ? P(p.bid) : "—"}</td><td class="small muted">${esc(p.source)}${p.bid_offer ? ` · #${p.bid_offer} en ${esc(p.bid_venue)}` : ""}</td><td class="r">${gapCell(p)}</td></tr>`).join("")}</tbody></table></div>
+    <p class="note">Cada venta abierta con cada equipo que la compraría: una puja abierta en el libro (precio en firme), un equipo que la pidió en el feed y aún no la tiene (su última puja es una pista, no un precio en firme; mira el tick) o nosotros, si nos falta para una página y el precio cabe en nuestro tope de compra. «Cruzan» = lo que paga cubre lo que pide: si pasa en nuestro venue, nuestro broker puede emparejarlas. Primero las que cruzan, luego por diferencia.${P0.length > rows.length ? ` Se muestran ${rows.length} de ${P0.length}.` : ""} Comprar o vender es LIVE: con el visto bueno de Maru.</p>`;
+}
+function demandSell() {
+  const S = (D.demand || {}).sell || [];
+  if (!S.length) return `<div class="empty">Ninguna de nuestras repetidas aparece pedida por otro equipo${D.collection ? "" : " (o el dashboard no tiene la clave para ver nuestra colección)"}.</div>`;
+  return `<div class="scroll"><table><thead><tr><th>Carta</th><th class="r">Copias</th><th class="r">Mínimo de venta</th><th>Quién la busca (última puja)</th></tr></thead><tbody>
+    ${S.map(s => `<tr><td class="mono">${esc(s.ref)}</td><td class="r">${s.copies}</td><td class="r"><b>${s.floor != null ? P(s.floor) : "—"}</b></td><td>${s.teams.map(t => `${esc(t.team)} ×${t.n}${t.bid ? ` (${P(t.bid)})` : ""}`).join(" · ")}</td></tr>`).join("")}</tbody></table></div>
+    <p class="note">Nunca por debajo del mínimo de venta (price.sell_floor de la copia que menos nos vale). Vender es LIVE: con el visto bueno de Maru.</p>`;
 }
 const tradeTable = tr => tr.length ? `<div class="scroll"><table><thead><tr><th>Tick</th><th>Entre</th><th>Qué</th><th class="r">Precio</th><th>Dónde</th></tr></thead><tbody>${tr.map(x => `<tr><td>${x.tick}</td><td>${(x.parties || []).map(esc).join(" ↔ ")}</td><td>${(x.items || []).map(i => esc(i).replace(/\((\w+)\)/, (m, r) => `(${RAR[r] || r})`)).join(", ")}</td><td class="r">${P(x.price)}</td><td>${esc(x.persona ? "dealer " + x.persona : x.venue || "")}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Sin cambios a la vista.</div>`;
 
