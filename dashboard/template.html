@@ -76,6 +76,7 @@ table{border-collapse:collapse;width:100%}
 th{font-weight:600;color:var(--muted);text-align:left;padding:6px 10px 6px 0;border-bottom:1px solid var(--ink);font-size:13px;white-space:nowrap}
 td{padding:8px 10px 8px 0;border-bottom:1px solid var(--line);vertical-align:middle}
 th.r,td.r{text-align:right}
+td.r{white-space:nowrap}
 tbody tr.pick{cursor:pointer}
 tbody tr.pick:hover td{background:var(--wash)}
 tbody tr.sel td{background:var(--wash)}
@@ -627,7 +628,13 @@ mensajes por rasgo = mediana de (mensajes hasta su final ÷ su paciencia) entre 
   ${block("4 · Ofertas que nos hacen otros equipos", `<pre class="f">excedente = valor de lo que recibimos + efectivo recibido − valor de lo que damos − efectivo pagado − comisión
 comisión  = ⌈ puntos base × efectivo ÷ 10000 ⌉ + comisión por carta × nº de cartas      El Rastro: ${c.house_fee_bps / 100} % + ${c.house_fee_per_card} P por carta
 margen    = máx(${num(c.trade_min_surplus)} P, ${num(c.trade_min_share * 100, 0)} % de lo que ponemos)
-aceptar si excedente ≥ margen · contraofertar el efectivo que lo deje en el margen · si no entendemos qué es: lo decide una persona</pre>`)}
+aceptar si excedente ≥ margen · contraofertar el efectivo que lo deje en el margen · si no entendemos qué es: lo decide una persona
+
+contraoferta = vender: máx(precio mínimo, ⌈ su oferta × (1 + ${num(((F.limits || {}).anchor ?? 0.15))}) ⌉)
+               comprar: mín(precio máximo, ⌊ su precio × (1 − ${num(((F.limits || {}).anchor ?? 0.15))}) ⌋)
+límites de seguridad: una aceptación por tick y 2 ticks de pausa · ${(F.limits || {}).max_outstanding ?? 3} contraofertas abiertas como máximo ·
+                      una por oferta recibida · ${(F.limits || {}).maker_cooldown ?? 10} ticks entre contraofertas al mismo equipo y cartas ·
+                      cada una caduca a los ${(F.limits || {}).counter_ticks ?? 20} ticks</pre><p class="note">El detalle de cada decisión está en el capítulo <a href="#mercado">Mercado</a>.</p>`)}
   ${block("5 · Duelos", `<pre class="f">valor del trato = excedente × (1 − descuento)^rondas
 utilidad U       = excedente de precio + peso por día × días
 objetivo tras k intercambios = U_apertura − ((k ÷ ${c.duel_rounds})^(1 ÷ ${c.duel_beta}) × (U_apertura − reserva))
@@ -641,20 +648,139 @@ nunca: cruzar nuestro límite · repetir una oferta · hablar dos veces seguidas
     <tr><td>Mercado</td><td class="r">30</td><td>Prueba de mercado de nuestro puesto · valor creado entre otros equipos en él</td></tr>
     <tr><td>Jurado</td><td class="r">40</td><td>Ideas y trabajo</td></tr></tbody></table>
     <p class="note">No cuentan el número de tratos, las comisiones ganadas, lo que sale de un sobre, regalos ni extras de los organizadores. Cada día es una ronda y se promedian; el viernes cuenta la mitad.</p>
-    ${D.rounds ? `<table style="margin-top:10px"><tbody>${D.rounds.map(r => `<tr><td>${esc(r.name)}</td><td class="r">peso ${r.weight}</td><td>${esc(r.status)}</td></tr>`).join("")}</tbody></table>` : ""}`)}
-  ${D.trader.length ? block("7 · Últimas ofertas que juzgó el agente", `<div class="scroll"><table><thead><tr><th>Tick</th><th>De</th><th class="r">Recibimos</th><th class="r">Damos</th><th class="r">Comisión</th><th class="r">Excedente</th><th>Decisión</th></tr></thead><tbody>${D.trader.map(t => `<tr><td>${t.tick}</td><td>${esc(t.maker)}</td><td class="r">${num(t.got)} + ${t.cash_in} P</td><td class="r">${num(t.lost)} + ${t.cash_out} P</td><td class="r">${t.fee}</td><td class="r">${num(t.surplus)}</td><td>${esc(({accept: "aceptar", counter: "contraoferta", ignore: "ignorar", human: "lo decide una persona"})[t.action] || t.action)}: ${esc(t.why)}</td></tr>`).join("")}</tbody></table></div>`) : ""}`;
+    ${D.rounds ? `<table style="margin-top:10px"><tbody>${D.rounds.map(r => `<tr><td>${esc(r.name)}</td><td class="r">peso ${r.weight}</td><td>${esc(r.status)}</td></tr>`).join("")}</tbody></table>` : ""}`)}`;
+}
+
+
+/* ============================================================ market chapter */
+const ACT = {accept: "Aceptar", counter: "Contraofertar", ignore: "Ignorar", human: "Lo decide una persona"};
+const OUT = {accepted: "Aceptada", expired: "Caducada", refused: "Rechazada al enviarla", open: "Abierta"};
+function whyEs(w) {
+  let m;
+  w = String(w || "");
+  if ((m = w.match(/^ask at least (\d+), not (\d+)$/))) return `pedir al menos ${m[1]} P, no ${m[2]}`;
+  if ((m = w.match(/^pay at most (\d+), not (\d+)$/))) return `pagar como mucho ${m[1]} P, no ${m[2]}`;
+  if ((m = w.match(/^\+([\d.]+) P of value after a (\d+) P fee$/))) return `+${num(+m[1])} P de valor tras ${m[2]} P de comisión`;
+  if ((m = w.match(/^([-+\d.]+) P of value, margin ([\d.]+)$/))) return `${num(+m[1])} P de valor, margen ${num(+m[2])}`;
+  if ((m = w.match(/^we do not hold asset (\d+)$/))) return `ya no tenemos la copia ${m[1]}`;
+  if ((m = w.match(/^we hold no (.+)$/))) return `no tenemos ${m[1]}`;
+  if ((m = w.match(/^costs (\d+) P, we hold (\d+)$/))) return `cuesta ${m[1]} P y tenemos ${m[2]}`;
+  if ((m = w.match(/^(.+) completes the (\w+) page: bonus not measured$/))) return `${m[1]} completa la página ${m[2]}: no sabemos medir ese bonus`;
+  return w;
+}
+const venueName = id => { const v = (D.market.venues || []).find(x => x.venue === id); return id === "rastro" ? "El Rastro" : v ? `${v.name}` : id; };
+
+function scoreChart() {
+  const L = D.score_log;
+  if (L.length < 2) return `<div class="empty">Hace falta que <span class="mono">observe.py</span> registre al menos dos lecturas para dibujar esto.</div>`;
+  const ser = [["Mercado (nuestro)", "market", "var(--us)", 3, ""], ["Negoc. (nuestra)", "negotiating", "var(--us)", 2, "6 4"], ["Líder (negoc.)", "leader_neg", "var(--rival)", 2, ""], ["Mediana (negoc.)", "median_neg", "var(--other)", 2, "6 4"]];
+  const ys = L.flatMap(r => ser.map(a => r[a[1]]).filter(v => v != null)), xs = L.map(r => r.tick);
+  const p = plot({xd: [Math.min(...xs), Math.max(...xs)], yd: [0, Math.ceil(Math.max(...ys) + 1)], right: 170, h: 270, xlabel: "tick", aria: "Evolución de nuestros puntos de mercado y negociación", ylabel: "puntos"});
+  let g = "", labels = [];
+  for (const [name, k, c, w, dash] of ser) {
+    const pts = L.filter(r => r[k] != null).map(r => [r.tick, r[k]]);
+    if (!pts.length) continue;
+    g += `<path d="${poly(pts, p.X, p.Y)}" fill="none" stroke="${c}" stroke-width="${w}" ${dash ? `stroke-dasharray="${dash}"` : ""} stroke-linejoin="round"/>`;
+    for (const q of pts) g += `<circle cx="${p.X(q[0])}" cy="${p.Y(q[1])}" r="9" fill="transparent" class="hit" data-tip="${esc(`${name}: ${num(q[1], 2)} · tick ${q[0]}`)}"/>`;
+    const e = pts[pts.length - 1];
+    g += `<circle cx="${p.X(e[0])}" cy="${p.Y(e[1])}" r="4" fill="${c}" stroke="var(--panel)" stroke-width="2"/>`;
+    labels.push({y: p.Y(e[1]), t: `${name} ${num(e[1], 1)}`, c});
+  }
+  const tags = []; let prev = null;
+  for (const r of L) { if (r.tag && r.tag !== prev) tags.push(r); prev = r.tag; }
+  for (const r of tags) g += `<line x1="${p.X(r.tick)}" x2="${p.X(r.tick)}" y1="${p.m.t}" y2="${p.H - p.m.b}" stroke="var(--muted)" stroke-dasharray="2 4"/><text x="${p.X(r.tick) + 4}" y="${p.m.t + 10}">${esc(r.tag)}</text>`;
+  return p.svg(g + endLabels(labels, p));
+}
+
+function marketRank() {
+  const ts = [...D.teams].sort((a, b) => (b.market ?? 0) - (a.market ?? 0)), max = Math.max(...ts.map(t => t.market || 0), 1), H = ts.length * 24 + 8, W = 430;
+  let g = "";
+  ts.forEach((t, i) => {
+    const y = 4 + i * 24, w = (t.market || 0) / max * (W - 150), me = t.team === ME;
+    g += `<g class="hit" data-tip="${esc(`${t.name}: mercado ${num(t.market, 2)}, negociación ${num(t.negotiating, 2)}`)}"><text x="0" y="${y + 14}" ${me ? 'class="lab"' : ""}>${esc(t.name)}</text><rect x="92" y="${y + 3}" width="${Math.max(w, 2)}" height="14" rx="3" fill="${me ? "var(--us)" : "var(--other)"}"/>
+      <text x="${92 + w + 8}" y="${y + 14}" ${me ? 'class="lab"' : ""}>${num(t.market, 2)}</text></g>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Puntos de mercado por equipo">${g}</svg>`;
+}
+
+function decisionStrip(decs) {
+  if (!decs.length) return `<div class="empty">Todavía no hay decisiones.</div>`;
+  const xs = decs.map(d => d.tick), ys = decs.map(d => d.surplus ?? 0);
+  const p = plot({xd: [Math.min(...xs) - 1, Math.max(...xs) + 1], yd: pad(Math.min(...ys, 0), Math.max(...ys, 4), 1), w: 1000, right: 20, h: 300, xlabel: "tick", ylabel: "excedente de la oferta para nosotros, en P", aria: "Excedente de cada oferta que valoró el agente"});
+  let g = `<line x1="${p.m.l}" x2="${p.W - p.m.r}" y1="${p.Y(2)}" y2="${p.Y(2)}" stroke="var(--muted)" stroke-dasharray="5 5" stroke-width="1.5"/><text x="${p.m.l + 6}" y="${p.Y(2) + 16}">margen mínimo</text>`;
+  for (const d of decs) {
+    const x = p.X(d.tick), y = p.Y(d.surplus ?? 0), t = `${ACT[d.action]} · oferta ${d.offer} de ${d.maker} en ${venueName(d.venue)}: recibimos ${num(d.got + d.cash_in)}, damos ${num(d.lost + d.cash_out)}, excedente ${num(d.surplus)} · ${d.live ? "en vivo" : "en sombra"}`;
+    let m;
+    if (d.action === "accept") m = `<path d="M${x - 6},${y} l6,-6 l6,6 l-6,6z" fill="var(--ok)" stroke="var(--panel)" stroke-width="1.5"/>`;
+    else if (d.action === "counter") m = `<circle cx="${x}" cy="${y}" r="4.5" fill="var(--panel)" stroke="var(--ink)" stroke-width="2" opacity=".85"/>`;
+    else m = `<path d="M${x - 4},${y - 4} l8,8 m0,-8 l-8,8" stroke="var(--muted)" stroke-width="2"/>`;
+    g += `<g class="hit" data-tip="${esc(t)}">${m}<circle cx="${x}" cy="${y}" r="9" fill="transparent"/></g>`;
+  }
+  return p.svg(g);
+}
+
+function pageMercado(filter) {
+  const M = D.market, T = M.trader, c = T.counts, my = D.teams.find(t => t.team === ME), B = M.bench, V = M.our_venue, K = M.limits || {};
+  const modeTag = T.mode === "live" ? `<span class="tag deal">En vivo: acepta y contraoferta</span>` : T.mode === "shadow" ? `<span class="tag none">En sombra: solo anota</span>` : `<span class="tag none">Sin actividad registrada</span>`;
+  const co = T.counter_outcomes, sentN = T.counters.length;
+  const share = (n, d) => d ? Math.round(n / d * 100) : 0;
+  const decs = T.decisions, shown = [...decs].reverse().filter(d => filter === "all" || d.action === filter).slice(0, 80);
+  const facts = `<div class="facts">
+    <div><b>${B.market != null ? num(B.market, 2) : (my ? num(my.market, 2) : "—")}</b><span>puntos de mercado${my ? ` (puesto ${[...D.teams].sort((a, b) => b.market - a.market).findIndex(t => t.team === ME) + 1} de ${D.teams.length})` : ""}</span></div>
+    <div><b>${B.bench_efficiency != null ? num(B.bench_efficiency, 3) : "—"}</b><span>eficiencia en la prueba de mercado</span></div>
+    <div><b>${T.total}</b><span>ofertas valoradas por el agente</span></div>
+    <div><b>${sentN}</b><span>contraofertas enviadas</span></div>
+    <div><b>${T.accepted_by_us.length}</b><span>ofertas aceptadas por el agente</span></div></div>`;
+  const reading = T.total ? `<ul class="small muted" style="padding-left:18px;margin:12px 0 0;max-width:80ch">
+    <li>De ${T.total} ofertas, ${share(c.accept, T.total)} % cumplían nuestro margen (aceptar), ${share(c.counter, T.total)} % se podían contraofertar y ${share(c.ignore + c.human, T.total)} % se ignoraron o quedaron para una persona.</li>
+    <li>${c.live} decisiones se tomaron con el agente en vivo y ${c.shadow} en sombra (solo anotadas, sin enviar nada).</li>
+    ${sentN ? `<li>De ${sentN} contraofertas: ${co.accepted || 0} aceptadas, ${co.expired || 0} caducadas, ${co.open || 0} abiertas${co.refused ? `, ${co.refused} rechazadas al enviarlas` : ""}.</li>` : ""}
+    <li>Mercado con más oportunidades: ${T.by_venue[0] ? `${esc(venueName(T.by_venue[0].venue))} (${T.by_venue[0].decisions} ofertas, ${T.by_venue[0].accept} aceptables)` : "—"}.</li></ul>` : "";
+  const dtable = `<div class="chips" role="group" aria-label="Filtrar decisiones">${[["all", "Todas"], ["accept", "Aceptar"], ["counter", "Contraofertar"], ["ignore", "Ignorar"]].map(([k, n]) => `<button class="chip" aria-pressed="${filter === k}" data-mf="${k}">${n}</button>`).join("")}</div>
+    ${shown.length ? `<div class="scroll"><table><thead><tr><th>Tick</th><th>Origen</th><th>Mercado</th><th>De</th><th class="r">Recibimos</th><th class="r">Damos</th><th class="r">Comisión</th><th class="r">Excedente</th><th class="r">Margen</th><th>Decisión</th><th>Modo</th></tr></thead><tbody>
+    ${shown.map(d => `<tr><td>${d.tick}</td><td>${d.source === "to_us" ? "nos la hacen a nosotros" : "tablón público"}</td><td>${esc(venueName(d.venue))}</td><td>${esc(d.maker)}</td><td class="r">${num(d.got)} + ${d.cash_in} P</td><td class="r">${num(d.lost)} + ${d.cash_out} P</td><td class="r">${d.fee}</td><td class="r"><b>${num(d.surplus)}</b></td><td class="r">${num(d.margin)}</td>
+    <td><b>${ACT[d.action] || d.action}</b> <span class="muted small">${esc(whyEs(d.why))}</span></td><td>${d.live ? "en vivo" : "sombra"}</td></tr>`).join("")}</tbody></table></div>
+    <p class="note">Las más recientes primero (${shown.length} de ${decs.filter(d => filter === "all" || d.action === filter).length}). «Recibimos» y «Damos» son el valor para nosotros de las cartas más el efectivo. Excedente = lo que recibimos − lo que damos − la comisión.</p>` : `<div class="empty">Ninguna decisión de este tipo.</div>`}`;
+  const ctable = T.counters.length ? `<div class="scroll"><table><thead><tr><th>Tick</th><th>A</th><th class="r">Pedían o ofrecían</th><th class="r">Nuestro precio</th><th class="r">Nuestro mínimo</th><th>Cómo acabó</th></tr></thead><tbody>
+    ${[...T.counters].reverse().map(x => `<tr><td>${x.tick}</td><td>${esc(x.maker)}</td><td class="r">${P(x.their)}</td><td class="r"><b>${P(x.price)}</b></td><td class="r">${P(x.clearing)}</td><td>${esc(OUT[x.outcome] || x.outcome)}${x.settled_price != null ? ` a ${P(x.settled_price)}` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Todavía no hemos enviado ninguna contraoferta. Solo las manda <span class="mono">trader.py --live</span>.</div>`;
+  const vtable = `<div class="scroll"><table><thead><tr><th>Mercado</th><th>Dueño</th><th>Cómo cruza</th><th class="r">Comisión</th><th class="r">Cambios</th><th class="r">Volumen</th><th class="r">Participantes</th><th>Estado</th><th class="r">Ofertas valoradas</th></tr></thead><tbody>
+    ${[...M.venues].sort((a, b) => (b.trades - a.trades) || (b.volume - a.volume)).filter(v => v.house || v.trades || v.ours || v.status === "open" && !v.starter).map(v => {
+      const dv = T.by_venue.find(x => x.venue === v.venue);
+      return `<tr style="${v.ours ? "font-weight:700" : ""}"><td>${v.ours ? `<span class="dot"></span>` : ""}${esc(v.house ? "El Rastro" : v.name)}</td><td>${esc(v.house ? "la casa" : v.owner_name || v.owner)}</td><td>${esc(v.mechanism === "auto" ? "automático" : v.mechanism === "board" ? "con bróker" : "—")}</td><td class="r">${v.fee_bps / 100} %${v.fee_per_card ? ` + ${v.fee_per_card} P` : ""}</td><td class="r">${v.trades}</td><td class="r">${v.volume} P</td><td class="r">${v.traders}</td><td>${v.status === "open" ? "abierto" : "cerrado"}</td><td class="r">${dv ? dv.decisions : ""}</td></tr>`;
+    }).join("")}</tbody></table></div>
+    <p class="note">Se muestran El Rastro, nuestro puesto y los mercados con bróker o con cambios. Los puestos gratuitos de los demás equipos (cruce automático, sin cambios) se omiten.</p>`;
+  const offers = M.offers.length ? `<div class="scroll"><table><thead><tr><th>Oferta</th><th>De quién</th><th>Mercado</th><th>Dan</th><th>Piden</th><th class="r">Caduca en el tick</th></tr></thead><tbody>
+    ${M.offers.map(o => `<tr><td>${o.id}</td><td>${o.dir === "us" ? `nuestra, para ${esc(o.other)}` : `de ${esc(o.other)}, para nosotros`}</td><td>${esc(venueName(o.venue))}</td><td>${esc(o.dir === "us" ? o.give : o.give)}</td><td>${esc(o.want)}</td><td class="r">${o.expires ?? ""}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Ahora mismo no hay ofertas abiertas con nosotros.</div>`;
+  const stall = V ? `<dl class="kv"><dt>Nuestro puesto</dt><dd>${esc(V.name)} (${esc(V.venue)})</dd><dt>Cómo cruza</dt><dd>${V.mechanism === "auto" ? "automático: el motor cruza el mejor precio de compra y de venta en cada tick" : "con bróker"}</dd><dt>Comisión</dt><dd>${V.fee_bps / 100} %</dd>
+    <dt>Cambios hechos en él</dt><dd>${V.trades} (volumen ${V.volume} P, ${V.traders} participantes)</dd><dt>Puntos de la prueba de mercado</dt><dd>${B.bench_points != null ? num(B.bench_points, 2) : "—"} (eficiencia ${B.bench_efficiency != null ? num(B.bench_efficiency, 3) : "—"})</dd><dt>Puntos de mercado de nuestro bróker</dt><dd>${B.mm_points != null ? num(B.mm_points, 2) : "—"}</dd></dl>
+    <p class="note">${V.starter ? "Es el puesto gratuito que da la organización: no hemos abierto uno propio ni tenemos bróker. " : ""}Un bróker propio solo puede actuar en mercados con bróker; igualar al cruce automático da la mitad de los puntos de la prueba, y el máximo va a la media de los tres mejores.</p>` : `<div class="empty">No hemos podido leer nuestro puesto.</div>`;
+  const nxt = (M.bench_next || []).map(u => `<li>${D.clock ? `en ${num(u.at_hours - D.clock.t_hours)} h` : `${num(u.at_hours)} h`}: ${esc(u.note || "Prueba de mercado")}</li>`).join("");
+  return `<h1>Mercado</h1><p class="sub">Lo que hace el agente con las ofertas de otros equipos y con el mercado. Cada tick <span class="mono">trader.py</span> lee las ofertas que nos hacen y los tablones públicos, las valora solo por su estructura, a nuestros valores privados, y decide: aceptar, contraofertar o ignorar. ${modeTag}${T.paused ? ` <span class="tag none">Pausado (existe logs/trader.pause)</span>` : ""}</p>
+    ${facts}${reading}
+    <h2>Qué decide cada oferta</h2><p class="sub">Cada marca es una oferta valorada. Por encima de la línea de margen se acepta; por debajo se contraoferta o se ignora.</p>
+    ${legend([["Aceptar", "var(--ok)", true], ["Contraofertar", "var(--ink)", true], ["Ignorar", "var(--muted)", true]])}${decisionStrip(decs)}
+    <h2>Puntos de mercado</h2><div class="cols"><div><h3>Cómo evolucionan nuestros puntos</h3>${legend([["Mercado (nuestro)", "var(--us)"], ["Negociación (nuestra), línea discontinua", "var(--us)"], ["Líder", "var(--rival)"], ["Mediana", "var(--other)"]])}${scoreChart()}
+      <p class="note">Datos de <span class="mono">logs/score.jsonl</span> (<span class="mono">observe.py</span>). Las líneas verticales marcan el cambio de experimento.</p></div>
+      <div><h3>Puntos de mercado de cada equipo</h3>${marketRank()}</div></div>
+    <h2>Nuestro puesto y la prueba de mercado</h2><div class="cols even"><div>${stall}</div><div><h3>Próximas pruebas</h3>${nxt ? `<ul class="small" style="padding-left:18px;margin:0">${nxt}</ul>` : `<p class="muted">Sin pruebas anunciadas.</p>`}<p class="note">Cada pocas horas todos los mercados reciben el mismo libro sintético de compradores y vendedores; la nota es la parte de la ganancia posible que se consigue.</p></div></div>
+    <h2>Contraofertas que hemos enviado</h2>${ctable}
+    <p class="note">Una contraoferta abre ${num((K.anchor ?? 0.15) * 100, 0)} % más allá del precio de la otra parte, sin pasar nunca de nuestro mínimo; dura ${K.counter_ticks ?? 20} ticks.</p>
+    <h2>Ofertas abiertas ahora</h2>${offers}
+    <h2>Todas las decisiones</h2>${dtable}
+    <h2>Los mercados</h2>${vtable}`;
 }
 
 /* ============================================================ router */
-const PAGES = [["resumen", "Resumen"], ...Object.keys(D.dealers).map(id => [id, D.dealers[id].name]), ["duelos", "Duelos"], ["equipos", "Otros equipos"], ["formulas", "Fórmulas"]];
-const state = {kind: {}, sort: null};
+const PAGES = [["resumen", "Resumen"], ...Object.keys(D.dealers).map(id => [id, D.dealers[id].name]), ["duelos", "Duelos"], ["mercado", "Mercado"], ["equipos", "Otros equipos"], ["formulas", "Fórmulas"]];
+const state = {kind: {}, sort: null, mf: "all"};
 function route() {
   const [page = "resumen", a, b] = location.hash.slice(1).split("/");
   const known = PAGES.find(p => p[0] === page) ? page : "resumen";
-  $("#line").innerHTML = PAGES.map(([id, name], i) => `<li class="${id === known ? "on" : ""}" style="--i:${i};--st:${id === "resumen" || id === "formulas" ? "var(--us)" : id === "duelos" ? "var(--rival)" : id === "equipos" ? "var(--other)" : dcolor(id)}"><a href="${hash(id)}" ${id === known ? 'aria-current="page"' : ""}>${esc(name)}</a></li>`).join("");
+  $("#line").innerHTML = PAGES.map(([id, name], i) => `<li class="${id === known ? "on" : ""}" style="--i:${i};--st:${id === "resumen" || id === "formulas" ? "var(--us)" : id === "duelos" ? "var(--rival)" : id === "mercado" ? "var(--ink)" : id === "equipos" ? "var(--other)" : dcolor(id)}"><a href="${hash(id)}" ${id === known ? 'aria-current="page"' : ""}>${esc(name)}</a></li>`).join("");
   let html;
   if (known === "resumen") html = pageResumen();
   else if (known === "duelos") html = pageDuelos(a);
+  else if (known === "mercado") html = pageMercado(state.mf);
   else if (known === "equipos") html = pageEquipos(a, state.sort);
   else if (known === "formulas") html = pageFormulas();
   else html = pageDealer(known, a && b ? {source: a, id: +b} : null, state.kind[known]);
@@ -666,6 +792,7 @@ function route() {
 document.addEventListener("click", e => {
   const go = e.target.closest("[data-go]"); if (go) { location.hash = go.dataset.go; return; }
   const k = e.target.closest("[data-kind]"); if (k) { state.kind[location.hash.slice(1).split("/")[0]] = k.dataset.kind; const y = scrollY; route(); scrollTo(0, y); return; }
+  const mf = e.target.closest("[data-mf]"); if (mf) { state.mf = mf.dataset.mf; const y = scrollY; route(); scrollTo(0, y); return; }
   const s = e.target.closest("[data-sort]"); if (s) { state.sort = s.dataset.sort; const y = scrollY; route(); scrollTo(0, y); }
 });
 document.addEventListener("keydown", e => { if (e.key === "Enter") { const go = e.target.closest && e.target.closest("tr[data-go]"); if (go) location.hash = go.dataset.go; } });

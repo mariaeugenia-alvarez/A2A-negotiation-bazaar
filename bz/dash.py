@@ -46,7 +46,7 @@ def read_jsonl(path: str) -> list:
 def fetch_public(offline: bool = False) -> dict:
     """The public endpoints the big screen uses. Falls back to the last copy when the network is down."""
     names = {"dealers": "dealers", "leaderboard": "leaderboard", "levels": "levels", "schedule": "schedule",
-             "clock": "clock", "catalog": "catalog", "feed": "feed?limit=2000"}
+             "clock": "clock", "catalog": "catalog", "venues": "venues", "feed": "feed?limit=2000"}
     out, errors = {}, []
     if not offline:
         for key, route in names.items():
@@ -331,6 +331,95 @@ def duel_summary(duels: list) -> list:
     return out
 
 
+# ---------------------------------------------------------------- the market: what the trader does with offers
+
+def leg_text(leg: dict) -> str:
+    """One side of an offer in words: '2 P', 'LAV-02', 'cualquier LAV-02', '3 P + LAV-02'."""
+    leg = leg or {}
+    parts = []
+    if leg.get("cash"):
+        parts.append(f"{leg['cash']} P")
+    parts += [a.get("ref") or f"{a.get('kind')} {a.get('id')}" for a in leg.get("assets") or []]
+    parts += [("cualquier " if t.startswith("card:") else "") + t.split(":", 1)[-1] for t in leg.get("types") or []]
+    parts += list(leg.get("cards") or [])
+    return " + ".join(parts) or "nada"
+
+
+def trader_view(counters_sent_cap: int = 200, decisions_cap: int = 400) -> dict:
+    """What trader.py judged, answered and settled (logs/trader*.jsonl), with the counts the chapter needs."""
+    rows = read_jsonl(os.path.join(log.LOG_DIR, "trader.jsonl"))
+    for r in rows:
+        r.setdefault("source", "to_us")  # the first version only judged offers addressed to us
+        r.pop("ts", None)
+    counters = read_jsonl(os.path.join(log.LOG_DIR, "trader_counter.jsonl"))
+    outcomes = {o["incoming"]: o for o in read_jsonl(os.path.join(log.LOG_DIR, "trader_outcome.jsonl"))}
+    accepts = read_jsonl(os.path.join(log.LOG_DIR, "trader_accept.jsonl"))
+    for c in counters:
+        o = outcomes.get(c["incoming"])
+        c["outcome"] = o["outcome"] if o else "open"
+        c["settled_price"] = o.get("settled_price") if o else None
+        c.pop("ts", None)
+    acts = Counter((r["action"], bool(r.get("live"))) for r in rows)
+    by_venue = {}
+    for r in rows:
+        v = by_venue.setdefault(r["venue"], {"venue": r["venue"], "decisions": 0, "accept": 0, "counter": 0, "ignore": 0, "human": 0, "surplus": []})
+        v["decisions"] += 1
+        v[r["action"]] = v.get(r["action"], 0) + 1
+        v["surplus"].append(r.get("surplus"))
+    for v in by_venue.values():
+        s = [x for x in v.pop("surplus") if x is not None]
+        v["surplus_median"] = round(statistics.median(s), 1) if s else None
+    last = rows[-1] if rows else None
+    return {
+        "decisions": rows[-decisions_cap:], "total": len(rows),
+        "counts": {"accept": sum(n for (a, _), n in acts.items() if a == "accept"), "counter": sum(n for (a, _), n in acts.items() if a == "counter"),
+                   "ignore": sum(n for (a, _), n in acts.items() if a == "ignore"), "human": sum(n for (a, _), n in acts.items() if a == "human"),
+                   "live": sum(n for (_, live), n in acts.items() if live), "shadow": sum(n for (_, live), n in acts.items() if not live)},
+        "by_venue": sorted(by_venue.values(), key=lambda v: -v["decisions"]),
+        "counters": counters[-counters_sent_cap:], "accepted_by_us": accepts[-60:],
+        "counter_outcomes": dict(Counter(c["outcome"] for c in counters)),
+        "mode": ("live" if last and last.get("live") else "shadow") if last else None, "last_tick": last["tick"] if last else None,
+        "paused": os.path.exists(os.path.join(log.LOG_DIR, "trader.pause")),
+        "first_tick": rows[0]["tick"] if rows else None,
+    }
+
+
+def market_view(pub: dict, b, st, me: str) -> dict:
+    """Our place in the market: the trader's work, our stall, the other venues, our offers open right now."""
+    venues = []
+    for v in (pub.get("venues") or {}).get("venues", []):
+        venues.append({k: v.get(k) for k in ("venue", "name", "owner", "owner_name", "status", "fee_bps", "fee_per_card", "trades",
+                                              "volume", "fees", "traders", "pairs", "starter", "house", "description", "value_created")}
+                      | {"mechanism": (v.get("rules") or {}).get("mechanism"), "ours": v.get("owner") == me})
+    offers = []
+    if b is not None:
+        try:
+            for o in b.my_offers().get("offers") or []:
+                offers.append({"id": o["id"], "dir": "us" if o.get("maker") == me else "to_us", "other": o.get("to") if o.get("maker") == me else o.get("maker"),
+                               "venue": o.get("venue"), "status": o.get("status"), "give": leg_text(o.get("give")), "want": leg_text(o.get("want")),
+                               "created": o.get("created_tick"), "expires": o.get("expires_tick")})
+        except Exception:
+            pass
+    score = (st.me.get("score") if st else None) or {}
+    bench = [u for u in ((pub.get("schedule") or {}).get("upcoming") or []) if u.get("action") == "bench"]
+    return {"trader": trader_view(), "venues": venues, "offers": offers, "bench_next": bench[:5],
+            "our_venue": next((v for v in venues if v["ours"]), None),
+            "bench": {k: score.get(k) for k in ("bench_efficiency", "bench_points", "mm_points", "bench_venue", "market")},
+            "limits": trader_constants()}
+
+
+def trader_constants() -> dict:
+    out = {}
+    try:
+        import trader
+        out.update(counter_ticks=trader.COUNTER_TICKS, max_outstanding=trader.MAX_OUTSTANDING, maker_cooldown=trader.MAKER_COOLDOWN)
+        from .trade import ANCHOR
+        out["anchor"] = ANCHOR
+    except Exception:
+        pass
+    return out
+
+
 # ---------------------------------------------------------------- formulas and parameters
 
 def _src_default(path: str, pattern: str):
@@ -352,6 +441,7 @@ def formulas(b, st, model: dict, traits: dict) -> dict:
             "trade_min_surplus": MIN_SURPLUS, "trade_min_share": MIN_SHARE, "house_fee_bps": HOUSE_FEE[0],
             "house_fee_per_card": HOUSE_FEE[1], "duel_open_frac": OPEN_FRAC, "duel_beta": 2.0, "duel_rounds": 3,
         },
+        "limits": trader_constants(),
         "values": None,
     }
     if st is None:
@@ -441,5 +531,5 @@ def build(offline: bool = False, key: bool = True) -> dict:
         "wallet": ({"cash": st.me.get("cash"), "level": st.me.get("level"), "collection": st.me.get("collection_value"),
                     "album": (st.me.get("album") or {}).get("filled")} if st else None),
         "duels": duels, "duel_summary": duel_summary(duels), "formulas": formulas(b, st, model, traits),
-        "trader": read_jsonl(os.path.join(log.LOG_DIR, "trader.jsonl"))[-40:], "notes": notes(),
+        "market": market_view(pub, b, st, me), "notes": notes(),
     }

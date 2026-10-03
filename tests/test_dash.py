@@ -86,6 +86,37 @@ def test_duels():
     assert s[0]["role"] == "buyer" and s[0]["deal_rate"] == 1.0 and s[0]["mean_share"] == 0.167
 
 
+def test_leg_text():
+    assert dash.leg_text({"cash": 3, "assets": [{"ref": "LAV-02"}], "types": ["card:MAL-01"]}) == "3 P + LAV-02 + cualquier MAL-01"
+    assert dash.leg_text({"cash": 0, "assets": [], "types": []}) == "nada"
+
+
+def test_trader_view_joins_counters_and_outcomes():
+    import json
+    import tempfile
+    from bz import log
+    old = log.LOG_DIR
+    with tempfile.TemporaryDirectory() as tmp:
+        log.LOG_DIR = tmp
+        def w(name, rows):
+            open(os.path.join(tmp, name), "w").write("".join(json.dumps(r) + "\n" for r in rows))
+        base = {"ts": 1, "offer": 1, "maker": "t05", "venue": "rastro", "got": 4, "lost": 0, "cash_in": 0, "cash_out": 9, "fee": 2, "margin": 2}
+        w("trader.jsonl", [{**base, "tick": 1, "live": False, "action": "ignore", "surplus": -7},
+                           {**base, "tick": 2, "live": True, "source": "board", "action": "accept", "surplus": 5},
+                           {**base, "tick": 3, "live": True, "source": "to_us", "action": "counter", "surplus": -3, "venue": "v02"}])
+        w("trader_counter.jsonl", [{"tick": 3, "incoming": 7, "counter": 8, "maker": "t05", "price": 2, "their": 8, "clearing": 2}])
+        w("trader_outcome.jsonl", [{"incoming": 7, "counter": 8, "outcome": "accepted", "settled_price": 2}])
+        try:
+            v = dash.trader_view()
+        finally:
+            log.LOG_DIR = old
+    assert v["total"] == 3 and v["mode"] == "live" and v["last_tick"] == 3
+    assert v["counts"] == {"accept": 1, "counter": 1, "ignore": 1, "human": 0, "live": 2, "shadow": 1}
+    assert v["decisions"][0]["source"] == "to_us", "rows from the first trader version had no source"
+    assert v["counters"][0]["outcome"] == "accepted" and v["counter_outcomes"] == {"accepted": 1}
+    assert {x["venue"]: x["decisions"] for x in v["by_venue"]} == {"rastro": 2, "v02": 1}
+
+
 def test_render_escapes_script_end():
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     import dashboard

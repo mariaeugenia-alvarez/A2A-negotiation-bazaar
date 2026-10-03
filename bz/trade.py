@@ -51,11 +51,14 @@ def cost(d: dict) -> int:
 
 
 def counter_body(offer: dict, d: dict, price: int):
-    """The structured offer we send back: {"give": ..., "want": ...}, or None when we cannot build one."""
-    if d["cash_in"] and not d["cash_out"] and d.get("gives"):  # they would pay us: we sell the card(s) they asked for
+    """The structured offer we send back: {"give": ..., "want": ...}, or None when we cannot build one.
+
+    Only for plain cash-for-cards offers. In a swap (cards both ways, with or without cash) the clearing price in
+    judge() counts the cards they give us, and a cash-only counter would drop them: we would sell below value."""
+    if d["cash_in"] and not d["cash_out"] and d.get("gives") and not d.get("got"):  # they would pay us: we sell the card(s) they asked for
         return {"give": {"assets": d["gives"]}, "want": {"cash": int(price)}}
     refs = [a["ref"] for a in (offer.get("give") or {}).get("assets") or []]
-    if d["cash_out"] and not d["cash_in"] and refs:  # they ask cash for cards: we bid for those cards
+    if d["cash_out"] and not d["cash_in"] and refs and not d.get("lost"):  # they ask cash for cards: we bid for those cards
         return {"give": {"cash": int(price)}, "want": {"cards": refs}}
     return None
 

@@ -1,6 +1,7 @@
 """One haggle with a dealer, buying or selling. The code sets every price; the words only ask nicely.
 
-Concessions shrink as we near our limit (a share of the room left, at least 1 P, never past her price),
+Concessions shrink as we near our limit (a share of the room left, at least 1 P, never past her price; if her first
+price already beats our opening offer we take it instead of bidding above it),
 every message carries a new price, and we take the dealer's offer when it is within our limit and
 either one step away, at or better than our own last price, or its final word.
 """
@@ -132,7 +133,9 @@ def haggle(b, dealer: str, topic: dict, side: str, opening: int, limit: int, *,
                 # her best price ever, and she did not move after our last concession: take it now
                 stalled_here = p_at_last_msg is not None and p == p_at_last_msg
                 learned = accept_at is not None and stalled_here and (p <= accept_at if buy else p >= accept_at)
-                if within(p) and (close or final or said_final or at_least_ours(p) or learned):
+                # her very first price already beats our opening offer: take it, never bid above what she asks
+                better_than_opening = not ours and (p <= opening if buy else p >= opening)
+                if within(p) and (close or final or said_final or at_least_ours(p) or learned or better_than_opening):
                     b.accept(o["id"])
                     accepted = p
                     log.say(f"[{dealer}] accepted {p}")
