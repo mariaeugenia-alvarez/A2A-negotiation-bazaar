@@ -139,7 +139,7 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 | Los rivales corresponden | Un paso real nuestro trae un paso real suyo. Pasos de 1 P traen pasos de 1 P y queman rondas |
 
 ### Las reglas para Duelos II, III y la Final (aprobadas por Thameur, 13:35)
-1. **Contestar cada duelo desde su primer tick.** Ningún silencio por accidente. Ejecutar `python3 duels_watch.py` (hecho, b5b9c13): arranca `duels.py` cuando hay duelos en vivo, lo reinicia si se cae o si un duelo lleva 3 ticks esperándonos, y avisa con DUEL_START / DUEL_SILENT / DUEL_CRASH en `logs/alerts.jsonl`. **Solo UNA máquina lo ejecuta** (la de Thameur o la de Maru), o dos agentes hablarían en los mismos duelos ❓ quién ejecutó los Duelos I.
+1. **Contestar cada duelo desde su primer tick.** Ningún silencio por accidente. Ejecutar `python3 duels_watch.py` (hecho, b5b9c13): arranca `duels.py` cuando hay duelos en vivo, lo reinicia si se cae o si un duelo lleva 3 ticks esperándonos, y avisa con DUEL_START / DUEL_SILENT / DUEL_CRASH en `logs/alerts.jsonl`. **Solo lo ejecuta la máquina de Thameur** (decidido a las 14:00). Maru no arranca `duels.py` ni `duels_watch.py`, o dos agentes hablarían en los mismos duelos.
 2. **Nuestro límite es firme.** Como vendedor, nunca por debajo de nuestro coste; como comprador, nunca por encima de nuestro valor. Todo lo demás se adapta.
 3. **Primera oferta: ambiciosa, pero que el rival pueda aceptar.** Nada de anclas extremas. Dónde cerraron los tratos de Duelos I ✅: como comprador, entre 0,69 y 0,99 de nuestro límite (mediana ≈ 0,87); como vendedor, entre 1,04 y 1,46 (mediana ≈ 1,22). Nuestro código abría a 0,55 / 1,45, fuera de esa zona. **Punto de partida propuesto, a comprobar en simulación:** comprador ≈ 0,75 × límite, vendedor ≈ 1,30 × límite ⚠️.
 4. **Leer al bot que tenemos delante y adaptarnos en tiempo real** (bloque siguiente). De ahí sale el precio extra.
@@ -158,10 +158,26 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 | Qué hace el bot | Qué hacemos |
 |---|---|
 | **Abre dentro de nuestro límite con buen excedente** | Como mucho una contraoferta real para probarle, luego aceptar. No quemar una ronda por poco |
-| **Sigue cediendo solo mientras nos callamos** (va por tiempo) | **Callar y dejar que venga.** No cuesta ninguna ronda. Aceptar la mejor oferta dentro de nuestro límite cuando dejen de llegar pasos o 2–3 ticks antes del plazo |
+| **Sigue cediendo solo mientras nos callamos** (va por tiempo) | **Callar y dejar que venga.** No cuesta ninguna ronda. Ver «La jugada de esperar» más abajo |
 | **Solo se mueve cuando nos movemos** (recíproco) | Pasos reales nuestros: responde en proporción (práctica: nuestros pasos de 1–5 P trajeron 5–14 P de Rival Rojo). Hasta 2 contraofertas, luego aceptar |
 | **Casi no se mueve o sigue fuera de nuestro límite** (duro) | Un paso real para probarle. Si sigue sin entrar en nuestro límite, no cerrar es lo correcto |
 | **Responde a nuestras palabras** (repite, etiqueta, pregunta) | Anotarlo. Las palabras van con el precio y nunca cambian nuestro límite |
+
+### La jugada de esperar (aprobada por Thameur, 14:00) ✅ datos · ⚠️ simulación
+**Por qué:** esperar no cuesta ninguna ronda, así que el trato conserva todo su valor. Los bots que hablan primero siguen cediendo hasta el final, a menudo con sus pasos más grandes en los últimos ticks. En 20 duelos, nuestro tira y afloja no ganó más que aceptar su primera oferta (341 frente a 346). Simulación (`tests/sim_duel2.py`, un modelo, no una medida): 64 % de la tarta frente a 54 % con la lógica antigua (decaimiento 8 %), 56 % frente a 47 % (decaimiento 10 %), con algo menos de tratos (87–89 % frente a 96 %).
+
+| Paso | Qué hace `duels.py` |
+|---|---|
+| 1. Tick 0 | **No envía nada.** Observa |
+| 2. Él habla y cede solo | **Calla.** Acepta su mejor oferta dentro de nuestro límite **2 ticks antes del plazo** (un acuerdo se liquida en el tick siguiente; 2 ticks está probado, 1 tick no). Acepta antes si está dentro de nuestro límite y lleva 2 ticks sin moverse (seguramente su límite real) |
+| 3. Sigue callado en el tick 1 | **Abre:** comprador 0,75 × límite, vendedor 1,30 × límite. Luego vuelve a callar y mira si sigue moviéndose solo |
+| 4. Solo se mueve cuando nos movemos | Pasos reales, como mucho 2 contraofertas, aceptar cuando una ronda más no pueda superar el decaimiento |
+| Siempre | Nunca cruza nuestro límite (comprobado en 4.000 duelos aleatorios en `tests/test_duel2.py`) |
+
+**Arranque (solo en la máquina de Thameur):** sábado `python3 duels_watch.py` · domingo `python3 duels_watch.py -- --duel-ticks 12`. Aviso de la simulación: con rivales más duros el domingo, la tasa de tratos puede bajar a ≈68 %, por debajo del interruptor del 70 %.
+
+**Interruptor de seguridad:** si tras la primera oleada de Duelos II se cierran menos del 70 % de los duelos, o los bots dejan de ceder solos, reiniciar con `--policy v1` (la lógica antigua).
+**Riesgos que aceptamos:** algunos bots nunca hablan primero (3 duelos de Duelos I sin ningún mensaje; el paso 3 lo cubre). Solo en 12 de 64 duelos registrados habló primero el rival, así que hay pocos datos. Otros equipos pueden cambiar sus bots esta noche.
 
 ### El día de entrega (Duelos II y III): una hipótesis, todavía no una regla ⚠️
 - ✅ Cada parte tiene un `your_days_weight` privado (una ganancia o un coste por día). El trato vale para cada parte excedente de precio + peso × día. La organización: «da el día a quien más lo valore y cámbialo por precio».
@@ -225,7 +241,7 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 | 15:50 | Market Test 4 | solo lectura |
 | **16:00–18:00** | **Fiebre de Salamanca de Pilar** | scripts de dealers (Maru), solo si el equipo está de acuerdo |
 | 17:50 | Market Test 5 | |
-| **18:00** | **Ensayo en seco de `duels.py` en un duelo de dos temas. Decidir qué máquina ejecuta `duels_watch.py`, y v1 o `--policy v2`** (v2 = esta doctrina, 83a1efd; v1 sigue por defecto hasta que Thameur apruebe la estrategia de esperar) | sesión del trader + Thameur |
+| **18:00** | **Ensayo en seco `python3 duels.py --dry` en un duelo de dos temas. Luego arrancar `python3 duels_watch.py` en la máquina de Thameur** (v2 = la jugada de esperar, aprobada a las 14:00; `--policy v1` = interruptor de seguridad) | sesión del trader + Thameur |
 | **18:30** | **Duelos II** (8 %, 16 ticks, hasta 6 a la vez) | `duels.py` |
 | 19:50 · 21:30 (duro) · 21:50 | Market Tests | |
 | 23:00 | Cierran las puertas | |
@@ -237,7 +253,7 @@ apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder
 ### Decisiones para Thameur y Maru ahora
 1. **¿Quoter EN VIVO?** 180 P en pujas fijas por cartas de página, +79 de valor si todo se llena. La caja tiene 48 P: ¿con qué presupuesto?
 2. **Maru:** bloquear las ventas a dealers por debajo de nuestro valor y las de cartas de página. ¿Vendemos Salamanca a Pilar durante la fiebre o completamos la página?
-3. **Duelos II:** ✅ doctrina de la sección VI aprobada a las 13:35 (el día de entrega sigue siendo una hipótesis). La sesión del trader la pasa a `bz/duel.py` y la prueba en simulación antes de las 18:00. **Y: ¿qué máquina ejecutó `duels.py` en los Duelos I? Solo una puede ejecutar `duels_watch.py`.**
+3. **Duelos II:** ✅ doctrina de la sección VI aprobada a las 13:35 (el día de entrega sigue siendo una hipótesis). La jugada de esperar, aprobada a las 14:00. La sesión del trader la ha hecho en `bz/duel.py` (`--policy v2`, por defecto). **Los duelos corren solo en la máquina de Thameur:** `python3 duels_watch.py`.
 4. **Mercado:** v21 está abierto. ¿Quién le pone un broker y desde cuándo? Si no, puede sacar menos que el 7,5 del puesto gratis.
 5. **Quién vigila la puntuación** durante los Duelos II (`observe.py tag D2`).
 

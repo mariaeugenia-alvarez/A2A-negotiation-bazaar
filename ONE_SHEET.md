@@ -137,7 +137,7 @@ built so we can close in one or two rounds without losing the pie."*
 | Rivals reciprocate | A real step from us earns a real step. 1 P steps earn 1 P steps and burn rounds |
 
 ### The rules for Duels II, III and the Final (approved by Thameur, 13:35)
-1. **Answer every duel, from its first tick.** No silence by accident. Run `python3 duels_watch.py` (built, b5b9c13): it starts `duels.py` when duels go live, restarts it after a crash or when a live duel has waited 3 ticks for us, and alerts DUEL_START / DUEL_SILENT / DUEL_CRASH in `logs/alerts.jsonl`. **Only ONE machine runs it** (Thameur's or Maru's), or two agents would talk in the same duels ❓ who ran Duels I.
+1. **Answer every duel, from its first tick.** No silence by accident. Run `python3 duels_watch.py` (built, b5b9c13): it starts `duels.py` when duels go live, restarts it after a crash or when a live duel has waited 3 ticks for us, and alerts DUEL_START / DUEL_SILENT / DUEL_CRASH in `logs/alerts.jsonl`. **Only Thameur's machine runs it** (decided 14:00). Maru does not start `duels.py` or `duels_watch.py`, or two agents would talk in the same duels.
 2. **Our limit is firm.** As seller never below our cost, as buyer never above our value. Everything else adapts.
 3. **First offer: ambitious, but one the rival can accept.** Not an extreme anchor. Where Duels I deals landed ✅: as buyer 0.69–0.99 of our limit (median ≈ 0.87), as seller 1.04–1.46 (median ≈ 1.22). Our code opened at 0.55 / 1.45, outside that zone. **Proposed start, to check in simulation:** buyer ≈ 0.75 × limit, seller ≈ 1.30 × limit ⚠️.
 4. **Read the bot in front of us, then adapt in real time** (next block). This is where the extra price comes from.
@@ -156,10 +156,26 @@ built so we can close in one or two rounds without losing the pie."*
 | What the bot does | What we do |
 |---|---|
 | **Opens inside our limit with a good surplus** | One real counter at most to test him, then accept. Don't burn a round for little |
-| **Keeps conceding on his own while we are silent** (time-driven) | **Stay silent and let him come to us.** It costs no round. Accept the best offer inside our limit when his steps stop or 2–3 ticks before the deadline |
+| **Keeps conceding on his own while we are silent** (time-driven) | **Stay silent and let him come to us.** It costs no round. See "The waiting play" below |
 | **Moves only when we move** (reciprocal) | Real steps from us: he answers in proportion (practice: our 1–5 P steps earned 5–14 P from Rival Rojo). Up to 2 counters, then accept |
 | **Barely moves, or stays outside our limit** (hard) | One real step to test him. If he still does not come inside our limit, a no-deal is correct |
 | **Answers our words** (mirrors, labels, asks) | Log it. Words ride with the price and never change our limit |
+
+### The waiting play (approved by Thameur, 14:00) ✅ data · ⚠️ simulation
+**Why:** waiting costs no round, so the deal keeps its full value. Bots that talk first keep conceding to the very end, often with their biggest steps in the last ticks. In 20 duels, our back-and-forth earned no more than accepting their first offer (341 vs 346). Simulation (`tests/sim_duel2.py`, a model, not a measurement): 64% of the pie vs 54% for the old logic (decay 8%), 56% vs 47% (decay 10%), with slightly fewer deals (87–89% vs 96%).
+
+| Step | What `duels.py` does |
+|---|---|
+| 1. Tick 0 | **Sends nothing.** Watches |
+| 2. He talks and concedes on his own | **Stays silent.** Accepts his best offer inside our limit **2 ticks before the deadline** (an accept settles next tick; 2 ticks is proven, 1 tick is not). Accepts earlier if he is inside our limit and has not moved for 2 ticks (probably his real limit) |
+| 3. He is still silent at tick 1 | **Opens:** buyer 0.75 × limit, seller 1.30 × limit. Then goes quiet again and watches whether he keeps moving on his own |
+| 4. He moves only when we move | Real steps, at most 2 counters, accept when one more round can't beat the decay |
+| Always | Never crosses our limit (checked on 4,000 random duels in `tests/test_duel2.py`) |
+
+**Run (Thameur's machine only):** Saturday `python3 duels_watch.py` · Sunday `python3 duels_watch.py -- --duel-ticks 12`. Simulation warns: against harder rivals on Sunday the deal rate may fall to ≈68%, under the 70% switch.
+
+**Safety switch:** if after the first wave of Duels II fewer than 70% of duels close, or the bots stop conceding on their own, restart with `--policy v1` (the old logic).
+**Risks we accept:** some bots never talk first (3 duels in Duels I had no message at all; step 3 covers it). Only 12 of 64 logged duels had the rival talking first, so the data is thin. Other teams may change their bots tonight.
 
 ### The delivery day (Duels II and III): a hypothesis, not a rule yet ⚠️
 - ✅ Each side has a private `your_days_weight` (a gain or a cost per day). The deal is worth price surplus + weight × day to each side. The organisers: "give the day to whoever cares more, trade it for price".
@@ -223,7 +239,7 @@ built so we can close in one or two rounds without losing the pie."*
 | 15:50 | Market Test 4 | read only |
 | **16:00–18:00** | **Pilar's Salamanca fever** | dealer scripts (Maru), only if the team agrees |
 | 17:50 | Market Test 5 | |
-| **18:00** | **Dry run of `duels.py` on a two-issue duel. Decide which machine runs `duels_watch.py`, and v1 or `--policy v2`** (v2 = this doctrine, 83a1efd; v1 stays the default until Thameur approves the waiting strategy) | trader session + Thameur |
+| **18:00** | **Dry run `python3 duels.py --dry` on a two-issue duel. Then start `python3 duels_watch.py` on Thameur's machine** (v2 = the waiting play, approved 14:00; `--policy v1` = safety switch) | trader session + Thameur |
 | **18:30** | **Duels II** (8%, 16 ticks, up to 6 at once) | `duels.py` |
 | 19:50 · 21:30 (hard) · 21:50 | Market Tests | |
 | 23:00 | Doors close | |
@@ -235,7 +251,7 @@ built so we can close in one or two rounds without losing the pie."*
 ### Decisions for Thameur and Maru now
 1. **Quoter LIVE?** 180 P of standing bids for page cards, +79 of value if all fill. Cash is 48 P: with what budget?
 2. **Maru:** block dealer sales below our value and sales of page cards. Do we sell Salamanca to Pilar during the fever, or finish the page?
-3. **Duels II:** ✅ doctrine in VI approved at 13:35 (the delivery day stays a hypothesis). The trader session turns it into `bz/duel.py` and tests it in simulation before 18:00. **And: which machine ran `duels.py` in Duels I? Only one may run `duels_watch.py`.**
+3. **Duels II:** ✅ doctrine in VI approved at 13:35 (the delivery day stays a hypothesis). The waiting play approved at 14:00. Built by the trader session in `bz/duel.py` (`--policy v2`, the default). **Duels run on Thameur's machine only:** `python3 duels_watch.py`.
 4. **Market:** v21 is open. Who runs a broker for it, from when? Otherwise it may score below the free stall's 7.5.
 5. **Who watches the score** during Duels II (`observe.py tag D2`).
 
