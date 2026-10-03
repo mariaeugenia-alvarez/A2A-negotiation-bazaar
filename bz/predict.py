@@ -23,8 +23,14 @@ El Chato, a Boulware dealer with reciprocity:
 What we control is the same for both: how far we move each time and when we stop. `advise()` turns the
 models into the next price to send; `advisor()` wraps it for haggle(advise=...), which agent.py uses by default.
 
-A new dealer (Doña Pilar so far: she bid 16 and never moved) gets no model until it moves in some conversation;
-then `family_of()` picks, per kind of deal, whichever family predicts its answers best.
+Doña Pilar, a linear dealer (33 answers in 11 conversations where she moved; 67 % exact, the other families 55-61 %):
+  opening  bids 16 for an uncommon, 22 for one from a set she loves (SAL/RET), 122 for an epic
+  1st      holds her price on her first answer to us
+  then     1 P per move, whatever our step (steps of 7-8 P got 0 or 1); now and then she stalls
+  final    after 4-7 answers: 17-21 (bid 16), 24-25 (bid 22). The best seller to her takes small steps.
+
+A new dealer gets no model until it moves in MIN_MOVING conversations; then `family_of()` picks, per kind of deal,
+whichever family predicts its answers best.
 """
 import collections
 import json
@@ -373,12 +379,23 @@ def advise(dealer: str, side: str, kind: str, opening: int, history: list, limit
             why = f"we meet him now: he matches our step up to {room}, so the meeting point is {ours + d * step}"
         return {"action": "offer", "price": clip(ours + d * step), "her_next": nxt, "why": why}
 
+    if dealer in ("pilar", "linear"):  # holds on her first answer, then 1 P per move whatever our step
+        if ours is None:
+            return {"action": "offer", "price": clip(opening - d * round(opening * 0.8)), "her_next": opening,
+                    "why": "open far: she concedes 1 P per move whatever our step, so room means more answers"}
+        nxt = her - d  # her answer to our next move
+        price = ours + d
+        if d * (price - nxt) >= 0:  # no room below her next price: offer it, she takes it at the same price
+            price = nxt
+        return {"action": "offer", "price": clip(price), "her_next": nxt,
+                "why": "1 P per move whatever our step: +1 P keeps her conceding until her final"}
+
     price = (ours + d) if ours is not None else opening - d * round(opening * 0.3)
     return {"action": "offer", "price": clip(price), "her_next": None, "why": "no model for this dealer yet: small steps"}
 
 
 MIN_MOVING = 3  # conversations where a new dealer conceded at least once, before family_of() picks its family
-MODELS = {"abuela": "midpoint", "chato": "boulware"}  # a new dealer gets the family that fits its data best
+MODELS = {"abuela": "midpoint", "chato": "boulware", "pilar": "linear"}  # a new dealer gets the family that fits its data best
 
 
 def advisor(dealer: str, side: str, kind: str, limit: int, threads: list = None):
@@ -388,7 +405,7 @@ def advisor(dealer: str, side: str, kind: str, limit: int, threads: list = None)
     family = MODELS.get(dealer) or (family_of(dealer, threads if threads is not None else load_threads()) or {}).get(kind)
     if family is None:
         return None
-    model = {"midpoint": "abuela", "boulware": "chato"}[family]  # same rules, this dealer's own data
+    model = {"midpoint": "abuela", "boulware": "chato", "linear": "linear"}[family]  # same rules, this dealer's data
     fitted = fit_chato([t for t in (threads or []) if t["dealer"] == dealer]) if family == "boulware" and dealer != "chato" else None
 
     def next_move(t: dict):
@@ -405,10 +422,10 @@ def advisor(dealer: str, side: str, kind: str, limit: int, threads: list = None)
     return next_move
 
 
-def family_of(dealer: str, threads: list) -> dict:
-    """Per kind, the family of rules that predicts this dealer's answers best: "midpoint" (Abuela) or "boulware"
-    (El Chato), scored on the same answers (each one after the dealer's first concession). None for a kind where
-    the dealer moved in fewer than MIN_MOVING conversations: too little data to tell them apart."""
+def family_scores(dealer: str, threads: list) -> dict:
+    """Per kind: how many answers each family predicts exactly (each answer after the dealer's first concession,
+    or after its first answer to a move when it never concedes there), out of n, and in how many conversations
+    the dealer moved at all."""
     by_kind = collections.defaultdict(list)
     for t in threads:
         if t["dealer"] == dealer:
@@ -416,7 +433,8 @@ def family_of(dealer: str, threads: list) -> dict:
     out = {}
     for kind, ts in by_kind.items():
         sched = fit_chato(ts).get(kind)
-        mid = boul = n = 0
+        r = {"midpoint": 0, "boulware": 0, "linear": 0, "n": 0,
+             "moving": sum(1 for t in ts if any(a.conc for a in answers(t)[1]))}
         for t in ts:
             opening, ans = answers(t)
             first = next((i for i, a in enumerate(ans) if moved(a)), None)
@@ -424,14 +442,26 @@ def family_of(dealer: str, threads: list) -> dict:
                 continue
             later = ans[first + 1:]
             far, near = abuela_limit(opening, ans[first].price, t["side"])
-            mid += max(sum((abuela_next(a.ask, L, t["side"]) if moved(a) else a.ask) == a.price for a in later)
-                       for L in (far, near))
+            r["midpoint"] += max(sum((abuela_next(a.ask, L, t["side"]) if moved(a) else a.ask) == a.price
+                                     for a in later) for L in (far, near))
             if sched:
-                boul += sum(hit for i, hit in enumerate(_chato_preds(ans, *sched)) if i > first)
-            n += len(later)
-        moving = sum(1 for t in ts if any(a.conc for a in answers(t)[1]))
-        # too few conversations where it moved: no family yet (a guess would set real prices)
-        out[kind] = None if moving < MIN_MOVING or not n else ("midpoint" if mid >= boul else "boulware")
+                r["boulware"] += sum(hit for i, hit in enumerate(_chato_preds(ans, *sched)) if i > first)
+            r["linear"] += sum((1 if moved(a) else 0) == a.conc for a in later)
+            r["n"] += len(later)
+        out[kind] = r
+    return out
+
+
+def family_of(dealer: str, threads: list) -> dict:
+    """Per kind, the family of rules that predicts this dealer's answers best: "midpoint" (Abuela), "boulware"
+    (El Chato) or "linear" (Pilar: holds on her first answer, then 1 P per move whatever our step). None for a
+    kind where the dealer moved in fewer than MIN_MOVING conversations: too little data to tell them apart."""
+    out = {}
+    for kind, r in family_scores(dealer, threads).items():
+        if r["moving"] < MIN_MOVING or not r["n"]:  # a guess would set real prices
+            out[kind] = None
+        else:  # ties go to the simplest rule
+            out[kind] = max(("linear", "midpoint", "boulware"), key=lambda f: r[f])
     return out
 
 
@@ -584,6 +614,14 @@ if __name__ == "__main__":
             f = abuela_forecast(opening, first, side, pats[side])
             print(f"  {kind:22s} opening {opening:2d}, first answer {first:2d} ({n:2d}x): limit {min(f['limit'])}-{max(f['limit'])}, "
                   f"final ~{f['expected_final']:.1f} ({min(f['finals'])}-{max(f['finals'])})")
+    print("\nWhich family predicts each dealer best (exact answers; the model in use is MODELS):")
+    for dealer in sorted({t["dealer"] for t in ths}):
+        for kind, r in sorted(family_scores(dealer, ths).items()):
+            if r["n"]:
+                best = family_of(dealer, ths).get(kind)
+                print(f"  {dealer:7s} {kind:22s} midpoint {r['midpoint']:3d}  boulware {r['boulware']:3d}  linear {r['linear']:3d}"
+                      f"  of {r['n']:3d}  ({r['moving']} moving)  -> {best or 'too little data'}"
+                      + (f", in use: {MODELS[dealer]}" if dealer in MODELS else ""))
     print("\nEl Chato, steps that collect his whole schedule over 6 answers:")
     for kind, opening, side in (("buy:uncommon", 33, "buy"), ("buy:rare", 97, "buy"), ("sell:uncommon", 13, "sell")):
         p = chato_plan(opening, side, kind, 6, rep["chato_schedule"])

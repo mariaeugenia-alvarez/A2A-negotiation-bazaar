@@ -19,8 +19,10 @@ Equipo t09 en The Bazaar. Varias sesiones comparten la misma clave: antes de abr
      repetir, ofrecer L cuando solo pueda decir L, aceptar su final.
    - El Chato («boulware»): su calendario a·k² limita lo que cede, y nunca cede más que nuestro paso. Pasos crecientes
      (rara: 1, 2, 2, 4, 4, 5) y el punto medio al final. Poco comunes: comprárselas a Abuela, no a él.
-   - Dealer nuevo o sin datos (Pilar): `bz.predict.family_of()` decide entre las dos familias en cuanto hay hilos en
-     los que se mueve; hasta entonces no hay modelo y `agent.py` lo avisa.
+   - Pilar («linear»): no se mueve en su primera respuesta, luego +1 P por movimiento sea cual sea el paso. Abrir alto,
+     bajar 1 P sin repetir, aceptar su final (17-21; 24-25 si la carta es de SAL/RET). Las poco comunes sobrantes, a ella.
+   - Dealer nuevo: `bz.predict.family_of()` elige entre las tres familias en cuanto se ha movido en 3 hilos; hasta
+     entonces no hay modelo y `agent.py` lo avisa. Para usarlo, añádelo a `MODELS` en `bz/predict.py`.
 4. **Después de negociar**: `python3 -m bz.predict` otra vez. Si la precisión de un dealer baja o un tipo de trato
    nuevo aparece sin modelo, revisa con la skill `abuela-learner` y anota en `DEALERS.md`.
 5. **Antes de tocar `bz/predict.py`, `bz/haggle.py` o `agent.py`**: `python3 tests/test_predict.py`,

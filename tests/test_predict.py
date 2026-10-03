@@ -131,4 +131,15 @@ fake = [dict(c, dealer="nuevo") for c in convs]  # 4 Boulware conversations from
 assert family_of("nuevo", fake) == {"buy:rare": "boulware"}, family_of("nuevo", fake)
 assert family_of("nuevo", fake[:2]) == {"buy:rare": None}; checks += 1
 
+# 14. Pilar (linear), thread 778 (ours, MAL-08): 16 held on her first answer, then 1 P per move: 17 ... 21 (final).
+t = thread([U(30), D(16), U(28), D(16), U(27), D(17), U(26), D(18), U(25), D(19), U(24), D(20), U(23), D(21, True)],
+           dealer="pilar", side="sell", kind="sell:uncommon")
+opening, ans = answers(t)
+assert opening == 16 and [a.conc for a in ans] == [0, 1, 1, 1, 1, 1], ans
+adv = advise("pilar", "sell", "sell:uncommon", 16, [(28, 16), (27, 17)], 15)
+assert adv["price"] == 26 and adv["her_next"] == 18, adv  # 1 P closer, never crossing her next bid
+adv = advise("pilar", "sell", "sell:uncommon", 16, [(28, 16), (19, 18)], 15)
+assert adv["price"] == 19, adv  # no room left: offer her next price, she takes it
+assert family_of("pilar", [dict(t, id=i) for i in range(3)]) == {"sell:uncommon": "linear"}; checks += 1
+
 print(f"ok: {checks} checks")

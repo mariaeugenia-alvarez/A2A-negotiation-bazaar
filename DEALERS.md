@@ -178,8 +178,16 @@ misma orden con LAV-09. Ahora `learn` sacó objetivo 84 del hilo 526, y el agent
   límite real puede cortar antes.
 - Poco comunes: le cuestan ~29 tras 6 respuestas, peor que Abuela (21-25): no comprárselas a él.
 
-**Doña Pilar:** sin datos para un modelo: 8 hilos, todos de t13 vendiendo poco comunes a 49-51 alternando precios
-(eso no es moverse). Puja 16 y no se movió nunca.
+**Doña Pilar · modelo lineal (`bz/predict.py`, 18 hilos de venta de poco comunes; 11 en los que se movió, incluidos
+nuestros 712, 778, 783 y 794):**
+- Puja 16 por una poco común; 22 si es de un barrio que le gusta (SAL/RET); 122 por una épica.
+- **En su primera respuesta no se mueve.** Después sube **1 P por cada movimiento nuestro, sea cual sea el paso**:
+  los pasos de 7-8 P de t13 recibieron 0 o 1, igual que los de 1 P. A veces se para una respuesta.
+- Final tras 4-7 respuestas: 17-21 con puja 16, 24-25 con puja 22. El mejor trato es el nuestro (hilo 778): 21 por MAL-08,
+  bajando de 1 en 1. Abuela paga ~14-15 y El Chato ~15-16 por una poco común: **las poco comunes sobrantes, a Pilar**.
+- Acierto exacto: lineal 22/33 respuestas (67 %), Boulware 20, punto medio 18. Mejor que las otras, pero modesto; con
+  más hilos se afinará. `agent.py sell-spares --dealer pilar` ya lo usa (abrir alto, bajar 1 P, aceptar su final).
+- Límite: 6 tratos por hora con ella.
 
 **Prior para dealers nuevos (agrupado, aparte de los datos de cada dealer):** mensajes antes de su final ≈ 6 × rasgo de
 paciencia (Abuela 0,85 → 5-7; El Chato 0,35 → 3 observado, 2 con el prior). `learn.messages_per_trait` lo calcula con

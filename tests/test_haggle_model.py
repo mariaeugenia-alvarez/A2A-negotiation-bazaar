@@ -136,7 +136,19 @@ for limit in (74, 78, 82, 86):
         worse += o["status"] == "deal" and m["price"] > o["price"] + 1
 assert worse == 0 and total_m <= total_o, (worse, total_m, total_o); checks += 1
 
-# 4. A dealer with no model and no data: advisor() says so, and haggle() keeps its own pacing.
-assert advisor("pilar", "sell", "sell:uncommon", 13, threads=[]) is None; checks += 1
+# 4. Pilar (linear): bid 16, 1 P per move after her first answer, final after 6 answers. The model gets her final
+#    (21) where big steps of 7 P stop early at 17-18 (t13's threads 666 and 701).
+def pilar(patience, opening=16, limit=30):
+    def rule(ask, k, step):
+        return ask if k == 1 or not step else min(limit, ask + 1)
+    return FakeDealer("pilar", "sell", opening, limit, patience, rule)
+
+
+m = run(pilar(6), "sell:uncommon", 30, 15)
+big = run(pilar(6), "sell:uncommon", 49, 15, model=False, step_frac=0.4)
+assert m["status"] == "deal" and m["price"] == 21 and (big["price"] or 0) < 21, (m, big); checks += 1
+
+# 5. A dealer with no model and no data: advisor() says so, and haggle() keeps its own pacing.
+assert advisor("nuevo", "sell", "sell:uncommon", 13, threads=[]) is None; checks += 1
 
 print(f"ok: {checks} checks (Chato rare: model {total_m / 12:.1f} avg vs {total_o / 12:.1f} with the old pacing)")
