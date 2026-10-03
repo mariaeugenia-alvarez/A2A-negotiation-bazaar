@@ -208,7 +208,8 @@ def cmd_sell_spares(b: Bazaar, st: State, args) -> list:
         # never sell below what the copy is worth to us, nor below what another dealer already paid
         floor = bounded("sell", args.limit, max(price.sell_floor(worth), elsewhere or 0), price.sell_floor(worth))
         log.say(f"floor {floor} for {a['ref']}: worth {worth:.1f} to us, best bid at other dealers {elsewhere}")
-        opening = args.open or max(floor + 1, round(prices.get(rarity, 10) * 1.2))
+        # a dealer that only buys this rarity (Ernesto, epics) has no list price for it: start from the card's book
+        opening = args.open or max(floor + 1, round(prices.get(rarity, st.cards_by_id[a["ref"]].get("book", 10)) * 1.2))
         label = f"spare {a['ref']} (worth {worth:.1f} to us)"
         plan = learned(st, args, f"sell:{rarity}")
         why = out_of_reach(args, "sell", floor, plan)

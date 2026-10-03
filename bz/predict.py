@@ -29,6 +29,12 @@ Doña Pilar, a linear dealer (33 answers in 11 conversations where she moved; 67
   then     1 P per move, whatever our step (steps of 7-8 P got 0 or 1); now and then she stalls
   final    after 4-7 answers: 17-21 (bid 16), 24-25 (bid 22). The best seller to her takes small steps.
 
+Don Ernesto (banco), a Boulware dealer like El Chato (3 conversations buying SAL-11, an epic; 9/17 answers exact):
+  opening  bids 112-113 for an epic (book 180); his words say "no compro", his offer is the bid
+  then     nothing for 1-3 answers, then faster and faster (a ~0.24), never more than our step (true in every answer)
+  final    after 4-9 answers, at 116-129 (t16 sold at 116; steps of 6-10 P reached 129, steps of 2 P 126)
+  packs    his gold pack stayed at 546 in both conversations
+
 A new dealer gets no model until it moves in MIN_MOVING conversations; then `family_of()` picks, per kind of deal,
 whichever family predicts its answers best.
 """
@@ -395,18 +401,19 @@ def advise(dealer: str, side: str, kind: str, opening: int, history: list, limit
 
 
 MIN_MOVING = 3  # conversations where a new dealer conceded at least once, before family_of() picks its family
-MODELS = {"abuela": "midpoint", "chato": "boulware", "pilar": "linear"}  # a new dealer gets the family that fits its data best
+MODELS = {"abuela": "midpoint", "chato": "boulware", "pilar": "linear", "banco": "boulware"}  # a new dealer gets the family that fits its data best
 
 
 def advisor(dealer: str, side: str, kind: str, limit: int, threads: list = None):
     """For haggle(): a function of the live thread (API shape) giving advise()'s next move, or None if we have no
     model for this dealer and kind. The function itself returns {"action": "wait"} while the dealer has not answered
     our last price (never send twice), and None before her first answer (haggle() uses its own opening)."""
-    family = MODELS.get(dealer) or (family_of(dealer, threads if threads is not None else load_threads()) or {}).get(kind)
+    threads = load_threads() if threads is None else threads
+    family = MODELS.get(dealer) or (family_of(dealer, threads) or {}).get(kind)
     if family is None:
         return None
     model = {"midpoint": "abuela", "boulware": "chato", "linear": "linear"}[family]  # same rules, this dealer's data
-    fitted = fit_chato([t for t in (threads or []) if t["dealer"] == dealer]) if family == "boulware" and dealer != "chato" else None
+    fitted = fit_chato([t for t in threads if t["dealer"] == dealer]) if family == "boulware" and dealer != "chato" else None
 
     def next_move(t: dict):
         seq = _seq(t.get("messages"), dealer)

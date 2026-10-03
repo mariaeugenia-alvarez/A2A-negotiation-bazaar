@@ -142,4 +142,19 @@ adv = advise("pilar", "sell", "sell:uncommon", 16, [(28, 16), (19, 18)], 15)
 assert adv["price"] == 19, adv  # no room left: offer her next price, she takes it
 assert family_of("pilar", [dict(t, id=i) for i in range(3)]) == {"sell:uncommon": "linear"}; checks += 1
 
+# 15. Don Ernesto (banco, Boulware), thread 1722 (t18 selling SAL-11, epic): steps of 2, he gave 0, 1, 1, then 2 each
+#     time (never more than the step), 112 -> 126 (final). advisor() fits his schedule from his own conversations.
+from bz.predict import MODELS, advisor  # noqa: E402
+t = thread([D(112), U(232), D(112), U(230), D(113), U(228), D(114), U(226), D(116), U(224), D(118), U(222), D(120),
+            U(220), D(122), U(218), D(124), U(216), D(126, True)], dealer="banco", side="sell", kind="sell:epic", tid=1722)
+opening, ans = answers(t)
+assert opening == 112 and [a.conc for a in ans] == [0, 1, 1, 2, 2, 2, 2, 2, 2], ans
+assert all(a.conc <= a.step for a in ans if a.step is not None); checks += 1
+assert MODELS["banco"] == "boulware"
+live = {"messages": [{"id": i, "sender": "banco" if e[0] == "D" else "tX", "offer": {"give": {"cash": e[1]}}}
+                     for i, e in enumerate(t["seq"][:5])]}  # 112, 232, 112, 230, 113: his turn is done, ours next
+move = advisor("banco", "sell", "sell:epic", 120, threads=[t])(live)
+assert move["action"] == "offer" and 120 <= move["price"] < 230, move  # a step towards him, never below our floor
+assert advisor("banco", "sell", "sell:epic", 120, threads=[]) is not None; checks += 1  # MODELS: a model even without data
+
 print(f"ok: {checks} checks")

@@ -215,6 +215,41 @@ compran comunes y poco comunes. 6 tratos por hora. Datos: 27 hilos del feed (tic
 
 **Venderles: no.** Común: pujan 4 (5 como mucho). Poco común: pujan 10, +1 por movimiento, hasta 11-12. Abuela y Pilar pagan más.
 
+## Don Ernesto (`banco`, nivel 5, «banker») · estudio del feed, sábado t ≈ 11 h
+Rasgos: paciencia 0,95, generosidad 0,1, astucia 0,95, memoria 1,0, rigor 1,0, charla 0,35. Para t09 ya está
+desbloqueado. Vende sobre de oro (lista 420, abre en 546) y legendarias (lista 585, una por equipo y hora).
+Compra **solo épicas y legendarias**. 4 tratos por hora. Datos: 6 hilos del feed (ticks ~1090-1160), 1 trato.
+
+**Lee la oferta, no el texto.** Cuando le venden una épica dice «no compro, la carta es de mi cámara»,
+pero su oferta es `give 112 P, want SAL-11`: está pujando. Las palabras no mueven el precio.
+
+**Venderle una épica (SAL-11, valor nominal 180):**
+| Hilo | Equipo | Pasos del equipo | Ernesto | Cierre |
+|---|---|---|---|---|
+| 1649 | t16 | 165 → 149 (5, 4, 4, 3) | 113 → 113 → 113 → 114 → 116 final | **trato a 116** |
+| 1657 | t18 | 260 → 216 (10, 8, 7, 7, 6, 6) | 113 ×4 → 115 → 118 → 123 → 129 final | sin trato |
+| 1722 | t18 | 232 → 216 (2 cada vez) | 112 → 112 → 113 → 114 → 116 → … → 126 final | sin trato |
+
+- **Boulware con reciprocidad, como El Chato:** las primeras 1-3 respuestas no se mueve y luego cede cada vez más
+  (a ≈ 0,24 en `bz/predict.py`). **Nunca cede más que nuestro paso** (se cumple en todas las respuestas). Con pasos
+  de 2 cedió 2; con pasos de 6-10 llegó a ceder 6.
+- Final tras 4-9 respuestas, a 116-129 (un 65-72 % del valor nominal). Su texto final: «última palabra, si la
+  rechaza me levanto».
+- Acierto exacto del modelo: Boulware 9/17 respuestas, punto medio 4, lineal 3. Solo hay 3 hilos, así que es una
+  hipótesis. `bz.predict` lo reajusta cada vez que se ejecuta.
+- Sobre de oro: 546 en los dos hilos, sin moverse (nadie llegó a regatear con precio). Pilar lo abre en 504.
+
+**Jugada (cuando tengamos una épica):** abrir alto (el valor nominal ×1,2, ≈ 216, como hace `sell-spares`) y bajar
+siguiendo su calendario, con pasos crecientes (1, 1, 2, 1, 3, 2, 3, 4…), para que cada paso nuestro le deje ceder
+todo lo que le permite. Aceptar su final. Simulado con el modelo: 115 si da su final en la 4ª respuesta, 123 en la 7ª
+y 131 en la 9ª.
+`python3 agent.py sell-spares --dealer banco --card <ref>` ya usa el modelo (`MODELS["banco"] = "boulware"`).
+
+**Ojo con nuestro valor.** Nos paga por debajo del valor nominal. Una épica que completa algo nos vale más que su
+puja (SAL-11: 198). Solo se le vende una épica **repetida**, cuya copia nos vale poco (copy_marginals 0,25), y
+siempre por encima de `sell_floor`. Las legendarias no tienen datos y usan el calendario de reserva, más rápido.
+Pesa en la escalera: es el nivel 5, el que más cuenta, y hoy tenemos 0 tratos con él.
+
 ## Puntuación: experimentos con `neg_points` (viernes 22:00–22:22)
 La clasificación (y el `score` de `/api/me`) se recalcula cada 5 ticks (`snapshot_tick`, `next_refresh_tick`).
 
