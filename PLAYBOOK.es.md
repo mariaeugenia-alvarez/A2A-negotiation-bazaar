@@ -1,53 +1,61 @@
-# The Bazaar · Manual de juego: probar, observar, mejorar (v1)
+# The Bazaar · Manual de juego: probar, observar, mejorar (v2)
 
-Sábado 3 oct 2026 · Equipo 9 · Versión en inglés: `PLAYBOOK.md` · Estrategia: `ONE_SHEET.es.md`
+Sábado 3 oct 2026, 13:05 (tick 583) · Equipo 9 · Versión en inglés: `PLAYBOOK.md` · Estrategia y fuente de verdad: `ONE_SHEET.es.md`
 
 **Regla de cada ciclo: un cambio, un número que mirar, y la regla de decisión escrita ANTES de ver el resultado.**
-Los tratos reales cuestan primas: nada de lo siguiente envía algo salvo que ponga LIVE, y LIVE necesita tu aprobación.
-**Quién hace qué:** los scripts de dealers (`agent.py`, `bz/haggle.py`: compañera) llevan Abuela, El Chato y Pilar. `trader.py` lleva solo a los otros equipos. Los dos gastan la misma caja, así que hay que avisarse antes de una compra grande.
+Los tratos reales cuestan primas: nada de lo siguiente envía algo salvo que ponga EN VIVO, y EN VIVO necesita el visto
+bueno de Thameur.
+**Quién hace qué en nuestra clave compartida:** dealers = scripts de Maru (`agent.py`, `bz/haggle.py`, `bz/predict.py`).
+Tratos con equipos = `trader.py` (sesión del trader). Duelos = `duels.py` bajo `duels_watch.py`, en **una sola
+máquina**. Todos gastan la misma caja, así que hay que avisarse antes de una compra grande o de publicar ofertas.
 
-## 1. Lo que ya está construido (todo de solo lectura, con pruebas)
+## 1. Lo que ya está construido
 
 | Herramienta | Qué hace | Comando |
 |---|---|---|
-| `observe.py` | Registra nuestras puntuaciones cada vez que cambia una. Guarda la etiqueta del experimento y la puntuación de negociar del líder y de la mediana, para distinguir un cambio nuestro de una deriva de todo el campo. | `python3 observe.py` · `python3 observe.py tag E1` |
-| `trader.py` | En cada tick juzga ofertas **solo de otros equipos**, solo por la estructura, con valores del juego (`bz/trade.py`). En sombra por defecto. `--live` acepta ganancias claras y contraoferta. `--live-boards` también acepta ofertas públicas (tope 40 P). Nunca dos ofertas abiertas por una carta, nunca por debajo de la mejor puja reciente. `touch logs/trader.pause` lo para. Cada trato: `TRADES.md`. | `python3 trader.py [--live [--live-boards]]` |
-| `duels.py --ab` | Prueba dividida de la apertura en duelos: alterna dos aperturas según el id del duelo. Sin `--ab` se comporta como antes. | `python3 duels.py --ab 0.45,0.25` |
-| `analyze_duels.py` | Lee la prueba dividida por brazo y por rol. | `python3 analyze_duels.py --since <primer id de duelo>` |
-| Pruebas | 13 comprobaciones de tratos, las del analizador y las antiguas de duelos y precios. | `python3 tests/test_trade.py` y los demás archivos de `tests/` |
-
-Los registros van a `logs/` (puntuación, trader, duelos). No se suben al repositorio.
+| `observe.py` | Guarda nuestra puntuación cada vez que cambia, con la etiqueta del experimento y la puntuación de negociación del líder y de la mediana | `python3 observe.py` · `python3 observe.py tag D2` |
+| `trader.py` | Juzga las ofertas de **otros equipos solamente**, por su estructura, con los valores del juego. En sombra por defecto. `touch logs/trader.pause` lo para. Cada trato va a `TRADES.md` | `python3 trader.py [--live [--live-boards]]` |
+| `trader.py --quotes` | **Quoter:** pujas fijas por cartas que nos faltan para una página y ofertas de venta de repetidas, vigiladas por un guardián. Avisos en `logs/alerts.jsonl` (STOP, UP, WIN, PAGE, OUTBID, STALE, FOREIGN). Solo publica con `--live` | `python3 trader.py --quotes [--quote-budget 180] [--live]` |
+| `duels.py` | Juega cada duelo en vivo. Decide el código; las palabras lo transmiten | `python3 duels.py [--dry]` |
+| `duels_watch.py` | **Supervisor:** arranca `duels.py` cuando hay duelos en vivo, lo reinicia si se cae o si un duelo lleva 3 ticks esperándonos. Avisos DUEL_START, DUEL_SILENT, DUEL_CRASH | `python3 duels_watch.py [--silent 3] [-- <args de duels.py>]` |
+| `analyze_duels.py` | Tasa de tratos, resultado ÷ límite, rondas, por papel y por brazo | `python3 analyze_duels.py --since <primer id de duelo>` |
+| `bz.predict` (Maru) | Un modelo por dealer y tipo de trato. `agent.py` lo usa por defecto | `python3 agent.py learn && python3 -m bz.predict` |
+| `broker.py` (Maru) | Broker para un puesto propio: registra el libro y casa tratos. Sin usar | ver el archivo |
+| Pruebas | tratos, quotes, reglas, duelos, modelos de dealers | `python3 tests/test_trade.py`, `tests/test_quotes.py`, `tests/test_rules.py`, `tests/test_predict.py` … |
 
 ## 2. Los ciclos
 
-| N.º | Ciclo | Cadencia | Qué observar | Regla de decisión (fijada ahora) | Acción |
+| # | Ciclo | Ritmo | Qué mirar | Regla de decisión (fijada ya) | Acción |
 |---|---|---|---|---|---|
-| L1 | **Puntuación** | siempre activo | `logs/score.jsonl`: nuestros números, la etiqueta, la puntuación del líder y de la mediana | Un experimento se lee solo si nuestro número se movió **y** los del líder y la mediana se movieron menos. Si no, repetirlo. | Poner la etiqueta antes de cada experimento: `observe.py tag E1` |
-| L2 | **Ofertas para nosotros** | cada tick | `logs/trader.jsonl`: cuánto valía cada oferta para nosotros | Pasar a LIVE solo tras leer al menos 10 decisiones y estar de acuerdo con todos los ACCEPT. Aun así: una aceptación por tick, solo ganancias claras. | `trader.py` ahora, `--live` después con tu OK |
-| L3 | **Apertura en duelos** | cada sesión de duelos | Tasa de tratos, resultado ÷ nuestro límite, rondas, por brazo y rol | Base de la práctica: 34 duelos, 53 % de tratos, resultado 0,185 del límite (comprador 0,137, vendedor 0,233), 3 rondas. Si el brazo 0,25 tiene una tasa de tratos no menor **y** un resultado a menos de 0,01 del brazo 0,45 o mejor → usar 0,25 en la siguiente sesión. Si es peor por más de 0,03 → mantener 0,45. Algo intermedio → dividir de nuevo. | `duels.py --ab 0.45,0.25`, luego `analyze_duels.py` |
-| L4 | **Dealers** | por dealer | Registros de hilos, `ladder_points` | Por dealer: teoría → simulación gratis → tu aprobación → una conversación real → comparar con la teoría → actualizar el modelo. Parar con 3 buenos tratos por dealer. | Antes de cada sesión: `python3 -m bz.predict` (modelo por dealer; `agent.py` lo usa por defecto, `--model predict`). Un dealer nuevo: `family_of` elige su familia en cuanto se mueva en algún hilo; hasta entonces, el prior (mensajes antes de su final ≈ 6 × paciencia). |
-| L5 | **Market Test** | cada 2 h | `bench_efficiency`, `bench_points`, `market` para nosotros y para el mejor equipo | Test 1: puesto gratis con 0,899 de eficiencia, 0,5 puntos del test, mercado 4,8; mejor equipo 8,01. Si tras el Test 3 el mejor equipo sigue al menos 3 por encima **y** alguien está libre → construir un broker. Si no, mantener el puesto gratis. | Solo lectura |
-| L6 | **Palabras** | cuando L2 pueda enviar | Tasa de respuesta y precio logrado, por formulación | Dos formulaciones (directa frente a etiqueta + una pregunta calibrada), alternadas por mensaje, al menos 10 de cada una. Quedarse con la de mayor tasa de respuesta y luego mejor precio. Nunca probar con El Chato (estricto, memoria larga). | Primero tratos con equipos, luego duelos de precio y días |
+| L1 | **Puntuación** | siempre | `logs/score.jsonl`: nuestros números, la etiqueta, el líder y la mediana | Un experimento solo se lee si nuestro número se movió **y** el líder y la mediana se movieron menos. La negociación es relativa ✅: comparar siempre con la mediana | Poner la etiqueta antes de cada experimento |
+| L2 | **Ofertas que nos hacen** | cada tick | `logs/trader.jsonl` | Cada aceptación debe ganar valor. Nunca vender por debajo de nuestro valor ni una carta que nos falte para una página | `trader.py`; EN VIVO solo con tu visto bueno (`logs/trader.pause` existe desde las 11:09, así que está en pausa) |
+| L3 | **Duelos** | cada sesión | Tasa de tratos, resultado por trato, rondas, duelos sin respuesta | **Base de Duelos I:** 18 tratos de 30, 13,3 por trato; tratos en ≤ 2 rondas 20,4 frente a ≥ 4 rondas 5,7; **8 duelos perdidos por nuestro silencio**. Objetivo Duelos II: 0 sin respuesta, ≥ 80 % de tratos, mediana ≤ 2 rondas, ≥ 18 por trato. Si con menos rondas el resultado por trato baja → volver a la lógica de Duelos I para el domingo | `duels_watch.py` en una máquina, `observe.py tag D2`, luego `analyze_duels.py` |
+| L4 | **Quoter** | cada tick cuando esté EN VIVO | Ventas/compras llenadas, `neg_points`, avisos | Cada compra o venta llenada debe subir `neg_points`. Si una lo baja, o aparece un aviso STALE / FOREIGN, pausar (`touch logs/trader.pause`) y mirar | `trader.py --quotes --live` tras tu visto bueno |
+| L5 | **Dealers** | por dealer | Hilos, `ladder_points`, `neg_points` | Los dealers dan muy poca puntuación (0,14). Tratar solo por valor: cartas de página por debajo de su valor, repetidas por encima. **Ninguna venta por debajo de nuestro valor, ninguna carta de página** | Scripts de Maru, `--model predict` |
+| L6 | **Market Test** | cada 2 h | `bench_efficiency`, `market` nuestro y del mejor equipo | Puesto gratis ahora 0,933 → mercado 7,5; mejor equipo 12,06. Si el broker de Maru supera 0,933 repitiendo en seco el libro del Market Test → probarlo antes del test duro (≈21:30). Si no, seguir con el puesto gratis | Solo lectura hasta decidir |
+| L7 | **Palabras** | primero en tratos con equipos | Tasa de respuesta y precio logrado, por redacción | Dos redacciones (simple frente a etiqueta + una pregunta calibrada), alternadas, al menos 10 de cada. Quedarse con la de más respuestas y luego mejor precio. Nunca con El Chato | Cuando L2 envíe contraofertas |
 
-## 3. Cronograma de hoy (aproximado: el juego va unos 30 minutos por detrás del plan)
+## 3. Calendario (Madrid, estimado desde `/api/schedule` en el tick 583, a las 13:03)
 
-| Cuándo | Hacer |
+| ≈ Cuándo | Qué hacer |
 |---|---|
-| Ahora | Arrancar `observe.py` y `trader.py` (sombra). Leer juntos las primeras decisiones. |
-| ~11:50 | Market Test 2: apuntar los números (L5). |
-| ~12:00 | **Duelos I:** arrancar `duels.py --ab 0.45,0.25` y etiquetar `E1`. Después ejecutar `analyze_duels.py` y aplicar la regla de L3. |
-| Antes de ~18:30 | Duelos II añade el día de entrega (0–10). Revisar la lógica de días con una prueba en seco. Aplicar el resultado de L3. |
-| Todo el día | Dealers nuevos: vigilar `GET /api/levels`. Aplicar L4 a cada uno. |
-| Domingo | Ticks de 15 s. Duelos III y Final (10 % por ronda). Los dealers cierran hacia las 14:30. |
+| 13:50 · 15:50 · 17:50 | Market Tests: apuntar nuestros números y los del mejor equipo (L6) |
+| **16:00–18:00** | **Fiebre de Salamanca de Pilar (+25 % sobre catálogo).** Antes, el equipo decide: vender Salamanca o completar la página |
+| **18:00** | Ensayo en seco `python3 duels.py --dry` en un duelo de dos temas: comprobar `days` y el signo de `days_meaning`. Elegir la máquina de `duels_watch.py` |
+| **18:30** | **Duelos II** (8 % por ronda, 16 ticks, hasta 6 a la vez). `observe.py tag D2`. Después `analyze_duels.py` y aplicar L3 |
+| 19:50 · **21:30 (duro)** · 21:50 | Market Tests |
+| 23:00 | Cierran las puertas |
+| **Domingo** | 09:00 abre (ticks de 15 s). ≈09:30 ronda 3 desde cero, sale Chamberí, +150 P. **≈11:30 Duelos III** (10 %, 12 ticks = 3 min). ≈14:30 cierran los dealers + **Gran Final** (10 %, 12 ticks). ≈15:30 se congela la puntuación |
 
-## 4. Lista de construcción (en este orden)
+## 4. Lista de trabajo (en este orden)
 
-1. **Enviar contraofertas y pujas fijas** (con `expires_in_ticks` largo) por las cartas que necesitamos y por los repetidos. Es LIVE, así que necesita tu aprobación. También permite la prueba de palabras (L6).
-2. **El Chato:** venderle un poco común repetido como primera conversación real (E3). El agente ahora vuelve a comprobar la propiedad antes de cada venta. Ejecutar antes la simulación (`tests/sim_chato.py`).
-3. **Duelos II:** confirmar con una prueba en seco que la lógica de días lee bien `your_days_weight`.
-4. **Broker:** solo si L5 lo indica.
+1. **Lógica de decisión de los Duelos II** (`bz/duel.py`, Thameur + sesión del trader): la doctrina de la sección VI de `ONE_SHEET.es.md`. Aceptar cuando una ronda más no pueda superar el decaimiento, como mucho 2 contraofertas reales, el día de entrega para quien más lo valore. Probarla antes en simulación.
+2. **Guardián de dealers** (Maru): rechazar cualquier venta por debajo de nuestro valor y cualquier carta que nos falte para una página.
+3. **Quoter EN VIVO** con tu visto bueno (180 P en pujas, +79 de valor si todo se llena).
+4. **Broker:** solo si L6 lo pide.
 
 ## 5. Preguntas abiertas que deben responder los experimentos
-- Cómo se reparten los 30 puntos de Negociar entre duelos, dealers y tratos con equipos (E1–E3).
-- Si las puntuaciones son relativas: nuestra puntuación de mercado pasó de 4,8 a 5,23 mientras nuestros puntos del test seguían en 0,5 ⚠️.
-- Cómo se cuenta el bono de página (hasta saberlo, las ofertas que completan una página van a una persona).
+- La fórmula exacta de `neg_points`, `duel_points` y `ladder_points` a los 30 puntos de negociación.
+- Por qué bajó `neg_points` en el tick 567 (¿ventas a Pilar por debajo de su valor?).
+- El bono de maestro.
+- Si las palabras cambian el precio de un rival LLM (L7).

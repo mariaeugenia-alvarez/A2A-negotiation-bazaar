@@ -1,152 +1,233 @@
-# The Bazaar · Hoja de negociación (maestra, v4)
+# The Bazaar · Hoja de negociación (maestra, v5)
 
-Sábado 3 oct 2026 · Equipo 9 · Versión en inglés: `ONE_SHEET.md`
-Las cinco secciones están rellenas. Las secciones II–IV son borradores sin probar. Los ciclos y experimentos están en `PLAYBOOK.es.md`.
-Fuentes: `RULES.md`, diapositivas del kickoff, **Pistas del Día 2**, el mostrador, nuestros datos y registros.
+Sábado 3 oct 2026, 13:05 (tick 583) · Equipo 9 · Versión en inglés: `ONE_SHEET.md` · Ciclos y experimentos: `PLAYBOOK.es.md`
+**Esta hoja es la fuente de verdad para hoy y mañana.** Si otro documento dice otra cosa, manda esta. Corrige el
+otro documento.
+Fuentes: `RULES.md`, diapositivas del kickoff, Pistas del Día 2, **diapositivas de Duelos de la organización**,
+`GET /api/schedule`, nuestros registros (`logs/score.jsonl`, `logs/duels/`, `TRADES.md`, `DEALERS.md`).
 ✅ = comprobado en una fuente o en nuestros datos · ⚠️ = inferencia mía · ❓ = no sabemos
+Forma tomada de *Never Split the Difference* (Voss), apéndice «Negotiation One Sheet»: meta, resumen, etiquetas,
+preguntas calibradas, ofertas no monetarias. Nos quedamos con lo que funciona en un juego donde el código pone los
+precios y cada ronda de charla cuesta puntos. La sección VIII dice qué tomamos y qué dejamos fuera.
+
+---
+
+## 0. Dónde estamos (tick 583) ✅
+
+| | Mañana (tick 249) | Ahora (tick 572) | Comentario |
+|---|---|---|---|
+| **Puntuación total** | 10,4 · puesto 16 | **20,2 · puesto 15** | Máximo 23,0 y puesto 9 en el tick 470; luego los demás equipos nos alcanzaron |
+| Negociación (de 30) | 4,8 | 12,7 | **Relativa al resto**: el equipo mediano pasó de 10,8 a 16,2 |
+| Mercado (de 30) | 4,8 | 7,5 | Puesto gratis. Eficiencia del Market Test 0,899 → 0,933. Los mejores: 10,6–12,1 |
+| `neg_points` (tratos con equipos) | 0 | **23,5** | Nuestra mayor fuente. ≈ el valor ganado en tratos con equipos (+24 según `TRADES.md`) ⚠️ |
+| `duel_points` | 0 | **5,98** | Duelos I: 18 tratos de 30 |
+| `ladder_points` (dealers) | 0 | **0,14** | 13 tratos con dealers casi no lo movieron |
+| Dinero · cartas | 501 P | 326 P · 33 cartas | **Página de Lavapiés completa** (+106 P de valor en cada una de sus cartas) |
+
+**Qué significa:** nuestros puntos vinieron de los tratos con equipos y de los duelos. Los dealers casi no han dado
+puntos. Como la puntuación es relativa, quedarse quieto hace perder puestos.
 
 ---
 
 ## I. LA META
 
-**Meta de hoy: descubrir cuál de los tres sitios nos da más puntos y poner ahí nuestro esfuerzo. Mientras tanto, no perder los puntos seguros.**
+**Meta del sábado (el mejor caso, por escrito para no conformarnos con menos): entre los 8 primeros a las 23:00.**
+**Meta del domingo: entre los 5 primeros al congelar la puntuación.**
 
-### Qué ha cambiado desde el primer borrador (leer primero)
-- **Corregido:** los dealers no se limitan a unos 6 tratos. Hoy llegan más dealers (niveles 3–5), los niveles altos pesan más, y tres buenos tratos con un dealer desbloquean el siguiente antes.
-- **Corregido:** «ningún mercado ha hecho un trato» solo significaba que los mercados de equipos aún no habían abierto. Abrieron en la hora de juego 3,0.
-- **Explicado:** cada día es su propia ronda y **hoy empieza en 0**. Por eso nuestros `neg_points` y `ladder_points` bajaron a 0,0. Los experimentos de hoy son limpios.
-- **Confirmado:** el mostrador dijo que un rival callado en un duelo significa cero para los dos. No quiso decirnos cómo se reparten los 30 puntos. Lo descubrimos con experimentos.
-- **Nuevo en las pistas:** un trato por encima de tu propio valor cuesta puntos. Abrir los duelos con una oferta que la otra parte pueda aceptar. Leer `GET /api/me/offers` en cada tick. Publicar pujas y cambios con `expires_in_ticks`.
-- **Nuevo en nuestros datos:** tenemos un puesto gratis (`v12`). El Market Test 1 le dio un 89,9 % de eficiencia y una puntuación de mercado de 4,8. El juego va unos 30 minutos por detrás del plan.
-- **Comprobado en juego hacia las 11:30 (detalles y cada trato en `TRADES.md`):**
-  - **Los tratos con equipos mueven `neg_points`; los tratos con dealers mueven `ladder_points`.** Vender MAL-10 al equipo 13 llevó `neg_points` de 0 a 4,0. Cinco tratos con dealers no lo movieron.
-  - **Paga la comisión quien acepta.** Si aceptan nuestra oferta, recibimos el precio completo.
-  - **Bono de página = 25 % del valor total de la página, sumado a cada carta de la página completa.** Lavapiés está completa: cada una de sus cartas ganó 106 P de valor. No vender ninguna.
-  - **Quién hace qué:** los scripts de dealers (compañera) llevan Abuela, El Chato y Pilar. `trader.py` lleva solo a los otros equipos. Nada en vivo arranca sin el OK de Thameur.
+| Carril | Objetivo concreto | Por qué es alcanzable |
+|---|---|---|
+| **Duelos II (≈18:30)** | **Ningún duelo sin respuesta.** Tratos ≥ 80 %. Mediana ≤ 2 rondas. Resultado medio por trato ≥ 18 | Duelos I: los tratos en ≤ 2 rondas dieron de media **20,4**; los de ≥ 4 rondas, **5,7**. Nuestro silencio nos costó 8 duelos |
+| **Tratos con equipos** | `neg_points` de 23,5 a **45** a las 23:00. Cada trato debe ganar valor | Seis tratos pequeños ya dieron +24. El quoter está listo (no en vivo) |
+| **Páginas** | Completar **Salamanca** (faltan SAL-06, 07, 09, 10). No romper nunca Lavapiés | Bono de página = +25 % del total de la página en cada carta ✅ |
+| **Dealers** | Solo tratos que ganen valor: cartas de página compradas por debajo de su valor, repetidas vendidas por encima. **Nunca una venta por debajo de nuestro valor, nunca una carta de página** | Los dealers dan muy pocos puntos. Sirven para cartas baratas y desbloqueos, no para puntos |
+| **Mercado** | Mantener 7,5 o más. Decidir sobre el broker de Maru antes del Market Test duro (≈21:30) | Los mejores equipos están en 10,6–12,1 |
 
-### 1. Dónde están los puntos ✅
-- 100 puntos: **Negociar 30**, **Mercado 30**, **Jurado 40**.
-- Negociar sale de tres sitios: **duelos**, **dealers** (Abuela, El Chato y otros nuevos), **tratos con otros equipos**.
-- El viernes cuenta la mitad, el sábado y el domingo cuentan completos. Los tratos del viernes no ayudan a la ronda de hoy.
-- **No sabemos cómo se reparten los 30 puntos entre los tres.**
-- Nunca puntúa: número de tratos, número de anuncios, comisiones, suerte en los sobres, regalos.
-- **Las puntuaciones pueden ser relativas a los demás equipos** ⚠️ (líder cerca de 30, último en 0).
+Los cuatro pasos de Voss para la meta: fijarla, escribirla, decírsela a una compañera (Maru), llevarla encima.
+**El peor caso que no aceptamos:** un trato fuera de nuestro límite, una venta por debajo de nuestro valor, un duelo sin
+respuesta.
 
-### 2. Los tres sitios ✅
+### Reglas fijas (nunca se rompen, ni en código ni a mano)
+1. **Duelos: nunca cruzar nuestro límite.** Como vendedor, nunca por debajo de nuestro coste; como comprador, nunca por encima de nuestro valor. Cruzarlo resta puntos y no le da nada al rival ✅ (diapositivas de la organización).
+2. **Nunca vender una carta por debajo de lo que vale para nosotros. Nunca vender una carta de una página completa ni una que nos falte para una página.**
+3. **Nada EN VIVO sin el visto bueno de Thameur.** Analizar es gratis; negociar gasta primas reales.
+4. **Un dueño por carril en nuestra clave compartida:** dealers = scripts de Maru, tratos con equipos = `trader.py`, duelos = `duels.py`. Antes de publicar una oferta, avisar en la otra terminal.
+5. **Los precios los pone el código.** Las palabras llevan el precio y piden información. Nunca deciden el precio.
 
-| Sitio | Hechos |
-|---|---|
-| **Duelos** | Práctica: 32 duelos, cerramos los 15 en que el rival contestó. Los 12 con rival callado puntuaron cero. Menos de la mitad de los duelos de práctica acabaron en trato (pistas). Cada ronda de conversación encoge el trato: 6 % (Duelos I), 8 % (II), 10 % (III y Final). Comprobado con nuestros datos: 26 × 0,94³ = 21,6. Duelos II añaden un día de entrega (0–10): descubrir a quién le importa más el tiempo. |
-| **Dealers** | Solo cuentan los 3 mejores tratos por dealer, y un hueco vacío es cero. Un trato al precio de apertura no cuenta. La ronda de hoy empieza vacía también con Abuela. Con El Chato tenemos 0. Los dealers notan el spam. El mismo precio no es un movimiento, 20 → 21 → 22 sí. Los precios de los dealers salen de sus propias reglas. |
-| **Tratos con equipos** | Las ofertas hechas para nosotros duran unos 2 ticks. Anoche los equipos 13, 10 y 12 quisieron comprar nuestra rara MAL-10 por 45, 75 y 82 P. Para nosotros vale 63 P. **No contestamos.** También podemos publicar pujas por cualquier copia de una carta, o cambios, con `expires_in_ticks` hasta 120. |
+### Qué ha cambiado desde la v4 (esta mañana)
+- **Medido:** tratos con equipos → `neg_points`, tratos con dealers → `ladder_points`, duelos → `duel_points` ✅. Los 30 puntos de negociación mezclan los tres y son **relativos a los demás equipos** ✅ (los nuestros subieron a 15,5 y bajaron a 12,7 mientras la mediana subía).
+- **Medido:** puntuación del duelo = **nuestro excedente × (1 − decaimiento)^rondas**, exacto. Duelo 2549: excedente 33 × 0,94 = 31,0. Duelo 2327: 40 × 0,94² = 35,3 ✅.
+- **Nuevo de la organización:** te enfrentas a **cada equipo dos veces** (una como vendedor, otra como comprador). Un mensaje por tick. Un acuerdo se liquida en el tick siguiente. Los duelos tienen sus propios límites y nunca bloquean el comercio ✅.
+- **Nuevo en el calendario:** Duelos II con **8 % de decaimiento, 16 ticks y hasta 6 duelos a la vez**. Duelos III y la Final con **10 % y solo 12 ticks** (3 minutos con los ticks de 15 s del domingo) ✅.
+- **Nuevo:** Doña Pilar comercia. Fiebre de Salamanca **≈16:00–18:00**: paga un 25 % sobre catálogo por Salamanca ✅ (calendario).
+- **Nuevo:** Radio Rastro (`GET /api/news`). Algunas noticias son ciertas y mueven el mercado; otras son rumores ✅. Tratar las noticias como pista, nunca como hecho.
+- **Aviso:** en el tick 567 `neg_points` bajó por primera vez (24,2 → 23,5), justo después de que los scripts de dealers vendieran a Pilar MAL-08 (21 P, vale 22,5) y SAL-07 (24 P, vale 27,5, carta de la página de Salamanca). Causa sin probar ⚠️. La regla fija 2 ya lo cubre.
 
-### 3. Valor de las cartas: las reglas que usamos ✅
-- **Valor de una carta** = precio de catálogo × nuestro multiplicador del set × factor de copia. Comprobado con MAL-10: 70 × 0,9 = 63, y una segunda copia 70 × 0,9 × 0,25 = 15,75.
-- **Precios de catálogo:** común 10, poco común 25, rara 70, épica 180, legendaria 450.
-- **Factor de copia:** 1.ª copia 1,0, 2.ª 0,25, 3.ª y siguientes 0,1. Por eso los repetidos nos valen poco y a un equipo al que le falta la carta le valen mucho.
-- **Nuestros multiplicadores privados:** Lavapiés 1,6, El Retiro 1,3, Salamanca 1,1, Malasaña 0,9, Chamberí 0,7, La Latina 0,5. Nuestra mejor página para completar es Lavapiés.
-- **Nunca pagar por encima de tu propio valor.** Vender primero los repetidos, nunca por debajo de lo que vale la copia para nosotros.
-- ✅ **Bono de página:** una página completa suma el 25 % del valor total de la página a cada una de sus cartas, y el `your_value` del juego lo incluye. Nuestra fórmula no, así que el trader lee los valores del juego. El bono de maestro (10 %) aún no está medido. Una carta que completaría una página sigue yendo a una persona.
-- ✅ **Comisiones:** paga la comisión quien acepta (comprobado en nuestros tratos). El Rastro cobra 5 % + 1 P por carta. Si publicamos la oferta y la aceptan ellos, la pagan ellos.
-
-### 4. Los experimentos (una acción, un número que mirar)
-Todas nuestras puntuaciones están ahora a 0,0, así que cualquier cambio de hoy es limpio. Nuestros números están en `GET /api/me` → `score` y se actualizan cada 5 ticks más o menos. Apuntar el número **antes** y **después**.
-
-| N.º | Hacer esto | Mirar esto | Nos dice |
-|---|---|---|---|
-| E1 | Terminar el primer duelo con puntuación (Duelos I) | `duel_points` | ¿Los duelos dan puntos? ¿Cuántos por trato? |
-| E2 | Un trato pequeño con otro equipo | `neg_points` | ¿Los tratos con equipos dan puntos? ¿Coincide con el valor que ganamos? |
-| E3 | Un trato con El Chato (lo aprobamos antes) | `ladder_points` | ¿Los dealers dan puntos? ¿Qué precio cuenta como bueno? |
-
-- **Una cosa cada vez.** Dos acciones juntas esconden cuál movió el número.
-- **Los tratos reales cuestan primas.** Primero teoría, luego simulación gratis, y los tratos reales **solo con tu aprobación.**
-
-### 5. El negociador automático para ofertas de otros equipos (construido: `trader.py`; arreglado tras los errores de la mañana, ver `TRADES.md`)
-- **Lee solo la estructura** (`give` y `want`), nunca las palabras. Las reglas dicen: mirar la oferta, no el mensaje.
-- **Comprar:** aceptar solo si (valor que recibimos) − (dinero que pagamos) − (comisión) supera un margen.
-- **Vender:** nunca por debajo del valor de la copia que damos. Primero los repetidos.
-- **Antes de cada aceptación:** seguimos teniendo la carta, tenemos el dinero, la oferta no ha caducado, y solo una aceptación por tick (la mejor). Nuestro primer hilo con El Chato acabó en `not_owner` porque la carta ya estaba vendida.
-- **También publicar pujas fijas** por las cartas que necesitamos, por debajo de nuestro valor, y ofertas de venta de repetidos, por encima, con caducidad larga.
-- **Leer `GET /api/me/offers` en cada tick.** Usar `next_tick_in` de `GET /api/clock` o el stream de eventos. Un 429 significa «espera al siguiente tick», no es un error.
-- **Caso de prueba de hoy:** el equipo 5 ofrece una copia de LAV-02 por 10 P. Ya tenemos una, así que otra copia nos vale 4 P (16 × 0,25). Las reglas la rechazarían. También habrían rechazado la puja de 45 P por MAL-10 y aceptado las de 75 P y 82 P.
-- **Primero en modo sombra:** muestra lo que aceptaría o contraofertaría y no envía nada. Las aceptaciones automáticas llegan después, solo para ganancias claras, con tu aprobación.
-
-### 6. La parte verbal (etiquetas, espejo, preguntas): lo que de verdad sabemos
-- ✅ Los precios de los dealers salen de sus propias reglas. La inyección de prompts cambia lo que dicen, nunca sus precios.
-- ✅ Todo mensaje que mandamos a un dealer fue una plantilla amable fija con un precio. Nunca probamos etiquetas, espejo ni preguntas, ni mandamos un mensaje seco de control. **No hay ninguna prueba de si el tono cambia un precio.** En 11 intercambios con Abuela bajó unos 1 P por cada subida, con cualquier plantilla (muy pocos para demostrar nada).
-- ✅ Las palabras sí dan **información**. Abuela nos dijo «una página completa vale mucho más», «tu repetida vale oro para quien le falta», y que a El Chato «le gusta la gente que trata sin rodeos».
-- ✅ Los dealers usan estas técnicas con nosotros. El Chato repitió nuestro precio («Veintidós, dices… trece primas») y nos etiquetó («Yo no me muevo si tú apenas te mueves»).
-- ✅ Otros equipos también. El equipo 13 escribió: «It looks like Malasaña is not your focus, while it is ours.»
-- ⚠️ **Hipótesis para probar luego:** las palabras pueden rendir donde la otra parte es un agente con deseos ocultos: tratos con equipos y duelos de precio y días. Probar un cambio cada vez.
-
-### 7. Reloj (hora de Madrid) ✅⚠️
-**El juego va unos 30 minutos por detrás del plan.** El Market Test 1 estaba previsto a las 09:21 y empezó hacia las 09:50 (tick 201).
-
-| Plan de las pistas | Hora real probable |
-|---|---|
-| 09:21 abren mercados de equipos + Market Test 1, luego cada 2 h | empezó ≈ 09:50 |
-| 11:30 Duelos I puntúan | ≈ 12:00 |
-| 18:00 Duelos II (precio + día) | ≈ 18:30 |
-| todo el día: llegan dealers nuevos (pantalla grande, `GET /api/levels`) | |
-| 23:00 cierran las puertas | 23:00 |
-
-Mirar `GET /api/schedule` para las horas reales. Mañana: ticks de 15 s, Duelos III y duelos de la Final (10 % por ronda), cierran los dealers, se congelan las puntuaciones.
-
-### 8. Mercados (30 puntos) ✅
-- **Tres tipos de mercado:** la casa (El Rastro: 5 % + 1 P por carta, ofertas publicadas, sin broker), un mercado `board` (el broker de su dueño empareja ofertas: hay que mantenerlo en marcha) y un mercado `auto` (el motor empareja la mejor compra y la mejor venta en cada tick).
-- **Las comisiones nunca puntúan.** Lo que puntúa: el Market Test (el mismo libro sintético para todos, cada 2 h) y el valor creado entre otros equipos en tu mercado.
-- **Ya tenemos un puesto gratis:** `v12`, auto, sin fianza, abierto en el tick 201. Su comisión era del 3 %; la pusimos al **0 %** en el tick 330, porque las comisiones nunca puntúan y pueden bloquear emparejamientos. Los puntos completos van a la media de los tres mejores mercados.
-- **Resultado del Market Test 1 (ticks 201–217) ✅:** nuestro puesto realizó el **89,9 %** de las ganancias posibles y recibió **0,5 puntos del test**. Tras la actualización de puntuación (tick 220), nuestra puntuación de mercado es **4,8**. Los equipos 14 y 18 muestran el mismo 4,8, como se espera de puestos gratis idénticos.
-- **La mejor puntuación de mercado es la del equipo 12 con 8,01** (un mercado `board`, 0 % de comisión). Son unos **+3,2 sobre el puesto gratis** tras una sesión ⚠️. Hizo 1 trato de 7 P, así que casi todo será del Market Test, no de tratos. No sabemos cómo emparejó. Cada sesión siguiente cuenta por separado y la ronda hace la media.
-- **Hay 18 mercados abiertos,** 7 abiertos por equipos, casi todos con 0 % de comisión. Nuestro propio agente no puede tratar en nuestro propio mercado.
-- **Coste de abrir uno propio:** 250 P de fianza (vuelve tras un periodo de espera) + 20 P. Sustituye al puesto gratis. Solo compensa con un broker que estime los límites ocultos mejor que el puesto. Aún no tenemos ese broker.
-- **Decisión (propuesta):** mantener el puesto gratis por ahora. El puesto gratis ya puntúa 4,8, y el extra de un broker más listo parece de unos 3 puntos. Revisarlo tras el Market Test 2 (hacia las 11:50), y solo si alguien del equipo tiene tiempo para construir el broker. Abrir un mercado con el broker de ejemplo solo repetiría la puntuación del puesto gratis.
-
-### 9. Decisiones del equipo para hoy
-1. **¿Aprobar el negociador en modo sombra?** Solo lee ofertas y muestra decisiones.
-2. **Apertura en duelos:** nuestro código abre al 45 % de nuestro límite (`bz/duel.py`, ajustado solo en simulación). La pista dice abrir con una oferta que la otra parte pueda aceptar. Revisarlo antes de Duelos I (hacia las 12:00).
-3. **El Chato:** aprobar la teoría y la simulación gratis, y luego un trato real cada vez (E3). Sus tres huecos están vacíos, y tres buenos tratos desbloquean el siguiente dealer antes.
-4. **Mercado:** mantener el puesto gratis (4,8 ahora) o construir un broker mejor (el mejor equipo tiene 8,01). Decidir tras el Market Test 2.
-5. **Quién vigila los números de puntuación** antes y después de cada experimento.
+### Valor de las cartas (sin cambios, comprobado) ✅
+- Valor = catálogo × nuestro multiplicador del barrio × factor de copia, más el bono de página si la página está completa. **El trader lee los valores del juego** (`your_value` incluye el bono).
+- Catálogo: común 10, poco común 25, rara 70, épica 180, legendaria 450. Factor de copia: 1.ª 1,0; 2.ª 0,25; 3.ª y siguientes 0,1.
+- Nuestros multiplicadores: Lavapiés 1,6 (**completa**), El Retiro 1,3, Salamanca 1,1, Malasaña 0,9, Chamberí 0,7 (sale el domingo), La Latina 0,5.
+- **Paga la comisión quien acepta** ✅. El Rastro: 5 % + 1 P por carta. Si aceptan nuestra oferta, cobramos el precio entero.
+- Un trato con un dealer al precio con el que abre no cuenta ✅. Solo cuentan los 3 mejores tratos por dealer ✅.
+- Bono de maestro (10 % en el catálogo): ❓ sin medir. No tenemos página maestra.
 
 ---
 
-## II. RESUMEN (hechos a los que queremos que cada parte responda «eso es») ⚠️ aún sin probar
+## II. RESUMEN (lo que cada parte debería contestar con un «Así es»)
+
+Sirve como primera frase de un mensaje o como marco detrás del código. Cuenta los hechos desde **su** lado.
 
 | Contraparte | Resumen |
 |---|---|
-| Otros equipos | Las páginas valen más para el equipo al que le falta una carta. Las ofertas para nosotros duran unos 2 ticks, así que necesitáis respuestas rápidas. Tenemos repetidos y alguna rara, y las valoramos con nuestros propios multiplicadores. |
-| Rival de duelo | Cada ronda de conversación encoge el trato para los dos, y si nadie contesta puntuamos cero los dos. Quieres un trato rápido a un reparto justo, y nosotros también. |
-| Abuela | Eres paciente, te gustan los clientes amables y solo te mueves cuando nos movemos. Una página completa importa más que las cartas sueltas. |
-| El Chato | Tratas sin rodeos, no te mueves por pasos pequeños y tu paciencia es corta (unos 3 mensajes antes de tu última palabra). |
+| **Rival de duelo** (un agente LLM de otro equipo ✅) | «Cada ronda que hablamos, la tarta se encoge para los dos (6–10 %). Si nadie contesta, los dos sacamos cero. Quieres un trato rápido y justo dentro de tu límite, y nosotros también.» |
+| **Rival de duelo, precio + día** | «A cada uno nos importa distinto el día de entrega. Si el día se lo queda quien más lo valora, la tarta crece para los dos, y al otro se le paga con precio.» |
+| **Otros equipos** | «Estás completando páginas, y una carta que te falta vale para ti mucho más que una repetida para nosotros. Tus ofertas caducan en unos 2 ticks, así que quieres respuestas rápidas y claras.» |
+| **Abuela** | «Eres paciente, solo te mueves cuando nos movemos, y premias a los clientes amables y constantes. Una página completa vale más que cartas sueltas.» |
+| **El Chato** | «Tratas derecho. No te mueves por pasos diminutos y nunca das más de lo que damos.» |
+| **Doña Pilar** | «Coleccionas lo que otros tiran. Pagas por encima del catálogo por las cartas que te gustan, y esta tarde tienes fiebre de Salamanca.» |
 
-## III. ETIQUETAS / AUDITORÍA DE ACUSACIONES ⚠️ todas sin probar
+## III. ETIQUETAS / AUDITORÍA DE ACUSACIONES
 
-| Quién | Acusación probable | Etiquetas (3 cada uno) |
+**Dónde las palabras pueden contar:** rivales de duelo y otros equipos, que son agentes LLM con deseos ocultos ⚠️.
+**Con los dealers, las palabras nunca mueven el precio** ✅ (lo decide su código). Ahí las etiquetas solo compran
+información y buena relación.
+**Regla de coste:** una etiqueta va en el **mismo mensaje que un precio**. Nunca cuesta una ronda extra.
+
+| Quién | Acusación que puede hacer | Etiquetas (una por mensaje) |
 |---|---|---|
-| Otros equipos | «Ignoráis las ofertas» / «ofrecéis muy poco» | Parece que esta carta completa vuestra página. · Parece que la rapidez os importa, porque las ofertas desaparecen enseguida. · Parece que os han ignorado ofertas antes. |
-| Rival de duelo | «Abres demasiado bajo» | Parece que el tiempo es valioso para ti. · Parece que prefieres cerrar rápido. · Parece que un reparto justo te importa. |
-| Abuela | «Regateas duro» (sus propias palabras) | Parece que has conocido a muchos clientes duros. · Parece que valoras a los clientes amables. · Parece que una página completa te importa. |
-| El Chato | «Intentas ser listo» (memoria larga, estricto) | Parece que valoras el trato sin rodeos. · Parece que no te gustan los juegos. · Parece que los pasos pequeños no te impresionan. |
+| **Rival de duelo** | «Abres muy codicioso / pierdes rondas» | Parece que quieres cerrar esto rápido. · Parece que te importa un reparto justo. · Parece que el día de entrega te importa mucho. |
+| **Otros equipos** | «Ignoráis ofertas / ofrecéis poco / se la vendisteis a otro» | Parece que esta carta completa tu página. · Parece que te importa la rapidez, porque las ofertas caducan pronto. · Parece que te han ignorado ofertas antes. |
+| **Abuela** | «Regateas duro» (sus palabras) | Parece que has conocido a muchos regateadores duros. · Parece que valoras a los clientes amables. |
+| **El Chato** | «Te estás haciendo el listo» | Parece que valoras el trato derecho. · Parece que los pasos pequeños no te impresionan. |
+| **Pilar** | «Solo venís cuando pago más» | Parece que Salamanca te llega al corazón. · Parece que sabes ver lo que otros pasan por alto. |
 
-Los precios de los dealers siguen sus propias reglas. Con ellos, las etiquetas sirven para información y relación, no para el precio.
+Auditoría de acusaciones para los duelos, una vez, con nuestro precio de apertura: *«Seguramente pensarás que esta
+apertura es algo firme. Está pensada para cerrar en una o dos rondas sin perder tarta.»*
 
-## IV. PREGUNTAS CALIBRADAS ⚠️ todas sin probar
+## IV. PREGUNTAS CALIBRADAS (Qué / Cómo, nunca Por qué)
 
-| Quién | Preguntas |
+| Quién | Preguntas | Qué hacemos con la respuesta |
+|---|---|---|
+| **Rival de duelo, precio + día** | ¿Cuánto te importa el día de entrega? · ¿Qué te cambiaría un día antes (o después)? | El día para quien más lo valora. Su respuesta es una pista; sus **cambios de día por precio** son la prueba |
+| **Rival de duelo, solo precio** | ¿Qué haría que esto te funcione ahora mismo? | Nada en el código. Las palabras no cambian nuestro límite |
+| **Otros equipos** | ¿Cómo encaja esta carta en tu página? · ¿Qué haría que este cambio te funcione? · ¿Qué más te falta? | Sus huecos nos dicen cuánto valen para ellos nuestras repetidas. Los llenamos con ofertas fijas de venta |
+| **Abuela** | ¿Qué buscas en un cliente? | Solo buena relación. Su precio sigue su regla (`bz/predict.py`) |
+| **El Chato** | **No preguntar.** Cada mensaje a él lleva un precio nuevo, o cuenta como spam | |
+| **Pilar** | ¿Qué cartas buscas hoy? | Nos dice qué repetidas llevarle |
+
+## V. OFERTAS NO MONETARIAS
+
+| Quién | Qué puede dar además de dinero |
 |---|---|
-| Otros equipos | ¿Qué haría que este trato os funcionara? · ¿Cómo encaja esta carta en vuestra página? · ¿Qué presión de tiempo tenéis? |
-| Duelos II–III–Final (precio y día) | ¿Qué importancia tiene para ti el día de entrega? · ¿Qué cambiaría para ti una entrega más corta o más larga? (descubre a quién le importa más el tiempo) |
-| Abuela (perdona: memoria 0,15, rigor 0,1) | ¿Qué buscas en un cliente? · ¿Cómo decides quién recibe tu mejor precio? |
-| El Chato (estricto 0,85, memoria 0,9) | **No preguntar todavía.** Reglas: algunos dealers tratan las mismas palabras sin un precio nuevo como spam. Todo mensaje a él lleva un precio nuevo. |
+| **Rival de duelo** | **El día de entrega (0–10)** ✅. Cambiar el día que menos nos importa por precio |
+| **Otros equipos** | Cambios carta por carta ✅ (nuestras dos LAV-06 repetidas por cartas de su página). **Ahorro de comisión:** si aceptan nuestra oferta fija, pagan ellos ✅. Ofertas fijas de larga duración (`expires_in_ticks` hasta 120) |
+| **Abuela** | Regalos (nos regaló una carta en el hilo 108) y consejos («una página completa vale mucho más», «cambia tus repetidas») ✅ |
+| **El Chato** | Mejores sobres y raras sueltas ✅. **Tres buenos tratos desbloquean antes al siguiente dealer** ✅. Le compramos LAV-09/LAV-10 por debajo de su valor (+23, +28) |
+| **Pilar** | Paga **por encima del catálogo** por las cartas que le gustan ✅. Vende sobres de oro ✅ |
 
-## V. OFERTAS SIN DINERO
+---
 
-| Quién | Qué podrían dar además de dinero |
+## VI. DOCTRINA DE DUELOS (Duelos II, III y la Final)
+
+### Lo que nos enseñaron los Duelos I ✅ (30 duelos, sesión 2, de `logs/duels/`)
+| Hecho | Cifra |
 |---|---|
-| Abuela ✅ | Regalos: nos dio una carta («un pequeño regalo de mi parte», hilo 108) y regaló cartas a los equipos 7 y 17. También da consejos: «una página completa vale mucho más», «cambia tus repes». |
-| El Chato | ❓ Desconocido. Compra cartas poco comunes y raras. Tres buenos tratos con él desbloquean antes el siguiente dealer ✅. |
-| Otros equipos | Cambios carta por carta en lugar de dinero ✅ (pistas). Sus huecos de página, que nos dicen cuánto valen nuestros repetidos para ellos. Ofertas con larga vida. Ahorro de comisión si aceptan nuestra oferta, porque paga quien acepta ⚠️. |
-| Rival de duelo | El día de entrega (0–10): cambiar el día que menos nos importa por precio ✅. |
+| Tratos | 18 de 30 (60 %). En práctica: 53 % |
+| **Tratos en ≤ 2 rondas** | 8 tratos, resultado medio **20,4** |
+| **Tratos en ≥ 4 rondas** | 8 tratos, resultado medio **5,7**. El peor: duelo 2486, 9 rondas, resultado 0,6 |
+| **Nuestro agente calló del tick 503 al 553** | **8 duelos perdidos:** 5 en los que el rival ofreció dentro de nuestro límite (2485: subió hasta 106 sobre nuestro coste de 85, y no le contestamos) y 3 que ni abrimos. Unos +60 de resultado perdidos (≈ +25 % sobre nuestro total) |
+| Los rivales abren a menudo **dentro de nuestro límite** | 2338, 2549, 2325: aceptar rápido dio 12–31 |
+| Los rivales corresponden | Un paso real nuestro trae un paso real suyo. Pasos de 1 P traen pasos de 1 P y queman rondas |
 
-Manual con los ciclos, experimentos y reglas de decisión: `PLAYBOOK.es.md`.
+### Las reglas para Duelos II, III y la Final
+1. **Contestar cada duelo desde su primer tick.** Sin silencios. Ejecutar `python3 duels_watch.py` (hecho, b5b9c13): arranca `duels.py` cuando hay duelos en vivo, lo reinicia si se cae o si un duelo lleva 3 ticks esperándonos, y avisa con DUEL_START / DUEL_SILENT / DUEL_CRASH en `logs/alerts.jsonl`. **Solo UNA máquina lo ejecuta** (la de Thameur o la de Maru), o dos agentes hablarían en los mismos duelos ❓ quién ejecutó los Duelos I.
+2. **Abrir con una oferta que la otra parte pueda aceptar** (diapositiva de la organización). Nada de anclas extremas: cada ronda cuesta ahora un 8 % (Duelos II) o un 10 % (domingo).
+3. **Regla de aceptar:** aceptar su oferta si está dentro de nuestro límite y lo que podríamos ganar en una ronda más es **menos que el decaimiento** (8 % o 10 % del excedente en la mesa), o si quedan menos de 3 ticks.
+4. **Como mucho 2 contraofertas**, cada una un **paso real** (nada de pasos de 1 P). Después, aceptar la mejor oferta dentro de nuestro límite.
+5. **Nunca cruzar nuestro límite** (regla fija 1). Si sus ofertas nunca entran en él, no cerrar es lo correcto (duelo 2487).
+6. **Cada mensaje con precio en Duelos II/III incluye `days`** (si no, `400 missing_days`) ✅.
+
+### El día de entrega: cómo hacer crecer la tarta ✅ (diapositiva de la organización) + ⚠️ (nuestra lectura)
+- Cada parte tiene un `your_days_weight` privado, una ganancia o un coste por día. **El trato vale para cada parte excedente de precio + peso × día.**
+- Como cada peso es por día, **el mejor día para la pareja es siempre un extremo: día 0 o día 10** ⚠️. El día se lo queda quien más lo valora; al otro se le paga con precio.
+- **Su primera oferta de día dice qué extremo prefiere. Sus cambios de día por precio dicen cuánto le importa** (`bz/duel.py` ya lo estima).
+- **Si preferimos el mismo extremo:** ofrecer ese día enseguida. Es valor gratis para los dos.
+- **Si preferimos extremos opuestos:** si nuestro peso es mayor, quedarnos nuestro día y pagar hasta (su peso × 10) en precio. Si el suyo es mayor, darle su día y pedir hasta (nuestro peso × 10) en precio.
+- **Antes de las 18:30:** `duels.py --dry` en un duelo de dos temas, y comprobar que `days_meaning` se lee con el signo correcto.
+
+### Calendario de duelos ✅ (de `/api/schedule`, hora de Madrid estimada desde el tick 583 a las 13:03)
+| Sesión | Hora real ≈ | Reloj | Decaimiento por ronda | A la vez | Temas |
+|---|---|---|---|---|---|
+| Duelos II | **Sáb 18:30** | 16 ticks (8 min) | 8 % | hasta 6 | precio + día |
+| Duelos III | **Dom 11:30** | 12 ticks (3 min) | 10 % | hasta 4 | precio + día |
+| Gran Final | **Dom 14:30** | 12 ticks (3 min) | 10 % | hasta 4 | precio + día, en la pantalla grande |
+
+---
+
+## VII. LOS OTROS CARRILES
+
+### Tratos con equipos (`trader.py`, dueña: sesión del trader) ✅
+- **Comprar:** valor recibido − dinero − comisión > margen. **Vender:** nunca por debajo de nuestro valor, primero las repetidas, nunca una carta que nos falte para una página.
+- **Quoter (hecho, no en vivo):** pujas fijas por las cartas que nos faltan y ofertas de venta de repetidas. El guardián lo para cuando debe. Plan del tick 568: pujas RET-02..05 a 8, SAL-06/07 y MAL-06/08 a 20, RET-09 a 68, venta de la LAV-06 repetida a 20. 180 P comprometidas, +79 de valor si todo se llena. **Necesita el visto bueno de Thameur.**
+- **Lecciones de esta mañana:** nunca ofrecer una carta a dos equipos a la vez. Abrir las ventas por encima de la mejor puja vista. Revisar las pujas viejas (si se llenan después de conseguir la carta por otro lado, compramos una repetida que vale el 25 %).
+
+### Dealers (scripts de Maru: `agent.py`, `bz/predict.py`, `DEALERS.md`) ✅
+- **Abuela:** su primera respuesta delata su límite (L = A − 2·d1). Error del modelo ≈ 0,4–0,7 P.
+- **El Chato:** calendario a·k², nunca cede más que nuestro paso. Modelo exacto en 77–98 %. Raras de 97 a 79 en 6 respuestas.
+- **Pilar:** compra MAL/SAL cerca del catálogo. **Fiebre de Salamanca ≈16:00–18:00 (+25 % sobre catálogo).** Decisión del equipo: venderle Salamanca solo si renunciamos a completar Salamanca.
+- **Arreglo pendiente (Maru):** los scripts deben rechazar cualquier venta por debajo de nuestro valor y cualquier carta que nos falte para una página.
+
+### Mercado ✅
+- Puesto gratis: eficiencia 0,933, mercado 7,5. Los mejores equipos: 10,6–12,1.
+- Maru ha hecho un broker (commit c9d2ea1). **Decisión antes del Market Test duro (≈21:30):** probarlo o seguir con el puesto gratis.
+- Market Tests a las ≈13:50, 15:50, 17:50, 19:50, **21:30 (duro: traders más firmes e impacientes)**, 21:50. El domingo, cada 2 h desde ≈10:00.
+
+---
+
+## VIII. QUÉ TOMAMOS DEL LIBRO Y QUÉ DEJAMOS FUERA
+
+| De *Never Split the Difference* | Veredicto | Por qué |
+|---|---|---|
+| Una meta concreta y ambiciosa, escrita y compartida | **Tomado** (sección I) | No cuesta nada. Evita conformarse con el primer número |
+| Un resumen que consiga un «Así es» | **Tomado** para duelos y equipos | Los rivales son agentes LLM. Un marco común puede acelerar el trato ⚠️ |
+| Etiquetas y auditoría de acusaciones | **Tomado, una por mensaje con precio** | Gratis si va con un precio. **Nunca con dealers para el precio**: decide su código |
+| Preguntas calibradas Qué/Cómo | **Tomado** para el día de entrega y los tratos con equipos | Buscan información oculta (el peso del día del rival, los huecos de página del equipo). Ahí las palabras pueden pagar |
+| Ofertas no monetarias | **Tomado** | El día de entrega y los cambios de cartas son moneda no monetaria real aquí |
+| Regateo Ackerman (65 → 85 → 95 → 100 %) | **Fuera** | Cuatro rondas cuestan un 22–34 % de la tarta al 6–10 % por ronda. Los Duelos I lo demostraron: tratos en ≥ 4 rondas dieron 5,7 de media frente a 20,4 |
+| Anclas extremas | **Fuera** | La regla de la organización es «abre con una oferta que la otra parte pueda aceptar». Cada ronda de distancia cuesta puntos |
+| Números precisos, no redondos (37, no 40) | **Tomado** | Gratis. Indica un precio calculado |
+| «Mejor sin trato que con un mal trato» | **Tomado** como regla fija | Un trato fuera del límite resta puntos |
+| Construir relación largo rato, voz de DJ de madrugada, espejos para ganar tiempo | **Fuera** | Un mensaje por tick, y el tiempo cuesta tarta. Texto y código, sin voz |
+| Cisnes negros (hechos ocultos que lo cambian todo) | **Tomado como hábito** | Leer el calendario, `/api/news` y el feed: la fiebre de Pilar y el decaimiento de los duelos eran cisnes negros a la vista de todos |
+
+---
+
+## IX. CALENDARIO Y DECISIONES
+
+### Hoy (Madrid, estimado desde el calendario)
+| ≈ Cuándo | Qué | Quién |
+|---|---|---|
+| 13:50 | Market Test 3 | solo lectura |
+| 15:50 | Market Test 4 | solo lectura |
+| **16:00–18:00** | **Fiebre de Salamanca de Pilar** | scripts de dealers (Maru), solo si el equipo está de acuerdo |
+| 17:50 | Market Test 5 | |
+| **18:00** | **Ensayo en seco de `duels.py` en un duelo de dos temas. Decidir qué máquina ejecuta `duels_watch.py`** | sesión del trader + Thameur |
+| **18:30** | **Duelos II** (8 %, 16 ticks, hasta 6 a la vez) | `duels.py` |
+| 19:50 · 21:30 (duro) · 21:50 | Market Tests | |
+| 23:00 | Cierran las puertas | |
+
+### Domingo
+≈09:00 abre (ticks de 15 s) · ≈09:30 empieza la ronda 3 desde cero, **sale Chamberí**, +150 P para todos ·
+**≈11:30 Duelos III** · ≈14:30 cierran los dealers y **Gran Final** de duelos · 15:00 cierran las puertas · ≈15:30 se congela la puntuación.
+
+### Decisiones para Thameur y Maru ahora
+1. **¿Quoter EN VIVO?** 180 P en pujas fijas por cartas de página, +79 de valor si todo se llena.
+2. **Maru:** bloquear las ventas a dealers por debajo de nuestro valor y las de cartas de página. ¿Vendemos Salamanca a Pilar durante la fiebre o completamos la página?
+3. **Duelos II:** aprobar la doctrina de la sección VI (tratos rápidos, como mucho 2 contraofertas, la regla del día de entrega). Thameur y la sesión del trader la pasan a `bz/duel.py` después del trabajo de mercado. **Y: ¿qué máquina ejecutó `duels.py` en los Duelos I? Solo una puede ejecutar `duels_watch.py`.**
+4. **Mercado:** ¿probar el broker de Maru antes de las 21:30 o seguir con el puesto gratis?
+5. **Quién vigila la puntuación** durante los Duelos II (`observe.py tag D2`).
+
+### Preguntas abiertas ❓
+- La fórmula exacta que convierte `neg_points`, `duel_points` y `ladder_points` en los 30 puntos de negociación.
+- Por qué bajó `neg_points` en el tick 567.
+- El bono de maestro.
+- Si las palabras cambian el precio de un rival LLM (probar una redacción contra otra, primero en tratos con equipos).

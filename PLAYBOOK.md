@@ -1,53 +1,60 @@
-# The Bazaar · Playbook: test, observe, improve (v1)
+# The Bazaar · Playbook: test, observe, improve (v2)
 
-Saturday 3 Oct 2026 · Team 9 · Spanish version: `PLAYBOOK.es.md` · Strategy: `ONE_SHEET.md`
+Saturday 3 Oct 2026, 13:05 (tick 583) · Team 9 · Spanish version: `PLAYBOOK.es.md` · Strategy and source of truth: `ONE_SHEET.md`
 
 **Rule for every loop: one change, one number to watch, and the decision rule written down BEFORE we look at the result.**
-Real trades cost primas: nothing below sends anything unless it says LIVE, and LIVE needs your approval.
-**Who does what:** the dealer scripts (`agent.py`, `bz/haggle.py`: teammate) handle Abuela, El Chato and Pilar. `trader.py` handles other teams only. Both spend the same cash, so tell each other before a big purchase.
+Real trades cost primas: nothing below sends anything unless it says LIVE, and LIVE needs Thameur's approval.
+**Who does what on our shared key:** dealers = Maru's scripts (`agent.py`, `bz/haggle.py`, `bz/predict.py`).
+Team trades = `trader.py` (trader session). Duels = `duels.py` under `duels_watch.py`, on **one machine only**. All of
+them spend the same cash, so tell each other before a big purchase or before posting offers.
 
-## 1. What is built now (all read-only, tested)
+## 1. What is built now
 
 | Tool | What it does | Command |
 |---|---|---|
-| `observe.py` | Records our score numbers whenever one changes. Stores the experiment tag, plus the leader's and the median's negotiating score, to tell our change from a drift of the whole field. | `python3 observe.py` · `python3 observe.py tag E1` |
-| `trader.py` | Every tick judges offers from **other teams only**, by structure only, with values from the game (`bz/trade.py`). Shadow by default. `--live` accepts clear wins and counters. `--live-boards` also accepts public asks (40 P cap). Never two open offers for one card, never below the best recent bid. `touch logs/trader.pause` stops it. Every trade: `TRADES.md`. | `python3 trader.py [--live [--live-boards]]` |
-| `duels.py --ab` | Split test of the duel opening: alternates two openings by duel id. Without `--ab` it behaves as before. | `python3 duels.py --ab 0.45,0.25` |
-| `analyze_duels.py` | Reads the split test per arm and per role. | `python3 analyze_duels.py --since <first duel id>` |
-| Tests | 13 trade checks, analyzer checks, the older duel and price checks. | `python3 tests/test_trade.py` and the other files in `tests/` |
-
-Logs go to `logs/` (score, trader, duels). They are not committed.
+| `observe.py` | Records our score numbers whenever one changes, with the experiment tag and the leader's and median's negotiating score | `python3 observe.py` · `python3 observe.py tag D2` |
+| `trader.py` | Judges offers from **other teams only**, by structure, with values from the game. Shadow by default. `touch logs/trader.pause` stops it. Every trade goes in `TRADES.md` | `python3 trader.py [--live [--live-boards]]` |
+| `trader.py --quotes` | **Quoter:** standing bids for missing page cards, asks for spares, watched by a guard. Alerts in `logs/alerts.jsonl` (STOP, UP, WIN, PAGE, OUTBID, STALE, FOREIGN). Posts only with `--live` | `python3 trader.py --quotes [--quote-budget 180] [--live]` |
+| `duels.py` | Plays every live duel. The code decides, the words carry it | `python3 duels.py [--dry]` |
+| `duels_watch.py` | **Supervisor:** starts `duels.py` when duels go live, restarts it after a crash or when a live duel waits 3 ticks for us. Alerts DUEL_START, DUEL_SILENT, DUEL_CRASH | `python3 duels_watch.py [--silent 3] [-- <duels.py args>]` |
+| `analyze_duels.py` | Deal rate, result ÷ limit, rounds, per role and per arm | `python3 analyze_duels.py --since <first duel id>` |
+| `bz.predict` (Maru) | One model per dealer and kind of deal. `agent.py` uses it by default | `python3 agent.py learn && python3 -m bz.predict` |
+| `broker.py` (Maru) | Broker for our own venue: records the book, matches trades. Not in use | see the file |
+| Tests | trade, quotes, rules, duel, dealer models | `python3 tests/test_trade.py`, `tests/test_quotes.py`, `tests/test_rules.py`, `tests/test_predict.py` … |
 
 ## 2. The loops
 
 | # | Loop | Cadence | Observe | Decision rule (fixed now) | Action |
 |---|---|---|---|---|---|
-| L1 | **Score** | always on | `logs/score.jsonl`: our numbers, the tag, the leader's and the median's score | An experiment is read only if our number moved **and** the leader and median numbers moved less. Otherwise repeat it. | Set the tag before each experiment: `observe.py tag E1` |
-| L2 | **Offers to us** | every tick | `logs/trader.jsonl`: what each offer was worth to us | Go LIVE only after you have read at least 10 decisions and agree with every ACCEPT. Even then: one accept per tick, clear wins only. | `trader.py` now, `--live` later with your OK |
-| L3 | **Duel opening** | each duel session | Deal rate, result ÷ our limit, rounds, per arm and role | Practice baseline: 34 duels, 53% deals, result 0.185 of the limit (buyer 0.137, seller 0.233), 3 rounds. If arm 0.25 has a deal rate no lower **and** a result within 0.01 of arm 0.45 or better → use 0.25 in the next session. If it is worse by more than 0.03 → keep 0.45. Anything in between → split again. | `duels.py --ab 0.45,0.25`, then `analyze_duels.py` |
-| L4 | **Dealers** | per dealer | Thread logs, `ladder_points` | Per dealer: theory → free simulation → your approval → one real conversation → compare with the theory → update the model. Stop at 3 good deals per dealer. | Before each session: `python3 -m bz.predict` (one model per dealer; `agent.py` uses it by default, `--model predict`). A new dealer: `family_of` picks its family once it moves in some thread; until then, the prior (messages before the final ≈ 6 × patience). |
-| L5 | **Market Test** | every 2 h | `bench_efficiency`, `bench_points`, `market` for us and for the best team | Test 1: free stall 0.899 efficiency, 0.5 bench points, market 4.8; best team 8.01. If after Test 3 the best team is still at least 3 above us **and** someone is free → build a broker. Otherwise keep the free stall. | Read only |
-| L6 | **Words** | after L2 can send | Reply rate and price reached, per wording | Two wordings (plain vs label + one calibrated question), alternated per message, at least 10 each. Keep the one with the higher reply rate, then the better price. Never test on El Chato (strict, long memory). | Team trades first, then price-and-days duels |
+| L1 | **Score** | always on | `logs/score.jsonl`: our numbers, the tag, the leader and the median | An experiment is read only if our number moved **and** the leader and median moved less. The negotiating score is relative ✅, so always compare with the median | Set the tag before each experiment |
+| L2 | **Offers to us** | every tick | `logs/trader.jsonl` | Every accept must gain value. Never sell below our value or a card we need for a page | `trader.py`; LIVE only with your OK (`logs/trader.pause` exists since 11:09, so it is paused) |
+| L3 | **Duels** | each session | Deal rate, result per deal, rounds, unanswered duels | **Duels I baseline:** 18 deals of 30, result 13.3 per deal, deals in ≤ 2 rounds 20.4 vs ≥ 4 rounds 5.7, **8 duels lost to our silence**. Duels II target: 0 unanswered, ≥ 80% deals, median ≤ 2 rounds, ≥ 18 per deal. If the result per deal is lower with fewer rounds → go back to the Duels I logic for Sunday | `duels_watch.py` on one machine, `observe.py tag D2`, then `analyze_duels.py` |
+| L4 | **Quoter** | every tick once LIVE | Fills, `neg_points`, alerts | Each fill must raise `neg_points`. If a fill lowers it, or a STALE / FOREIGN alert appears, pause (`touch logs/trader.pause`) and look | `trader.py --quotes --live` after your OK |
+| L5 | **Dealers** | per dealer | Thread logs, `ladder_points`, `neg_points` | Dealer score is tiny (0.14). Deal only for value: page cards below value, spares above it. **No sale below our value, no page card** | Maru's scripts, `--model predict` |
+| L6 | **Market Test** | every 2 h | `bench_efficiency`, `market` for us and the best team | Free stall now 0.933 → market 7.5, best team 12.06. If Maru's broker beats 0.933 in a dry replay of the Market Test book → try it before the hard test (≈21:30). Otherwise keep the free stall | Read only until decided |
+| L7 | **Words** | team trades first | Reply rate and price reached, per wording | Two wordings (plain vs label + one calibrated question), alternated, at least 10 each. Keep the one with the higher reply rate, then the better price. Never on El Chato | After L2 sends counters |
 
-## 3. Today's timeline (approximate: the game runs about 30 minutes behind the plan)
+## 3. Timeline (Madrid, estimated from `/api/schedule` at tick 583, 13:03)
 
-| When | Do |
+| ≈ When | Do |
 |---|---|
-| Now | Start `observe.py` and `trader.py` (shadow). Read the first decisions together. |
-| ~11:50 | Market Test 2: note the numbers (L5). |
-| ~12:00 | **Duels I:** start `duels.py --ab 0.45,0.25` and tag `E1`. Afterwards run `analyze_duels.py` and apply the L3 rule. |
-| Before ~18:30 | Duels II adds the delivery day (0–10). Check the days logic with a dry run. Apply the L3 result. |
-| All day | New dealers: watch `GET /api/levels`. Run L4 on each. |
-| Sunday | Ticks of 15 s. Duels III and Final (10% per round). Dealers close about 14:30. |
+| 13:50 · 15:50 · 17:50 | Market Tests: write down our numbers and the best team's (L6) |
+| **16:00–18:00** | **Pilar's Salamanca fever (+25% over book).** Team decides first: sell Salamanca or finish the page |
+| **18:00** | Dry run `python3 duels.py --dry` on a two-issue duel: check `days` and the sign of `days_meaning`. Choose the machine for `duels_watch.py` |
+| **18:30** | **Duels II** (8% per round, 16 ticks, up to 6 at once). `observe.py tag D2`. Afterwards `analyze_duels.py` and apply L3 |
+| 19:50 · **21:30 (hard)** · 21:50 | Market Tests |
+| 23:00 | Doors close |
+| **Sunday** | 09:00 opens (15-second ticks). ≈09:30 round 3 at zero, Chamberí released, +150 P. **≈11:30 Duels III** (10%, 12 ticks = 3 min). ≈14:30 dealers close + **Grand Final** (10%, 12 ticks). ≈15:30 scores freeze |
 
 ## 4. Build list (in this order)
 
-1. **Send counters and standing bids** (long `expires_in_ticks`) for cards we need and for spares. This is LIVE, so it needs your approval. It also unlocks the words test (L6).
-2. **El Chato:** sell one spare uncommon to him as the first real conversation (E3). The agent now rechecks ownership before each sale. Run the simulation first (`tests/sim_chato.py`).
-3. **Duels II:** confirm the days logic reads `your_days_weight` correctly in a dry run.
-4. **Broker:** only if L5 says so.
+1. **Duel decision logic for Duels II** (`bz/duel.py`, Thameur + trader session): the doctrine in `ONE_SHEET.md` section VI. Accept when one more round can't beat the decay, at most 2 real counters, the delivery day goes to whoever cares more. Test it in simulation first.
+2. **Dealer guard** (Maru): refuse any sale below our value and any card we need for a page.
+3. **Quoter LIVE** with your OK (180 P of bids, +79 of value if all fill).
+4. **Broker:** only if L6 says so.
 
 ## 5. Open questions the experiments must answer
-- How the 30 Negotiating points split between duels, dealers and team trades (E1–E3).
-- Whether scores are relative: our market score moved 4.8 → 5.23 while our bench points stayed at 0.5 ⚠️.
-- How the page bonus is counted (until then, page-completing offers go to a person).
+- The exact formula from `neg_points`, `duel_points` and `ladder_points` to the 30 negotiating points.
+- Why `neg_points` fell at tick 567 (Pilar sales below value?).
+- The master bonus.
+- Whether words change an LLM rival's price (L7).
