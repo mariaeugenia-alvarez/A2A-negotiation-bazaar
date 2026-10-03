@@ -25,7 +25,7 @@ Among packages worth the same U to us we offer his day if a day matters less to 
 
 OPEN_FRAC = 0.45  # sim (tests/sim_duel.py): 0.45 + 3 exchanges + beta 2 gave 0.48 of the pie vs 0.36 for v0
 COST_WORDS = ("cost", "lose", "loss", "penal", "worse", "less", "delay hurts")
-GAIN_WORDS = ("gain", "earn", "worth", "value", "benefit", "better", "more")
+GAIN_WORDS = ("adds", "gain", "earn", "worth", "value", "benefit", "better", "more")
 
 
 def surplus(role: str, limit: float, price: float) -> float:
