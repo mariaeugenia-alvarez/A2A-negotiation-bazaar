@@ -185,6 +185,29 @@ def test_render_escapes_script_end():
     assert "</script><b>" not in html and "<\\/script>" in html
 
 
+
+
+def test_duel_live_board_switch_and_next():
+    def v(i, session, status, result=None, rounds=1, decisions=None):
+        d = {"duel": i, "session": session, "status": status, "role": "buyer", "item": "x", "your_limit": 100,
+             "deadline_tick": 50, "price": 80 if status == "deal" else None, "result": result, "rounds": rounds,
+             "messages": [{"tick": 40, "from": "Rival", "price": 90}]}
+        return dash.duel_view(d, decisions or [])
+    old = [v(1, 2, "deal", 10.0), v(2, 2, "no_deal")]
+    k = [{"tick": 40, "kind": "self", "why": "x"}]
+    cur = [v(3, 3, "deal", 20.0, decisions=k), v(4, 3, "no_deal", decisions=k), v(5, 3, "no_deal", decisions=k),
+           v(6, 3, "no_deal", decisions=k), v(7, 3, "no_deal", decisions=k), v(8, 3, "live", decisions=k)]
+    up = [{"at_hours": 11.65, "action": "duels", "note": "Duels II", "params": {"name": "Duels II", "duel_ticks": 16}}]
+    L = dash.duel_live(old + cur, {"tick": 45, "t_hours": 11.0}, up)
+    assert L["session"] == 3 and L["prev_session"] == 2 and L["live"] == [8]
+    assert L["board"]["done"] == 5 and L["board"]["deals"] == 1 and L["board"]["deal_rate"] == 0.2
+    assert L["before"]["deals"] == 1 and L["switch"] == "trip" and L["v2"]
+    assert L["next"]["minutes"] == 39
+    assert cur[0]["start"] == 34  # deadline 50 - 16 ticks
+    L2 = dash.duel_live(old, {"tick": 45, "t_hours": 11.0}, up)
+    assert L2["switch"] is None  # an old session without the waiting play has no switch
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

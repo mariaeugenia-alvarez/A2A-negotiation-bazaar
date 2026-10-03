@@ -16,6 +16,7 @@ import json
 import os
 import re
 import statistics
+import subprocess
 import time
 import urllib.request
 from collections import Counter, defaultdict
@@ -307,6 +308,8 @@ def duel_view(d: dict, decisions: list) -> dict:
         "issues": d.get("issues"), "limit": lim, "limit_meaning": d.get("limit_meaning"), "rival": d.get("rival"),
         "status": d.get("status"), "price": d.get("price"), "days": d.get("days"), "result": res,
         "rounds": d.get("rounds"), "decay": d.get("decay_per_round"), "deadline": d.get("deadline_tick"),
+        "start": min([d["deadline_tick"] - (12 if (d.get("decay_per_round") or 0) >= 0.1 else 16)]
+                     + [m["tick"] for m in msgs if m.get("tick") is not None]) if d.get("deadline_tick") else None,
         "days_weight": d.get("your_days_weight"), "days_meaning": d.get("days_meaning"),
         "messages": [{"tick": m.get("tick"), "who": "us" if m.get("from") == "you" else "rival", "text": m.get("text"),
                       "price": m.get("price"), "days": m.get("days")} for m in msgs],
@@ -330,6 +333,59 @@ def duel_summary(duels: list) -> list:
                     "rival_open": round(statistics.mean(d["rival_open_share"] for d in ds if d["rival_open_share"] is not None), 2)
                     if any(d["rival_open_share"] is not None for d in ds) else None})
     return out
+
+
+def running(pattern: str) -> bool:
+    """Is a process whose command line matches `pattern` running on this machine (pgrep -f)?"""
+    try:
+        return subprocess.run(["pgrep", "-f", pattern], capture_output=True, timeout=3).returncode == 0
+    except Exception:
+        return False
+
+
+def session_stats(ds: list) -> dict:
+    done = [d for d in ds if d["status"] in ("deal", "no_deal")]
+    deals = [d for d in done if d["status"] == "deal" and d["result"] is not None]
+    return {"duels": len(ds), "live": sum(d["status"] == "live" for d in ds), "done": len(done), "deals": len(deals),
+            "no_deals": len(done) - len(deals), "deal_rate": round(len(deals) / len(done), 2) if done else None,
+            "mean_result": round(statistics.mean(d["result"] for d in deals), 1) if deals else None,
+            "points": round(sum(d["result"] for d in deals), 1),
+            "mean_rounds": round(statistics.mean(d["rounds"] or 0 for d in deals), 1) if deals else None}
+
+
+def duel_live(duels: list, clock: dict, upcoming: list, switch_rate: float = 0.7, switch_min: int = 5) -> dict:
+    """What the Live panel of the Duelos page needs: the session being played (or the last one), its scoreboard
+    next to the session before, the safety switch, the duel agent's health and the next duel session."""
+    tick = (clock or {}).get("tick")
+    sessions = sorted({d["session"] for d in duels if d.get("session") is not None})
+    live = [d for d in duels if d["status"] == "live"]
+    cur = max((d["session"] for d in live), default=sessions[-1] if sessions else None)
+    prev = max((s for s in sessions if cur is not None and s < cur), default=None)
+    board = session_stats([d for d in duels if d.get("session") == cur]) if cur is not None else None
+    before = session_stats([d for d in duels if d.get("session") == prev]) if prev is not None else None
+    switch = None
+    v2 = any("kind" in e for d in duels if d.get("session") == cur for e in d["decisions"])  # played by the waiting play
+    if not v2:
+        switch = None
+    elif board and board["done"] >= switch_min:
+        switch = "ok" if board["deal_rate"] >= switch_rate else "trip"
+    elif board and board["live"]:
+        switch = "wait"
+    last_dec = max((e.get("tick") or 0 for d in duels for e in d["decisions"]), default=None)
+    alerts = [a for a in read_jsonl(os.path.join(log.LOG_DIR, "alerts.jsonl")) if str(a.get("level", "")).startswith("DUEL")]
+    nxt = None
+    th = (clock or {}).get("t_hours")
+    for u in upcoming or []:
+        if u.get("action") == "duels" and th is not None and u["at_hours"] >= th:
+            nxt = {"name": (u.get("params") or {}).get("name") or u.get("note"), "note": u.get("note"),
+                   "minutes": round((u["at_hours"] - th) * 60), "params": u.get("params")}
+            break
+    return {"tick": tick, "paused": (clock or {}).get("paused"), "session": cur, "prev_session": prev,
+            "live": [d["id"] for d in live], "board": board, "before": before, "switch": switch,
+            "switch_rate": switch_rate, "switch_min": switch_min, "v2": v2,
+            "watch": {"duels_watch": running("duels_watch\\.py"), "duels_py": running("(^|[ /])duels\\.py"), "last_decision_tick": last_dec},
+            "alerts": [{"ts": a.get("ts"), "level": a.get("level"), "text": a.get("text")} for a in alerts[-8:]],
+            "next": nxt}
 
 
 # ---------------------------------------------------------------- the market: what the trader does with offers
@@ -613,6 +669,7 @@ def build(offline: bool = False, key: bool = True) -> dict:
         "wallet": ({"cash": st.me.get("cash"), "level": st.me.get("level"), "collection": st.me.get("collection_value"),
                     "album": (st.me.get("album") or {}).get("filled")} if st else None),
         "duels": duels, "duel_summary": duel_summary(duels), "formulas": formulas(b, st, model, traits),
+        "duel_live": duel_live(duels, pub.get("clock"), (pub.get("schedule") or {}).get("upcoming") or []),
         "market": market_view(pub, b, st, me), "notes": notes(), "testbed": testbed_view(),
         "collection": collection_view(st),
     }
