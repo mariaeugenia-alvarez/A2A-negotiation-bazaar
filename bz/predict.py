@@ -356,7 +356,7 @@ def advise(dealer: str, side: str, kind: str, opening: int, history: list, limit
         room = chato_allowance(k, a, b) - conceded
         step = max(1, room)
         if ours is None:
-            return {"action": "offer", "price": clip(opening - d * max(4, round(opening * 0.4))), "her_next": opening,
+            return {"action": "offer", "price": clip(opening - d * max(4, math.floor(opening * 0.38))), "her_next": opening,
                     "why": "open far: he gives nothing on his first answers anyway"}
         nxt = chato_next(her, conceded, k, step, a, b, side)
         why = f"his schedule allows {room} more on answer {k}; he never gives more than our step: step {step}"
