@@ -110,11 +110,12 @@ def wanted_refs(o: dict) -> list:
 
 
 def judge(offer: dict, values, by_ref: dict, cash: int, fees: dict, missing: dict, me_id: str,
-          reserved=frozenset(), pending=frozenset()) -> dict:
+          reserved=frozenset(), pending=frozenset(), hands_off=frozenset()) -> dict:
     """values: GameValues (live) or a bz.price.Valuer (wrapped in FormulaValues, for tests).
     reserved: asset ids already given in one of our open offers; they are never offered or handed over twice.
     pending: cards our own open bids already ask for. Getting one here too could leave us a duplicate worth ~25 %
-    when the bid fills, so those go to a person. cash: pass what is free, i.e. minus the cash our open bids promise."""
+    when the bid fills, so those go to a person. cash: pass what is free, i.e. minus the cash our open bids promise.
+    hands_off: cards a person is working on by hand (RET-09): never accepted, never countered, never quoted."""
     if hasattr(values, "card_value"):
         values = FormulaValues(values, by_ref)
     out = {"offer": offer.get("id"), "maker": offer.get("maker"), "venue": offer.get("venue")}
@@ -162,6 +163,8 @@ def judge(offer: dict, values, by_ref: dict, cash: int, fees: dict, missing: dic
         ref = a.get("ref")
         if a.get("kind") != "card":
             return {**out, "action": "human", "why": f"offers {a.get('kind')} {ref}: not valued yet"}
+        if ref in hands_off:
+            return {**out, "action": "human", "why": f"{ref} is hands-off: a person is buying it"}
         if ref in pending:
             return {**out, "action": "human", "why": f"we already bid for {ref}: if both fill, one copy is worth ~25 %"}
         s = ref.split("-")[0]

@@ -142,4 +142,11 @@ d = judge(ask, Valuer(CATALOG, AFF, {}), {}, 300, FEES, MISSING, "t09", pending=
 assert d["action"] == "human" and "already bid" in d["why"], d
 assert wanted_refs({"want": {"cards": ["RET-02"]}}) == ["RET-02"]
 assert wanted_refs({"want": {"types": ["card:MAL-06"], "assets": [{"ref": "SAL-01"}]}}) == ["MAL-06", "SAL-01"]; checks += 3
+# 13. hands-off: a card a person is buying is never accepted, countered or taken, even when it is a clear win
+ask = offer({"assets": [card(80, "LAV-03")]}, {"cash": 5}, venue="v02", maker="t06")
+assert run(ask, [])["action"] == "accept"
+d = judge(ask, Valuer(CATALOG, AFF, {}), {}, 300, FEES, MISSING, "t09", hands_off={"LAV-03"})
+assert d["action"] == "human" and "hands-off" in d["why"], d
+d = judge(ask, Valuer(CATALOG, AFF, {}), {}, 300, FEES, MISSING, "t09", hands_off={"RET-09"})
+assert d["action"] == "accept", d; checks += 3
 print(f"test_trade: {checks} checks passed")

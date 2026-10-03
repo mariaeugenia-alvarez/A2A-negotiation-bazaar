@@ -60,7 +60,7 @@ def plan(missing: dict, pages: list, spares: list, value_of, rarity_of, book: di
             if gain < margin(v):
                 continue
             bids.append({"side": "bid", "ref": ref, "price": p, "value": round(v, 1), "gain": round(gain, 1),
-                         "set": s, "left": left.get(s, 99)})
+                         "set": s, "left": left.get(s, 99), "ratio": round(p / book[r], 2)})
     # a page 3 cards or fewer from complete comes first (its bonus is in reach), then the best gain per primas promised
     bids.sort(key=lambda q: (0 if q["left"] <= CLOSE else 1, q["left"] if q["left"] <= CLOSE else 0, -q["gain"] / q["price"]))
     out, spent = [], 0
@@ -73,5 +73,6 @@ def plan(missing: dict, pages: list, spares: list, value_of, rarity_of, book: di
         r = rarity_of(a["ref"])
         v = float(a.get("your_value") or 0)
         p = ask_price(v, book[r], r)
-        out.append({"side": "ask", "ref": a["ref"], "price": p, "value": v, "gain": round(p - v, 1), "asset": a["id"]})
+        out.append({"side": "ask", "ref": a["ref"], "price": p, "value": v, "gain": round(p - v, 1), "asset": a["id"],
+                    "ratio": round(p / book[r], 2)})
     return out[:max_quotes]

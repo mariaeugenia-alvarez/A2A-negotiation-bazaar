@@ -11,7 +11,7 @@ import subprocess
 from bazaar_sdk import BazaarError
 
 from . import log
-from .guard import Guard, CASH_FLOOR
+from .guard import Guard, STALE_TICKS, bid_budget, earmark_total
 from .quotes import plan
 from .trade import wanted_refs
 
@@ -40,11 +40,21 @@ def load_own() -> dict:
 
 
 class Quoter:
-    def __init__(self, b, budget: int, notify: bool = False):
+    def __init__(self, b, budget: int, notify: bool = False, earmark: dict = None, hands_off: set = None):
         self.b, self.budget, self.notify = b, budget, notify
+        self.hands_off = set(hands_off or ())  # cards a person buys by hand (RET-09): no quote, ever
+        self.earmark = dict(earmark or {})  # {"RET-09": 60}: cash kept for a hand purchase, released when the card is ours
         self.own = load_own()
         self.guard = Guard()
+        self.scale = 1.0
+        self.last_posted_cash = 0  # cash promised by the bids this quoter posted in its latest step
+        self.wrote_pause = False  # did OUR guard write logs/trader.pause? only then do we reset when it is removed
         self.told = set()  # alerts already given once
+
+    def set_scale(self, scale: float) -> None:
+        """Ticks get shorter on Sunday (15 s): every tick-based window grows by 30 / tick seconds."""
+        self.scale = scale
+        self.guard.scale = scale
 
     def alert(self, level: str, text: str, once: str = None) -> None:
         if once:
@@ -53,7 +63,7 @@ class Quoter:
             self.told.add(once)
         log.event("alerts", level=level, text=text)
         log.say(f"ALERT {level}: {text}")
-        if self.notify and level in ("STOP", "WIN", "PAGE", "FOREIGN"):
+        if self.notify and level in ("STOP", "WIN", "PAGE", "FOREIGN", "SCORE-DROP", "RESUME"):
             try:
                 subprocess.run(["osascript", "-e", f'display notification "{text[:180]}" with title "Bazaar {level}"'],
                                timeout=3, check=False)
@@ -62,6 +72,10 @@ class Quoter:
 
     def step(self, tick: int, st, mine: list, values, best_bid, settlement_for, pause_file: str, acting: bool) -> None:
         me_id, cash = st.me["id"], st.cash
+        self.last_posted_cash = 0
+        if self.guard.stopped and self.wrote_pause and not os.path.exists(pause_file):
+            self.guard.reset()  # a person looked and deleted the file: without this we would write it again at once
+            self.wrote_pause = False
         open_ours = {o["id"]: o for o in mine if o.get("maker") == me_id and o.get("status") == "open"}
         # 1. quotes that closed since last tick: filled (the feed has the settlement) or expired
         for oid in [i for i in self.own if i not in open_ours]:
@@ -72,7 +86,7 @@ class Quoter:
                       settled=(hit or {}).get("price"), tick=tick)
             if hit:
                 self.guard.fill(tick, q["ref"], q["side"], int(hit.get("price") or q["price"]), q["value"])
-        self.guard.score((st.me.get("score") or {}).get("neg_points"))
+        self.guard.score((st.me.get("score") or {}).get("neg_points"), tick)
         # 2. foreign offers on our key: count them, report them once, never touch them
         foreign = [o for i, o in open_ours.items() if i not in self.own and not o.get("to")]
         for o in foreign:
@@ -98,8 +112,13 @@ class Quoter:
             if bb:
                 others[ref] = bb
         spares = [a for a in st.spares() if a["id"] not in foreign_assets]
-        budget = max(0, min(self.budget, cash - foreign_cash - CASH_FLOOR)) if self.guard.may_bid(cash) else 0
-        want = plan(st.missing(), st.me["album"]["pages"], spares, values.gain, rarity.get, book, others,
+        held = set(st.by_ref())
+        reserve = earmark_total(self.earmark, held)
+        # an earmarked card is bought by hand (Los Pícaros sell RET-09 near 55 P): the quoter must not bid for it
+        missing = {s_: [r for r in refs if (r not in self.earmark or r in held) and r not in self.hands_off]
+                   for s_, refs in st.missing().items()}
+        budget = bid_budget(cash, foreign_cash, self.budget, reserve) if self.guard.may_bid(cash) else 0
+        want = plan(missing, st.me["album"]["pages"], spares, values.gain, rarity.get, book, others,
                     foreign_refs, budget)
         key = lambda q: (q["side"], q.get("asset") or q["ref"])  # noqa: E731
         wanted = {key(q): q for q in want}
@@ -112,9 +131,10 @@ class Quoter:
                     self._cancel(oid, tick, "guard stop")
                 with open(pause_file, "w", encoding="utf-8") as f:
                     f.write(self.guard.reason + "\n")
+                self.wrote_pause = True
             return
         for oid, q in list(self.own.items()):  # alerts on quotes that wait too long or are outbid
-            if tick - q["tick"] >= 100:
+            if tick - q["tick"] >= round(STALE_TICKS * self.scale):
                 self.alert("STALE", f"{q['side']} {q['ref']} at {q['price']} open for {tick - q['tick']} ticks",
                            once=f"stale{oid}")
             if q["side"] == "bid" and best_bid(q["ref"]) > q["price"]:
@@ -126,7 +146,7 @@ class Quoter:
         # 6. cancel ours that are no longer wanted, or whose price changed (after a while: no churn)
         for oid, q in list(self.own.items()):
             w = wanted.get(key(q))
-            if w is None or (w["price"] != q["price"] and tick - q["tick"] >= REPRICE_AFTER):
+            if w is None or (w["price"] != q["price"] and tick - q["tick"] >= round(REPRICE_AFTER * self.scale)):
                 self._cancel(oid, tick, "not wanted" if w is None else f"reprice {q['price']} -> {w['price']}")
         # 7. post what is missing
         have = {key(q) for q in self.own.values()}
@@ -135,16 +155,24 @@ class Quoter:
             give, want_ = ({"cash": q["price"]}, {"cards": [q["ref"]]}) if q["side"] == "bid" else \
                           ({"assets": [q["asset"]]}, {"cash": q["price"]})
             try:
-                res = self.b.list_offer(give, want_, venue=VENUE, expires_in_ticks=EXPIRES)
+                res = self.b.list_offer(give, want_, venue=VENUE, expires_in_ticks=round(EXPIRES * self.scale))
             except BazaarError as e:
                 self.guard.error(tick, e.code)
                 log.say(f"[t{tick}] quote {q['side']} {q['ref']} refused: {e}")
                 continue
             oid = (res.get("offer") or res).get("id")
-            rec = {"event": "posted", "offer": oid, "tick": tick, **{k: q.get(k) for k in ("side", "ref", "price", "value", "gain", "asset")}}
+            rec = {"event": "posted", "offer": oid, "tick": tick, **{k: q.get(k) for k in ("side", "ref", "price", "value", "gain", "asset", "ratio")}}
             self.own[oid] = rec
+            if q["side"] == "bid":
+                self.last_posted_cash += int(q["price"])
             log.event("quotes", **rec)
             log.say(f"[t{tick}] QUOTE {q['side']} {q['ref']} at {q['price']} (worth {q['value']} to us, +{q['gain']})")
+
+    def cancel_for(self, refs: set, tick: int, why: str) -> None:
+        """Cancel our own standing bids for cards we have just accepted from someone else: two fills would buy a duplicate."""
+        for oid, qt in list(self.own.items()):
+            if qt.get("side") == "bid" and qt.get("ref") in refs:
+                self._cancel(oid, tick, why)
 
     def _cancel(self, oid, tick: int, why: str) -> None:
         try:
