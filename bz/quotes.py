@@ -18,6 +18,7 @@ MIN_SURPLUS = 2.0
 MIN_SHARE = 0.10
 CLOSE = 3  # a page this many cards from complete or fewer gets its bids first
 FLOOR = 0.5  # lowest team-trade price / book seen on Saturday: a bid below it would almost never fill
+RARE_FLOOR = 0.9  # rare and epic bids below 0.9 x book: 0 filled of 199 in the whole market (feed, ticks 230-1420)
 
 
 def margin(value: float) -> float:
@@ -29,7 +30,8 @@ def bid_price(value: float, book: int, rarity: str, best_other: int = 0):
     ref = round(MARKET.get(rarity, 0.8) * book)
     top = math.floor(value - margin(value))
     p = min(top, max(ref, best_other + 1 if best_other else 0))
-    return p if p >= 1 and p >= FLOOR * book else None
+    low = RARE_FLOOR if rarity in ("rare", "epic") else FLOOR
+    return p if p >= 1 and p >= low * book else None
 
 
 def ask_price(spare_value: float, book: int, rarity: str) -> int:

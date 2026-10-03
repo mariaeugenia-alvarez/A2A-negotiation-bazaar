@@ -62,17 +62,16 @@ checks = 0
 a = run(offer({"assets": [card(486, "LAV-02")]}, {"cash": 10}), [card(127, "LAV-02")])
 assert a["action"] == "counter" and a["got"] == 4.0 and a["counter_cash"] == 2 and is_lowball(a, anchor(a)), a; checks += 1
 
-# 2. MAL-10 (held, worth 63). Friday's 45 bid: counter. 75 and 82 clear even when WE accept and pay the fee.
+# 2. MAL-10, our ONLY copy (worth 63, a card of the Malasana page). ONE_SHEET hard rule 2 (tick 1445): a card we need for a
+#    page never goes, at any price. Saturday we sold it at 65 and the page has missed MAL-10 since then.
 held = [card(135, "MAL-10")]
-a = run(offer({"cash": 45}, {"types": ["card:MAL-10"]}, maker="t13"), held)
-assert a["action"] == "counter" and a["counter_cash"] == 70, a; checks += 1          # 63 + margin 6.3, no fee: they accept
-for price in (75, 82):
+for price in (45, 75, 82):
     a = run(offer({"cash": price}, {"types": ["card:MAL-10"]}, maker="t10"), held)
-    assert a["action"] == "accept" and a["assets"] == [135], a; checks += 1
+    assert a["action"] == "ignore" and "hard rule 2" in a["why"], a; checks += 1
 
 # 3. THE MAL-10 MISTAKE: Team 13 bid 56 and we sold at 65 while bids of 70 (Team 17, standing) and 82 had been seen.
-#    With the best recent bid passed in, the counter opens above it.
-a = run(offer({"cash": 56}, {"types": ["card:MAL-10"]}, maker="t13"), held)
+#    The counter price for a SPARE opens above the best recent bid (the clearing price here is 63 + margin 6.3 = 70).
+a = {"counter_cash": 70, "cash_in": 56, "cash_out": 0}
 assert anchor(a) == 70 and anchor(a, best_bid=82) == 83, (a, anchor(a, best_bid=82)); checks += 1
 
 # 4. THE DOUBLE-OFFER MISTAKE: a card already in one of our open offers is never offered or handed over again
@@ -80,7 +79,10 @@ a = run(offer({"cash": 90}, {"types": ["card:MAL-10"]}, maker="t17"), held, rese
 assert a["action"] == "ignore" and "another open offer" in a["why"], a; checks += 1
 two = [card(135, "MAL-10"), card(136, "MAL-10")]
 a = run(offer({"cash": 40}, {"types": ["card:MAL-10"]}, venue="v02"), two, reserved={136})
-assert a["assets"] == [135], a; checks += 1                                          # the free copy, not the reserved one
+assert a["action"] == "ignore" and "last free copy" in a["why"], a; checks += 1      # 136 is promised: 135 must stay
+three = two + [card(137, "MAL-10")]
+a = run(offer({"cash": 40}, {"types": ["card:MAL-10"]}, venue="v02"), three, reserved={136})
+assert a["assets"] == [137], a; checks += 1                                          # a free spare, never the reserved one
 
 # 5. THE DEALER MISTAKE: offers from dealers (or with no venue: dealer threads) are never ours
 for maker, venue in (("abuela", None), ("chato", None), ("abuela", "rastro"), ("t05", None)):
@@ -91,9 +93,10 @@ for maker, venue in (("abuela", None), ("chato", None), ("abuela", "rastro"), ("
 #    Our formula says 16. A 40 P bid must be refused with game values; the formula would have sold it.
 page = [card(201, "LAV-01", value=122.0)]
 bid = offer({"cash": 40}, {"types": ["card:LAV-01"]}, venue="v02", maker="t12")
-assert run(bid, page)["action"] == "accept"                                          # formula: 16 + margin < 40: SELLS
-a = run(bid, page, values=Game(page, {}))
-assert a["action"] == "counter" and a["lost"] == 122.0 and a["counter_cash"] >= 135, a; checks += 2
+LAV_DONE = {"LAV": [], "MAL": []}
+assert run(bid, page, missing=LAV_DONE)["action"] == "ignore"                        # formula values: the hard rule still holds
+a = run(bid, page, missing=LAV_DONE, values=Game(page, {}))
+assert a["action"] == "ignore" and "hard rule 2" in a["why"], a; checks += 2         # was: counter at 135+ (ONE_SHEET rule 2)
 # a spare copy of a page card carries no bonus: the game values it low, and selling it is fine
 spare = [card(301, "LAV-02", value=4.0), card(302, "LAV-02", value=4.0)]
 a = run(offer({"cash": 8}, {"types": ["card:LAV-02"]}, venue="v02"), spare, values=Game(spare, {}))
@@ -112,7 +115,7 @@ assert run(offer({"assets": [card(7, "LAV-03")]}, {"cash": 5}), [], missing={"LA
 assert run(offer({"assets": [card(8, "sobre_barrio", kind="pack")]}, {"cash": 5}), [])["action"] == "human"
 assert run(offer({"cash": 5}, {"types": ["rarity:rare"]}), held)["action"] == "human"
 assert run(offer({"cash": 80}, {"types": ["card:MAL-10", "card:MAL-10"]}), two)["action"] == "human"
-assert run(offer({"assets": [card(9, "MAL-10")]}, {"types": ["card:MAL-10"]}), held)["action"] == "human"
+assert run(offer({"assets": [card(9, "MAL-10")]}, {"types": ["card:MAL-10"]}), held)["action"] in ("human", "ignore")  # hard rule 2 first
 checks += 5
 
 # 9. our own offers and expired ones are skipped
@@ -128,9 +131,10 @@ assert a0["fee"] == 0 and a0["surplus"] == 7.0, a0; checks += 2
 
 # 11. counter bodies: a sale hands over the chosen copy; a buy asks for the card; a swap gets no cash-only counter
 o17 = offer({"cash": 70}, {"types": ["card:MAL-10"]}, maker="t17")
-a = run(o17, held)  # accepting nets 70 - 63 - 5 fee = +2 < 6.3; the same 70 posted by US nets +7: they pay the fee
+pair = [card(135, "MAL-10", value=63.0), card(136, "MAL-10", value=63.0)]  # two copies: one may go (hard rule 2)
+a = run(o17, pair, values=Game(pair, {}))  # accepting nets 70 - 63 - 5 fee = +2 < 6.3; the same 70 posted by US nets +7
 assert a["action"] == "counter" and a["counter_cash"] == 70 and anchor(a) == 81, a
-assert counter_body(o17, a, 81) == {"give": {"assets": [135]}, "want": {"cash": 81}}, a
+assert counter_body(o17, a, 81) == {"give": {"assets": [136]}, "want": {"cash": 81}}, a
 swap = offer({"cash": 10, "assets": [card(70, "LAV-03")]}, {"types": ["card:MAL-10"]})
 d = run(swap, held)
 assert d["action"] != "counter" or counter_body(swap, d, anchor(d) or 1) is None, d; checks += 3

@@ -39,7 +39,7 @@ Because the score is relative, standing still loses rank.
 |---|---|---|
 | **Duels II (≈20:35)** | **No duel left unanswered.** Deal rate ≥ 80%. Median ≤ 2 rounds. Average result per deal ≥ 18 | Duels I: deals in ≤ 2 rounds averaged **20.4**, deals in ≥ 4 rounds averaged **5.7**. Our silence cost us 8 duels |
 | **Team trades** | `neg_points` 23.5 → **45** by 23:00. Every trade must gain value | Six small trades already gave +24. The quoter is ready (not live) |
-| **Pages** | Complete **Salamanca** (missing SAL-06, 07, 09, 10). Never break Lavapiés | Page bonus = +25% of the page total, paid ONCE (each card's value shows it because selling any card loses it) ✅ |
+| **Pages** | **Complete El Retiro** (2026-10-04: missing only RET-09, bought by hand by Maru). Never break Lavapiés. Salamanca and Malasaña (2 missing each): bids only when they gain value | Page bonus = +25% of the page total, paid ONCE (each card's value shows it because selling any card loses it) ✅ |
 | **Dealers** | Only trades that gain value: page cards bought below their value, spares sold above it. **Never a sale below our value, never a page card** | Dealer score is tiny. Their use is cheap cards and unlocks, not points |
 | **Market** | Keep 7.5 or better. v21 is open without a broker (VII): decide on Maru's broker **before the next Market Test**, not at the hard one (now Sunday ≈09:35) | Top teams are at 10.6–12.1 |
 
@@ -48,7 +48,7 @@ a deal outside our limit, a sale below our value, a duel with no answer.
 
 ### Hard rules (never broken, by code or by hand)
 1. **Duels: never cross our limit.** As seller never below our cost, as buyer never above our value. Crossing it loses points and gives the rival nothing ✅ (organisers' slides).
-2. **Never sell a card below what it is worth to us. Never sell a card of a complete page or a card we need for a page.**
+2. **Never sell a card below what it is worth to us. Never sell a card of a complete page or of the page we are completing (now El Retiro).** A page that becomes complete is protected at once by the trader, with a PAGE-DONE alert (`logs/protected_pages.json`). The only copy of a Salamanca or Malasaña card goes only with a gain of at least 50 % of its value, until the team decides (`--guard-pages SAL:0.5,MAL:0.5`); any other page 20 % (`SINGLE_SHARE`): MAL-10 at +2 and RET-06 at −6.5 came back to cost us; LAT-06 at +9.0 on a value of 11 was a good sale.
 3. **Nothing LIVE without an OK. Duels: Thameur. Cards (dealers, team trades, quoter): Maru.** Analysis is free. Negotiating spends real primas.
 4. **One owner per lane on our shared key:** dealers = Maru's scripts, team trades = `trader.py`, duels = `duels.py`. Before posting any offer, say so in the other terminal.
 5. **Prices come from code.** Words carry the price and ask for information. They never decide the price.
@@ -61,6 +61,14 @@ a deal outside our limit, a sale below our value, a duel with no answer.
 - **New:** Doña Pilar trades. Salamanca fever **≈18:05–20:05**: she pays 25% over book for Salamanca ✅ (schedule).
 - **New:** Radio Rastro (`GET /api/news`). Some items are true and move the market, some are rumours ✅. Treat news as a hint, never as a fact.
 - **Warning:** at tick 567 `neg_points` fell for the first time (24.2 → 23.5), right after the dealer scripts sold MAL-08 (21 P, worth 22.5) and SAL-07 (24 P, worth 27.5: our only copy, so Salamanca now misses it again) to Pilar. Cause not proven ⚠️: `DEALERS.md` measured on Friday that dealer deals did not move `neg_points`, so look elsewhere too. Hard rule 2 now covers it.
+
+### Payday rules (organisers' slides, Saturday evening) ✅
+- **Only deals score:** a deal = value it adds to our collection − price paid + price received. Cash, cards and the album count nothing by themselves. **Cash left at the end scores nothing.**
+- **Team trade:** a gain counts **up to 50**, a loss counts **in full**. Dealer deal: a gain counts on the ladder (best 3 per dealer, higher dealers weigh more), a loss in full.
+- **The last card of a page:** buying it gives +50; selling it again gives −130 (= −80). Buy it, keep it.
+- **Duplicates are trading stock:** a second copy is worth ¼ to us and full value to a team that misses it. Three spares can go to The Workshop (how: unknown).
+- **+400 P for every team** at the pause (this was the +400 at tick 1210), +150 P on Sunday 09:00. Friday counts half, Saturday and Sunday in full: **40 % of the server score is still to play**.
+- Never counts: number of trades, fees, pack luck, gifts, easter eggs, grants.
 
 ### Card values (unchanged, verified) ✅
 - Value = book × our set multiplier × copy factor, plus the page bonus when the page is complete. **The trader reads values from the game** (`your_value` includes the bonus).

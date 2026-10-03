@@ -39,7 +39,7 @@ puntos. Como la puntuación es relativa, quedarse quieto hace perder puestos.
 |---|---|---|
 | **Duelos II (≈20:35)** | **Ningún duelo sin respuesta.** Tratos ≥ 80 %. Mediana ≤ 2 rondas. Resultado medio por trato ≥ 18 | Duelos I: los tratos en ≤ 2 rondas dieron de media **20,4**; los de ≥ 4 rondas, **5,7**. Nuestro silencio nos costó 8 duelos |
 | **Tratos con equipos** | `neg_points` de 23,5 a **45** a las 23:00. Cada trato debe ganar valor | Seis tratos pequeños ya dieron +24. El quoter está listo (no en vivo) |
-| **Páginas** | Completar **Salamanca** (faltan SAL-06, 07, 09, 10). No romper nunca Lavapiés | Bono de página = +25 % del total de la página, UNA sola vez (el valor de cada carta lo muestra porque vender cualquiera lo pierde) ✅ |
+| **Páginas** | **Completar El Retiro** (04-10-2026: solo falta RET-09, que Maru compra a mano). No romper nunca Lavapiés. Salamanca y Malasaña (faltan 2 en cada una): pujas solo si ganan valor | Bono de página = +25 % del total de la página, UNA sola vez (el valor de cada carta lo muestra porque vender cualquiera lo pierde) ✅ |
 | **Dealers** | Solo tratos que ganen valor: cartas de página compradas por debajo de su valor, repetidas vendidas por encima. **Nunca una venta por debajo de nuestro valor, nunca una carta de página** | Los dealers dan muy pocos puntos. Sirven para cartas baratas y desbloqueos, no para puntos |
 | **Mercado** | Mantener 7,5 o más. v21 está abierto sin broker (VII): decidir sobre el broker de Maru **antes del próximo Market Test**, no en el duro (ahora domingo ≈09:35) | Los mejores equipos están en 10,6–12,1 |
 
@@ -49,7 +49,7 @@ respuesta.
 
 ### Reglas fijas (nunca se rompen, ni en código ni a mano)
 1. **Duelos: nunca cruzar nuestro límite.** Como vendedor, nunca por debajo de nuestro coste; como comprador, nunca por encima de nuestro valor. Cruzarlo resta puntos y no le da nada al rival ✅ (diapositivas de la organización).
-2. **Nunca vender una carta por debajo de lo que vale para nosotros. Nunca vender una carta de una página completa ni una que nos falte para una página.**
+2. **Nunca vender una carta por debajo de lo que vale para nosotros. Nunca vender una carta de una página completa ni de la página que estamos completando (ahora El Retiro).** Una página que se completa queda protegida al momento por el trader, con un aviso PAGE-DONE (`logs/protected_pages.json`). La única copia de una carta de Salamanca o Malasaña solo se vende con una ganancia de al menos el 50 % de su valor, hasta que el equipo decida (`--guard-pages SAL:0.5,MAL:0.5`); cualquier otra página, el 20 % (`SINGLE_SHARE`): MAL-10 a +2 y RET-06 a −6,5 nos salieron caras; LAT-06 a +9,0 sobre un valor de 11 fue una buena venta.
 3. **Nada EN VIVO sin visto bueno. Duelos: Thameur. Cartas (dealers, tratos con equipos, quoter): Maru.** Analizar es gratis; negociar gasta primas reales.
 4. **Un dueño por carril en nuestra clave compartida:** dealers = scripts de Maru, tratos con equipos = `trader.py`, duelos = `duels.py`. Antes de publicar una oferta, avisar en la otra terminal.
 5. **Los precios los pone el código.** Las palabras llevan el precio y piden información. Nunca deciden el precio.
@@ -62,6 +62,14 @@ respuesta.
 - **Nuevo:** Doña Pilar comercia. Fiebre de Salamanca **≈18:05–20:05**: paga un 25 % sobre catálogo por Salamanca ✅ (calendario).
 - **Nuevo:** Radio Rastro (`GET /api/news`). Algunas noticias son ciertas y mueven el mercado; otras son rumores ✅. Tratar las noticias como pista, nunca como hecho.
 - **Aviso:** en el tick 567 `neg_points` bajó por primera vez (24,2 → 23,5), justo después de que los scripts de dealers vendieran a Pilar MAL-08 (21 P, vale 22,5) y SAL-07 (24 P, vale 27,5: nuestra única copia, así que a Salamanca vuelve a faltarle). Causa sin probar ⚠️: `DEALERS.md` midió el viernes que los tratos con dealers no movían `neg_points`, así que hay que buscar también en otra parte. La regla fija 2 ya lo cubre.
+
+### Reglas de Payday (diapositivas de la organización, sábado por la noche) ✅
+- **Solo puntúan los tratos:** un trato = valor que añade a nuestra colección − precio pagado + precio cobrado. El efectivo, las cartas y el álbum no cuentan por sí solos. **El efectivo que quede al final no puntúa.**
+- **Trato con un equipo:** una ganancia cuenta **hasta 50**, una pérdida cuenta **entera**. Trato con un dealer: la ganancia cuenta en la escalera (los 3 mejores por dealer, los dealers más altos pesan más), la pérdida entera.
+- **La última carta de una página:** comprarla da +50; volver a venderla da −130 (= −80). Comprarla y quedársela.
+- **Los duplicados son material de cambio:** una segunda copia nos vale ¼ y a un equipo al que le falta, su valor entero. Tres repetidas se pueden llevar a The Workshop (cómo: desconocido).
+- **+400 P para cada equipo** en la pausa (era el +400 del tick 1210), +150 P el domingo a las 09:00. El viernes cuenta la mitad, sábado y domingo enteros: **queda por jugar el 40 % de la puntuación del servidor**.
+- No cuenta nunca: número de tratos, comisiones, suerte en sobres, regalos, huevos de pascua, subvenciones.
 
 ### Valor de las cartas (sin cambios, comprobado) ✅
 - Valor = catálogo × nuestro multiplicador del barrio × factor de copia, más el bono de página si la página está completa. **El trader lee los valores del juego** (`your_value` incluye el bono).

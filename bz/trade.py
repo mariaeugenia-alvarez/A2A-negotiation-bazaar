@@ -62,6 +62,13 @@ class FormulaValues:
         return self.v.card_value(ref, owned=self.held.get(ref, 0))
 
 
+SINGLE_SHARE = 0.20  # selling our ONLY copy of a page card (page not protected): the gain must be at least 20 % of its value.
+# Single copies sold at a thin gain came back to cost us: MAL-10 at +2 to +4 (page still misses it), RET-06 at -6.5 then bought
+# back at 28 (TRADES.md). LAT-06 at +9.0 on a value of 11 (82 %) is the kind of deal this keeps.
+DEFAULT_GUARD = {"SAL": 0.50, "MAL": 0.50}  # pages 2 cards from complete, still undecided (Thameur, 2026-10-04): their only
+# copies go only for a gain of at least 50 % of the value, until the team decides to protect them fully or not
+DEFAULT_PROTECT = frozenset({"RET"})  # the page we are completing (2026-10-04: El Retiro, only RET-09 missing)
+
 ANCHOR = 0.15  # open a counter this share beyond the other side's price (never inside our clearing price)
 
 
@@ -110,12 +117,18 @@ def wanted_refs(o: dict) -> list:
 
 
 def judge(offer: dict, values, by_ref: dict, cash: int, fees: dict, missing: dict, me_id: str,
-          reserved=frozenset(), pending=frozenset(), hands_off=frozenset()) -> dict:
+          reserved=frozenset(), pending=frozenset(), hands_off=frozenset(), protect=DEFAULT_PROTECT,
+          guard=None) -> dict:
     """values: GameValues (live) or a bz.price.Valuer (wrapped in FormulaValues, for tests).
     reserved: asset ids already given in one of our open offers; they are never offered or handed over twice.
     pending: cards our own open bids already ask for. Getting one here too could leave us a duplicate worth ~25 %
     when the bid fills, so those go to a person. cash: pass what is free, i.e. minus the cash our open bids promise.
-    hands_off: cards a person is working on by hand (RET-09): never accepted, never countered, never quoted."""
+    hands_off: cards a person is working on by hand (RET-09): never accepted, never countered, never quoted.
+    protect: sets whose page we are completing: their cards never go, like the cards of a complete page (hard rule 2).
+    A COMPLETE page is protected by itself, from the live album (missing[set] == []): no flag needed.
+    guard: set -> share; selling the only copy of a card of that set needs a gain of at least share x its value
+    (default DEFAULT_GUARD; every other set SINGLE_SHARE)."""
+    guard = DEFAULT_GUARD if guard is None else guard
     if hasattr(values, "card_value"):
         values = FormulaValues(values, by_ref)
     out = {"offer": offer.get("id"), "maker": offer.get("maker"), "venue": offer.get("venue")}
@@ -148,7 +161,16 @@ def judge(offer: dict, values, by_ref: dict, cash: int, fees: dict, missing: dic
         refs_out.append(ref)
     if len(set(refs_out)) < len(refs_out):
         return {**out, "action": "human", "why": "asks for several copies of one card: values interact"}
-    for ref in refs_out:
+    singles = 0.0  # the gain the only copies we would give must bring (pages neither complete nor protected)
+    for ref in refs_out:  # ONE_SHEET hard rule 2 (2026-10-04): the cards of a complete page, or of the page we are completing,
+        # never go. One copy must stay that is neither in this offer nor promised in another open offer of ours (tick
+        # 1203-1351: four counters offered our only LAV-06, a card of the complete Lavapies page, for 161 P).
+        keep = [x for x in by_ref[ref] if x["id"] not in named + chosen and x["id"] not in reserved]
+        s_ = ref.split("-")[0]
+        if not keep:
+            if s_ not in missing or not missing[s_] or s_ in protect:  # complete, protected, or unknown: never
+                return {**out, "action": "ignore", "why": f"{ref}: our last free copy, page {s_} complete or protected (hard rule 2)"}
+            singles += guard.get(s_, SINGLE_SHARE) * values.lose(next(x for x in by_ref[ref] if x["id"] in named + chosen))
         asset = next(x for x in by_ref[ref] if x["id"] in named + chosen)
         lost += values.lose(asset)
         cards_out += 1
@@ -181,7 +203,7 @@ def judge(offer: dict, values, by_ref: dict, cash: int, fees: dict, missing: dic
         return {**out, "action": "ignore", "why": f"costs {cash_out} P, we hold {cash}"}
     fee = fee_for(fees, offer.get("venue"), max(cash_in, cash_out), cards_in + cards_out)  # ours only if WE accept
     surplus = got + cash_in - lost - cash_out - fee
-    margin = max(MIN_SURPLUS, MIN_SHARE * (lost + cash_out))
+    margin = max(MIN_SURPLUS, MIN_SHARE * (lost + cash_out), singles)  # singles: already share x value, per page
     res = {**out, "got": round(got, 1), "lost": round(lost, 1), "cash_in": cash_in, "cash_out": cash_out, "fee": fee,
            "surplus": round(surplus, 1), "margin": round(margin, 1), "assets": chosen, "gives": named + chosen,
            "counter_cash": None}

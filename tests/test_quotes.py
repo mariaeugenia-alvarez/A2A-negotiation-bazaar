@@ -15,7 +15,7 @@ assert bid_price(27.5, 25, "uncommon") == 20              # SAL-06
 assert bid_price(27.5, 25, "uncommon", best_other=22) == 23   # outbid another team, still under 27.5 - 2.75
 assert bid_price(27.5, 25, "uncommon", best_other=30) == 24   # never above value - margin
 assert bid_price(77.0, 70, "rare") == 68                  # SAL-09: rares trade near book
-assert bid_price(63.0, 70, "rare") == 56                  # MAL-09: value - margin caps it below the market
+assert bid_price(63.0, 70, "rare") is None                # MAL-09: value - margin = 56 = 0.8 x book, below RARE_FLOOR 0.9
 assert bid_price(1.5, 10, "common") is None               # nothing clears the margin
 assert ask_price(4.0, 25, "uncommon") == 20               # a LAV-06 spare: worth 4 to us, the market pays ~20
 checks += 8

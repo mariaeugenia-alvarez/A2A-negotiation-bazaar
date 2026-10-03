@@ -31,7 +31,7 @@ from bz.boards import BoardScanner
 from bz.guard import CASH_FLOOR, earmark_total, spend_allowed, tick_scale
 from bz.state import State
 from bz.quoter import Quoter
-from bz.trade import GameValues, anchor, cost, counter_body, is_lowball, judge, wanted_refs
+from bz.trade import DEFAULT_GUARD, DEFAULT_PROTECT, GameValues, anchor, cost, counter_body, is_lowball, judge, wanted_refs
 
 PAUSE = os.path.join(log.LOG_DIR, "trader.pause")
 ACCEPTS = os.path.join(log.LOG_DIR, "trader_accept.jsonl")
@@ -40,6 +40,7 @@ MAX_OUTSTANDING = 3     # counters open at once
 MAKER_COOLDOWN = 10     # ticks before we counter the same maker about the same cards again
 BOARD_BUDGET = 40       # primas we may spend accepting public-board offers (cash + fee) per BUDGET_SECONDS
 BUDGET_SECONDS = 3600
+MAX_COUNTER_RATIO = 1.25  # a sell counter above this x their price: 0 of 22 accepted, 3 of 5 at or below (tick 1445)
 BID_MEMORY = 60         # ticks a bid for a card is remembered: we never sell that card below it
 HEARTBEAT = os.path.join(log.LOG_DIR, "trader.heartbeat")
 DEFAULT_HANDS_OFF = "RET-09"  # Maru is buying it by hand: no quote, no accept, no counter
@@ -95,17 +96,49 @@ def single_card_bid(o: dict):
     return None
 
 
+def parse_guard(text: str) -> dict:
+    """'SAL:0.5,MAL:0.5' -> {"SAL": 0.5, "MAL": 0.5}; 'none' -> {}."""
+    out = {}
+    for part in (text or "").split(","):
+        k, _, v = part.strip().partition(":")
+        if k and k.lower() != "none" and v:
+            out[k.strip()] = float(v)
+    return out
+
+
+def complete_pages(missing: dict) -> set:
+    """Sets whose page is complete in the live album."""
+    return {s for s, refs in missing.items() if not refs}
+
+
+def record_bids(bids: dict, offers: list, own_ids: set, me_id: str, tick: int) -> None:
+    """Remember what OTHER teams pay for each card. The public board shows our own offers under a pseudonym, not under
+    our team id: without own_ids our standing bid counts as another team's, and the quoter outbids itself by 1 P
+    (SAL-06 went 20 -> 24, tick 1201-1281)."""
+    for o in offers:
+        bid = single_card_bid(o)
+        if bid and o.get("maker") != me_id and o.get("id") not in own_ids:
+            bids.setdefault(bid[0], []).append((tick, bid[1]))
+
+
+def counter_too_far(d: dict, price) -> bool:
+    """A sell counter far above their bid never closes (0 of 22 above 1.25 x their price): do not send it."""
+    their = d.get("cash_in") or 0
+    return bool(price and their and not d.get("cash_out") and price > MAX_COUNTER_RATIO * their)
+
+
 def refs_of(o: dict) -> set:
     g = o.get("give") or {}
     return {a.get("ref") for a in g.get("assets") or []} | set(wanted_refs(o))
 
 
-def settlement_for(b, me_id: str, refs: set, since: int):
-    """The feed's settlement of our deal with these cards, or None. Our cash alone cannot tell: another session spends it."""
+def settlement_for(b, me_id: str, refs: set, since: int, party: str = None):
+    """The feed's settlement of our deal with these cards, or None. Our cash alone cannot tell: another session spends it.
+    party: the other team must be this one (a counter to Team 13 is not settled by a sale to Team 7, tick 1057)."""
     for e in b.feed(limit=300).get("events", []):
         p = e.get("payload") or {}
         if e.get("type") == "settlement" and me_id in p.get("parties", []) and p.get("tick", 0) >= since \
-                and refs & {i.get("ref") for i in p.get("items", [])}:
+                and refs & {i.get("ref") for i in p.get("items", [])} and (party is None or party in p.get("parties", [])):
             return p
     return None
 
@@ -115,7 +148,7 @@ def check_outcomes(b, me_id: str, tick: int, sent: dict, open_ids: set) -> None:
     pending = [k for k, s in sent.items() if s["outcome"] is None and s["offer_id"] not in open_ids and tick > s["tick"]]
     for k in pending:
         s = sent[k]
-        hit = settlement_for(b, me_id, set(s["refs"]), s["tick"])
+        hit = settlement_for(b, me_id, set(s["refs"]), s["tick"], party=s["maker"])
         s["outcome"] = "accepted" if hit else "expired"
         log.event("trader_outcome", incoming=k, counter=s["offer_id"], maker=s["maker"], price=s["price"],
                   outcome=s["outcome"], settled_price=hit.get("price") if hit else None, tick=tick, opened=s["tick"])
@@ -130,6 +163,10 @@ def main() -> None:
     ap.add_argument("--budget", type=int, default=BOARD_BUDGET, help="most we spend on public-board accepts (cash + fee) per hour")
     ap.add_argument("--hands-off", default=DEFAULT_HANDS_OFF,
                     help='cards a person buys by hand: the trader never quotes, accepts or counters them ("none" to clear)')
+    ap.add_argument("--protect-pages", default=",".join(sorted(DEFAULT_PROTECT)),
+                    help='sets whose page we are completing: their cards never go, like a complete page ("none" to clear)')
+    ap.add_argument("--guard-pages", default=",".join(f"{k}:{v}" for k, v in sorted(DEFAULT_GUARD.items())),
+                    help='SET:SHARE,...: selling the only copy of a card of that page needs a gain of SHARE x its value ("none" to clear)')
     ap.add_argument("--earmark", default=DEFAULT_EARMARK,
                     help='cash kept for buying cards by hand, "REF:AMOUNT,..." or "none". It releases when we hold the card')
     ap.add_argument("--cancel-stale-bids", action="store_true",
@@ -153,6 +190,9 @@ def main() -> None:
     sent = {}       # incoming offer id -> our counter
     earmark = parse_earmark(args.earmark)
     hands_off = {r.strip() for r in args.hands_off.split(",") if r.strip() and r.strip().lower() != "none"}
+    protect = {r.strip() for r in args.protect_pages.split(",") if r.strip() and r.strip().lower() != "none"}
+    guard = parse_guard(args.guard_pages)
+    complete_seen = None  # sets whose page is complete: a new one is announced once, and protected from then on
     scanner, blocked_seen = BoardScanner(), set()
     bids = {}       # card -> [(tick, cash)] bids seen from anyone
     check = None    # (decision, offer, tick) of the last accept, to read its settlement
@@ -177,6 +217,21 @@ def main() -> None:
             if now_holdings != holdings:  # what one more copy is worth changes with what we hold
                 value_cache, holdings = {}, now_holdings
             values, by_ref, missing = GameValues(b, st.me["assets"], value_cache), st.by_ref(), st.missing()
+            done = complete_pages(missing)
+            for s_ in sorted(done - (complete_seen or done)):  # a page completed while we run: tell, and it is untouchable now
+                text = f"{s_} page COMPLETE: its cards are protected, the trader will never sell one (hard rule 2)"
+                log.event("alerts", level="PAGE-DONE", text=text, tick=tick)
+                log.say(f"[t{tick}] ALERT PAGE-DONE: {text}")
+                if quoter:
+                    quoter.alert("PAGE-DONE", text)
+            if done != complete_seen:
+                complete_seen = done
+                try:
+                    with open(os.path.join(log.LOG_DIR, "protected_pages.json"), "w", encoding="utf-8") as f:
+                        json.dump({"tick": tick, "complete": sorted(done), "protected": sorted(done | protect),
+                                   "guard": guard}, f)
+                except OSError:
+                    pass
             mine = b.my_offers().get("offers") or []
             ours_open = [o for o in mine if o.get("maker") == me_id and o.get("status") == "open"]
             reserved = {a["id"] for o in ours_open for a in (o.get("give") or {}).get("assets") or []}
@@ -205,10 +260,9 @@ def main() -> None:
             if args.boards:  # active boards every tick, the quiet ones a few per tick: no burst of 21 calls
                 for v, offers in scanner.scan(lambda v: b.board(v).get("offers") or [], list(fees)).items():
                     todo += [(o, "board") for o in offers if not o.get("to")]
-            for o, _ in todo:  # remember what people pay for each card
-                bid = single_card_bid(o)
-                if bid and o.get("maker") != me_id:
-                    bids.setdefault(bid[0], []).append((tick, bid[1]))
+            our_ids = {o["id"] for o in ours_open}
+            todo = [(o, s_) for o, s_ in todo if o["id"] not in our_ids]  # our own offers, seen on a board: never judge them
+            record_bids(bids, [o for o, _ in todo], our_ids, me_id, tick)  # remember what other teams pay for each card
 
             def best_bid(ref):
                 return max((p for t, p in bids.get(ref, []) if tick - t <= BID_MEMORY * scale), default=0)
@@ -219,7 +273,7 @@ def main() -> None:
                     continue
                 # accepts are certain gains: judge them against our real cash. Open bids and counters only PROMISE cash (they
                 # fill 2-5 % of the time, and an unfunded fill just fails), so they must not block a sure accept.
-                d = judge(o, values, by_ref, st.cash, fees, missing, me_id, reserved, pending, hands_off)
+                d = judge(o, values, by_ref, st.cash, fees, missing, me_id, reserved, pending, hands_off, protect, guard)
                 sale = single_card_bid(o)
                 if d["action"] == "accept" and sale and sale[1] < best_bid(sale[0]):  # someone recently paid more
                     d = {**d, "action": "counter", "counter_cash": best_bid(sale[0]),
@@ -272,6 +326,7 @@ def main() -> None:
                     quoter.step(tick, st, mine, values, best_bid, settlement_for, PAUSE, acting)
                 except BazaarError as e:
                     quoter.guard.error(tick, e.code)
+                    log.event("trader_error", tick=tick, op="quoter step", error=str(e))
                     log.say(f"quoter: {e}")
                 acting = args.live and not os.path.exists(PAUSE)  # a guard stop pauses everything at once
                 free_cash = max(0, free_cash - quoter.last_posted_cash)  # bids posted this tick are promises too
@@ -283,6 +338,7 @@ def main() -> None:
                             log.event("trader_cancel", tick=tick, offer=o["id"], cards=wanted_refs(o), why="stale bid")
                             log.say(f"[t{tick}] CANCELLED stale bid {o['id']} for {wanted_refs(o)}")
                         except BazaarError as e:
+                            log.event("trader_error", tick=tick, op=f"cancel stale bid {o['id']}", error=str(e))
                             log.say(f"[t{tick}] cancel {o['id']} refused: {e}")
                 if tick >= cool_until:
                     pool = [x for x in decisions if x[2]["action"] == "accept" and block_reason(x) is None]
@@ -306,6 +362,8 @@ def main() -> None:
                         continue
                     sale = single_card_bid(o)
                     p = anchor(d, best_bid=best_bid(sale[0]) if sale else 0)
+                    if counter_too_far(d, p):
+                        continue
                     if p and is_lowball(d, p):  # a bid under half their ask: 0 of 6 worked on Saturday, so we skip it
                         continue
                     if outstanding >= MAX_OUTSTANDING:
@@ -325,6 +383,7 @@ def main() -> None:
                         res = b.list_offer(body["give"], body["want"], venue=o.get("venue"), to=o["maker"],
                                            expires_in_ticks=round(COUNTER_TICKS * scale))
                     except BazaarError as e:  # asset locked by another offer, not owner any more, ...
+                        log.event("trader_error", tick=tick, op=f"counter to {o['maker']} on offer {o['id']}", error=str(e))
                         log.say(f"[t{tick}] counter to {o['maker']} refused: {e}")
                         sent[o["id"]] = {**entry, "offer_id": -1, "outcome": "refused"}
                         continue
@@ -356,10 +415,12 @@ def main() -> None:
                 log.say(f"{len(decisions)} offers judged")
                 return
             b.wait_tick()
-        except BazaarError as e:
+        except BazaarError as e:  # an accept refused by the game ends here too
+            log.event("trader_error", tick=None, op="trader loop (accept or read)", error=str(e))
             log.say(f"trader: {e}")
             time.sleep(3)
         except Exception as e:  # never die on one odd offer
+            log.event("trader_error", tick=None, op="trader loop", error=f"unexpected {type(e).__name__}: {e}")
             log.say(f"trader: unexpected {type(e).__name__}: {e}")
             time.sleep(3)
 

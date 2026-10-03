@@ -911,7 +911,31 @@ function decisionStrip(decs) {
   return p.svg(g);
 }
 
-function pageMercado(filter) {
+/* the trader's activity: health light, counts, a timeline with failures in red (bz/activity.py) */
+const ACT_ST = {ok: ["Hecho", "var(--ok)"], fail: ["Fallo", "var(--bad)"], blocked: ["Bloqueado", "var(--bad)"], expired: ["Caducado", "var(--muted)"], alert: ["Aviso", "var(--us)"], info: ["Acción", "var(--ink)"]};
+function activityPanel(A, f) {
+  if (!A || A.error) return `<div class="empty">No se pudo leer la actividad del agente${A && A.error ? `: ${esc(A.error)}` : ""}.</div>`;
+  const H = A.health || {}, C = A.counts || {};
+  const light = !H.alive ? ["var(--bad)", `<b style="color:var(--bad)">PARADO o colgado</b>: último latido ${H.age != null ? `hace ${H.age} s` : "nunca"}`]
+    : H.stopped ? ["var(--bad)", `<b style="color:var(--bad)">DETENIDO por su guardia</b>`]
+    : H.paused ? ["var(--bad)", `<b style="color:var(--bad)">En pausa</b> (existe logs/trader.pause)`]
+    : !H.acting ? ["var(--muted)", "Vivo, en sombra (no actúa)"] : ["var(--ok)", `Vivo y actuando · latido hace ${H.age} s · tick ${H.tick ?? "—"} · caja ${H.cash ?? "—"} P`];
+  const rows = f === "fail" ? A.failures : f === "ok" ? A.items.filter(i => i.status === "ok") : f === "noinfo" ? A.items.filter(i => i.status !== "info") : A.items;
+  const chips = [["all", "Todo"], ["noinfo", "Sin rutina"], ["ok", "Tratos hechos"], ["fail", "Fallos y bloqueos"]].map(([k, n]) => `<button class="chip" aria-pressed="${f === k}" data-af="${k}">${n}</button>`).join("");
+  const nfail = (C.fail || 0) + (C.blocked || 0);
+  return `<div class="lv-health"><span><span class="dot" style="--dc:${light[0]}"></span>Agente <span class="mono">trader.py</span>: ${light[1]}</span></div>
+    <div class="facts"><div><b style="color:var(--ok)">${C.ok || 0}</b><span>tratos o respuestas que salieron bien</span></div>
+      <div><b style="${nfail ? "color:var(--bad)" : ""}">${nfail}</b><span>fallos y aceptaciones bloqueadas</span></div>
+      <div><b>${C.expired || 0}</b><span>contraofertas y cotizaciones caducadas sin trato</span></div>
+      <div><b>${C.info || 0}</b><span>acciones de rutina (publicar, cancelar, contraofertar)</span></div></div>
+    <p class="note">Últimas ${num(A.hours, 0)} horas. Los fallos salen en rojo. Un aviso en el Mac llega con <span class="mono">trader_notify.py</span>.</p>
+    <div class="chips" role="group" aria-label="Filtrar actividad">${chips}</div>
+    ${rows.length ? `<div class="scroll" style="max-height:420px"><table><thead><tr><th>Hora</th><th>Tick</th><th>Estado</th><th>Qué hizo</th></tr></thead><tbody>
+    ${rows.slice(0, 150).map(i => `<tr><td class="small">${i.ts ? new Date(i.ts * 1000).toLocaleTimeString() : ""}</td><td>${i.tick ?? ""}</td><td><span class="tag" style="color:${(ACT_ST[i.status] || ACT_ST.info)[1]}">${(ACT_ST[i.status] || ACT_ST.info)[0]}</span></td><td style="${i.status === "fail" || i.status === "blocked" ? "color:var(--bad);font-weight:600" : ""}">${esc(i.es)}</td></tr>`).join("")}</tbody></table></div>`
+    : `<div class="empty">${f === "fail" ? "Ningún fallo en este periodo." : "Nada en este periodo."}</div>`}`;
+}
+
+function pageMercado(filter, afilter) {
   const M = D.market, T = M.trader, c = T.counts, my = D.teams.find(t => t.team === ME), B = M.bench, V = M.our_venue, K = M.limits || {};
   const modeTag = T.mode === "live" ? `<span class="tag deal">En vivo: acepta y contraoferta</span>` : T.mode === "shadow" ? `<span class="tag none">En sombra: solo anota</span>` : `<span class="tag none">Sin actividad registrada</span>`;
   const co = T.counter_outcomes, sentN = T.counters.length;
@@ -972,6 +996,7 @@ function pageMercado(filter) {
   const nxt = (M.bench_next || []).map(u => `<li>${D.clock ? `en ${num(u.at_hours - D.clock.t_hours)} h` : `${num(u.at_hours)} h`}: ${esc(u.note || "Prueba de mercado")}</li>`).join("");
   return `<h1>Mercado</h1><p class="sub">Lo que hace el agente con las ofertas de otros equipos y con el mercado. Cada tick <span class="mono">trader.py</span> lee las ofertas que nos hacen y los tablones públicos, las valora solo por su estructura, a nuestros valores privados, y decide: aceptar, contraofertar o ignorar. ${modeTag}${T.paused ? ` <span class="tag none">Pausado (existe logs/trader.pause)</span>` : ""}</p>
     ${facts}${reading}
+    <h2 id="actividad">Actividad del agente</h2>${activityPanel(M.activity, afilter || "all")}
     <h2>Qué decide cada oferta</h2><p class="sub">Cada marca es una oferta valorada. Por encima de la línea de margen se acepta; por debajo se contraoferta o se ignora.</p>
     ${legend([["Aceptar", "var(--ok)", true], ["Contraofertar", "var(--ink)", true], ["Ignorar", "var(--muted)", true]])}${decisionStrip(decs)}
     <h2>Puntos de mercado</h2><div class="cols"><div><h3>Cómo evolucionan nuestros puntos</h3>${legend([["Mercado (nuestro)", "var(--us)"], ["Negociación (nuestra), línea discontinua", "var(--us)"], ["Líder", "var(--rival)"], ["Mediana", "var(--other)"]])}${scoreChart()}
@@ -1076,7 +1101,7 @@ concesor fijo x % = haggle(step_frac=x): cada mensaje cede x % de lo que queda</
 /* ============================================================ router */
 const pagesOf = () => [["resumen", "Resumen"], ["coleccion", "Colección"], ...Object.keys(D.dealers).map(id => [id, D.dealers[id].name]), ["duelos", "Duelos"], ["mercado", "Mercado"], ["banco", "Banco de pruebas"], ["equipos", "Otros equipos"], ["formulas", "Fórmulas"]];
 let PAGES = pagesOf();
-const state = {kind: {}, sort: null, mf: "all"};
+const state = {kind: {}, sort: null, mf: "all", af: "all"};
 function route(keep) {
   const [page = "resumen", a, b] = location.hash.slice(1).split("/");
   const known = PAGES.find(p => p[0] === page) ? page : "resumen";
@@ -1084,7 +1109,7 @@ function route(keep) {
   let html;
   if (known === "resumen") html = pageResumen();
   else if (known === "duelos") html = pageDuelos(a);
-  else if (known === "mercado") html = pageMercado(state.mf);
+  else if (known === "mercado") html = pageMercado(state.mf, state.af);
   else if (known === "banco") html = pageBanco();
   else if (known === "equipos") html = pageEquipos(a, state.sort);
   else if (known === "formulas") html = pageFormulas();
@@ -1099,6 +1124,7 @@ function route(keep) {
 document.addEventListener("click", e => {
   const go = e.target.closest("[data-go]"); if (go) { location.hash = go.dataset.go; return; }
   const k = e.target.closest("[data-kind]"); if (k) { state.kind[location.hash.slice(1).split("/")[0]] = k.dataset.kind; const y = scrollY; route(); scrollTo(0, y); return; }
+  const af = e.target.closest("[data-af]"); if (af) { state.af = af.dataset.af; const y = scrollY; route(); scrollTo(0, y); return; }
   const mf = e.target.closest("[data-mf]"); if (mf) { state.mf = mf.dataset.mf; const y = scrollY; route(); scrollTo(0, y); return; }
   const s = e.target.closest("[data-sort]"); if (s) { state.sort = s.dataset.sort; const y = scrollY; route(); scrollTo(0, y); }
 });

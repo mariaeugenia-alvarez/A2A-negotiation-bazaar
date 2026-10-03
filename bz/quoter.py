@@ -63,7 +63,7 @@ class Quoter:
             self.told.add(once)
         log.event("alerts", level=level, text=text)
         log.say(f"ALERT {level}: {text}")
-        if self.notify and level in ("STOP", "WIN", "PAGE", "FOREIGN", "SCORE-DROP", "RESUME"):
+        if self.notify and level in ("STOP", "WIN", "PAGE", "PAGE-DONE", "FOREIGN", "SCORE-DROP", "RESUME"):
             try:
                 subprocess.run(["osascript", "-e", f'display notification "{text[:180]}" with title "Bazaar {level}"'],
                                timeout=3, check=False)
@@ -158,6 +158,7 @@ class Quoter:
                 res = self.b.list_offer(give, want_, venue=VENUE, expires_in_ticks=round(EXPIRES * self.scale))
             except BazaarError as e:
                 self.guard.error(tick, e.code)
+                log.event("trader_error", tick=tick, op=f"post {q['side']} {q['ref']} at {q['price']}", error=str(e))
                 log.say(f"[t{tick}] quote {q['side']} {q['ref']} refused: {e}")
                 continue
             oid = (res.get("offer") or res).get("id")
@@ -179,6 +180,7 @@ class Quoter:
             self.b.cancel(oid)
         except BazaarError as e:
             self.guard.error(tick, e.code)
+            log.event("trader_error", tick=tick, op=f"cancel quote {oid}", error=str(e))
             log.say(f"[t{tick}] cancel {oid} refused: {e}")
             return
         q = self.own.pop(oid, {})

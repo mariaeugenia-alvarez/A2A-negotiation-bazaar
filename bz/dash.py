@@ -495,7 +495,12 @@ def market_view(pub: dict, b, st, me: str) -> dict:
     for o in bids:
         o["stale"] = o["id"] in stale_ids
     ledger_path = os.path.join(ROOT, "TRADES.md")
-    return {"trader": trader, "venues": venues, "offers": offers, "bench_next": bench[:5],
+    try:  # one timeline of the trader's operations, failures apart (bz/activity.py)
+        from . import activity
+        act = activity.view()
+    except Exception as e:  # the chapter must still draw
+        act = {"error": f"{type(e).__name__}: {e}"}
+    return {"trader": trader, "activity": act, "venues": venues, "offers": offers, "bench_next": bench[:5],
             "bids": {"list": bids, "committed": committed, "cash": cash, "free": (cash - committed) if cash is not None else None},
             "ledger": open(ledger_path, encoding="utf-8").read() if os.path.exists(ledger_path) else None,
             "our_venue": next((v for v in venues if v["ours"]), None),
