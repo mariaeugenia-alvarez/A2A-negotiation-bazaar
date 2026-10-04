@@ -41,7 +41,7 @@ def last_decisions(path: str) -> dict:
     return out
 
 
-def waiting_on_us(duels: list, tick: int, silent: int, decided: dict = None) -> list:
+def waiting_on_us(duels: list, tick: int, silent: int, decided: dict = None, duel_ticks: int = 16) -> list:
     """Live duels where we owe a message: the rival spoke last, or nobody spoke, for at least `silent` ticks, and
     duels.py has not logged a decision for the duel in that time (v2 stays silent on purpose with self-conceders)."""
     out = []
@@ -53,7 +53,7 @@ def waiting_on_us(duels: list, tick: int, silent: int, decided: dict = None) -> 
         msgs = [m for m in d.get("messages") or [] if m.get("price") is not None]
         if msgs and msgs[-1].get("from") == "you":
             continue  # our offer stands: the rival owes the next move
-        since = msgs[-1]["tick"] if msgs else d.get("start_tick") or (d.get("deadline_tick", tick) - 16)
+        since = msgs[-1]["tick"] if msgs else d.get("start_tick") or (d.get("deadline_tick", tick) - duel_ticks)
         if tick - since >= silent:
             out.append(d["duel"])
     return out
@@ -78,6 +78,8 @@ def main() -> None:
         sys.exit("another duels_watch.py is already running (logs/duels_watch.lock)")
     b = connect()
     child, last_restart = None, -999
+    # the duel length duels.py was given (Sunday: 12); a fresh duel with no message started deadline - duel_ticks ago
+    duel_ticks = int(passthrough[passthrough.index("--duel-ticks") + 1]) if "--duel-ticks" in passthrough else 16
     log.say(f"duels_watch: supervising duels.py {' '.join(passthrough)} (restart after {args.silent} silent ticks)")
     while True:
         try:
@@ -90,7 +92,7 @@ def main() -> None:
                 child = subprocess.Popen([sys.executable, os.path.join(HERE, "duels.py"), *passthrough], cwd=HERE)
                 last_restart = tick
                 alert("DUEL_START", f"duels.py started at tick {tick} for {len(live)} live duels")
-            owed = waiting_on_us(live, tick, args.silent, last_decisions(os.path.join(log.LOG_DIR, "duels.jsonl")))
+            owed = waiting_on_us(live, tick, args.silent, last_decisions(os.path.join(log.LOG_DIR, "duels.jsonl")), duel_ticks)
             # at most one restart per 10 ticks: duels.py may also wait on purpose (our price already at our limit)
             if owed and running and tick - last_restart > max(args.silent, 10):
                 alert("DUEL_SILENT", f"{len(owed)} live duels waited {args.silent}+ ticks for us {owed[:6]}: restarting duels.py")
