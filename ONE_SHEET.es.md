@@ -39,7 +39,7 @@ puntos. Como la puntuación es relativa, quedarse quieto hace perder puestos.
 |---|---|---|
 | **Duelos II (≈20:35)** | **Ningún duelo sin respuesta.** Tratos ≥ 80 %. Mediana ≤ 2 rondas. Resultado medio por trato ≥ 18 | Duelos I: los tratos en ≤ 2 rondas dieron de media **20,4**; los de ≥ 4 rondas, **5,7**. Nuestro silencio nos costó 8 duelos |
 | **Tratos con equipos** | `neg_points` de 23,5 a **45** a las 23:00. Cada trato debe ganar valor | Seis tratos pequeños ya dieron +24. El quoter está listo (no en vivo) |
-| **Páginas** | **Completar El Retiro** (04-10-2026: solo falta RET-09, que Maru compra a mano). No romper nunca Lavapiés. Salamanca y Malasaña (faltan 2 en cada una): pujas solo si ganan valor | Bono de página = +25 % del total de la página, UNA sola vez (el valor de cada carta lo muestra porque vender cualquiera lo pierde) ✅ |
+| **Páginas** | **Completar El Retiro** (04-10-2026: solo falta RET-09: **la compra el trader**, como mucho al precio de mercado, 72 P = 1,03 × catálogo; Thameur y Maru). No romper nunca Lavapiés. Salamanca y Malasaña (faltan 2 en cada una): pujas solo si ganan valor | Bono de página = +25 % del total de la página, UNA sola vez (el valor de cada carta lo muestra porque vender cualquiera lo pierde) ✅ |
 | **Dealers** | Solo tratos que ganen valor: cartas de página compradas por debajo de su valor, repetidas vendidas por encima. **Nunca una venta por debajo de nuestro valor, nunca una carta de página** | Los dealers dan muy pocos puntos. Sirven para cartas baratas y desbloqueos, no para puntos |
 | **Mercado** | Mantener 7,5 o más. v21 está abierto sin broker (VII): decidir sobre el broker de Maru **antes del próximo Market Test**, no en el duro (ahora domingo ≈09:35) | Los mejores equipos están en 10,6–12,1 |
 
@@ -70,6 +70,7 @@ respuesta.
 - **Los duplicados son material de cambio:** una segunda copia nos vale ¼ y a un equipo al que le falta, su valor entero. Tres repetidas se pueden llevar a The Workshop (cómo: desconocido).
 - **+400 P para cada equipo** en la pausa (era el +400 del tick 1210), +150 P el domingo a las 09:00. El viernes cuenta la mitad, sábado y domingo enteros: **queda por jugar el 40 % de la puntuación del servidor**.
 - No cuenta nunca: número de tratos, comisiones, suerte en sobres, regalos, huevos de pascua, subvenciones.
+- **Por eso nunca compramos por encima del precio de mercado** (Thameur, 04-10-2026; `MARKET_CAP` × catálogo, en código para toda puja y compra): por encima, nuestra puntuación no crece (una ganancia cuenta hasta 50) y el vendedor, un rival en una clasificación relativa, se lleva la diferencia. La última carta de El Retiro, **a un equipo**: así la ganancia cuenta en `neg_points` (hasta 50); a un dealer solo cuenta en la escalera.
 
 ### Valor de las cartas (sin cambios, comprobado) ✅
 - Valor = catálogo × nuestro multiplicador del barrio × factor de copia, más el bono de página si la página está completa. **El trader lee los valores del juego** (`your_value` incluye el bono).

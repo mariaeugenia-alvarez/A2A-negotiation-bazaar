@@ -39,7 +39,7 @@ Because the score is relative, standing still loses rank.
 |---|---|---|
 | **Duels II (≈20:35)** | **No duel left unanswered.** Deal rate ≥ 80%. Median ≤ 2 rounds. Average result per deal ≥ 18 | Duels I: deals in ≤ 2 rounds averaged **20.4**, deals in ≥ 4 rounds averaged **5.7**. Our silence cost us 8 duels |
 | **Team trades** | `neg_points` 23.5 → **45** by 23:00. Every trade must gain value | Six small trades already gave +24. The quoter is ready (not live) |
-| **Pages** | **Complete El Retiro** (2026-10-04: missing only RET-09, bought by hand by Maru). Never break Lavapiés. Salamanca and Malasaña (2 missing each): bids only when they gain value | Page bonus = +25% of the page total, paid ONCE (each card's value shows it because selling any card loses it) ✅ |
+| **Pages** | **Complete El Retiro** (2026-10-04: missing only RET-09: **the trader buys it**, at most the market price, 72 P = 1.03 × book; Thameur and Maru). Never break Lavapiés. Salamanca and Malasaña (2 missing each): bids only when they gain value | Page bonus = +25% of the page total, paid ONCE (each card's value shows it because selling any card loses it) ✅ |
 | **Dealers** | Only trades that gain value: page cards bought below their value, spares sold above it. **Never a sale below our value, never a page card** | Dealer score is tiny. Their use is cheap cards and unlocks, not points |
 | **Market** | Keep 7.5 or better. v21 is open without a broker (VII): decide on Maru's broker **before the next Market Test**, not at the hard one (now Sunday ≈09:35) | Top teams are at 10.6–12.1 |
 
@@ -69,6 +69,7 @@ a deal outside our limit, a sale below our value, a duel with no answer.
 - **Duplicates are trading stock:** a second copy is worth ¼ to us and full value to a team that misses it. Three spares can go to The Workshop (how: unknown).
 - **+400 P for every team** at the pause (this was the +400 at tick 1210), +150 P on Sunday 09:00. Friday counts half, Saturday and Sunday in full: **40 % of the server score is still to play**.
 - Never counts: number of trades, fees, pack luck, gifts, easter eggs, grants.
+- **So we never buy over the market price** (Thameur, 2026-10-04; `MARKET_CAP` × book, in code for every bid and buy): above it our score does not grow (a gain counts up to 50), and the seller, a rival in a relative ranking, takes the difference. Buy the last card of El Retiro **from a team**: the gain then counts in `neg_points` (up to 50); from a dealer it only counts on the ladder.
 
 ### Card values (unchanged, verified) ✅
 - Value = book × our set multiplier × copy factor, plus the page bonus when the page is complete. **The trader reads values from the game** (`your_value` includes the bonus).

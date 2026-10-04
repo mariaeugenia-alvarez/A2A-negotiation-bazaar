@@ -41,9 +41,9 @@ class Fake:
         self.max_promised = 0
         self.assets = [asset(1, "RET-01", 13.0), asset(2, "RET-02", 13.0), asset(3, "RET-02", 3.2)]  # a spare RET-02
         self.board_offers = [
-            offer(10, "m1", {"assets": [{"id": 70, "kind": "card", "ref": "RET-03"}]}, {"cash": 9}),                  # clear win, 9 P
+            offer(10, "m1", {"assets": [{"id": 70, "kind": "card", "ref": "RET-03"}]}, {"cash": 8}),                  # clear win, 8 P (market cap of a common: 0.8 x 10)
             offer(11, "m2", {"assets": [{"id": 71, "kind": "card", "ref": "RET-04"}]}, {"assets": [{"id": 3, "kind": "card", "ref": "RET-02"}]}),  # swap
-            offer(12, "m3", {"assets": [{"id": 72, "kind": "card", "ref": "RET-05"}]}, {"cash": 20}, to="t09"),       # counter at 11
+            offer(12, "m3", {"assets": [{"id": 72, "kind": "card", "ref": "RET-05"}]}, {"cash": 14}, to="t09"),       # counter at 8: the market cap
             offer(13, "m4", {"assets": [{"id": 73, "kind": "card", "ref": "RET-06"}]}, {"cash": 60}, to="t09"),       # far above: probe
             offer(14, "abuela", {"assets": [{"id": 74, "kind": "card", "ref": "RET-03"}]}, {"cash": 6}, venue=None, to="t09"),
         ]
@@ -153,7 +153,7 @@ acc = [c[1] for c in f.calls if c[0] == "accept"]
 assert acc == [11, 10], f"B: swap then buy, got {acc}"
 lists = [c for c in f.calls if c[0] == "list"]
 counters = [c for c in lists if c[4] == "m3"]
-assert len(counters) == 1 and counters[0][1] == {"cash": 11} and counters[0][2] == {"cards": ["RET-05"]}, counters   # 11, once
+assert len(counters) == 1 and counters[0][1] == {"cash": 8} and counters[0][2] == {"cards": ["RET-05"]}, counters   # 8 (cap), once
 assert counters[0][5] == 20, "30 s ticks: the counter lives 20 ticks"
 assert not [c for c in lists if c[4] == "m4"], "B: a probe (under half the ask) must not be sent"
 assert not [c for c in lists if c[4] == "abuela"] and 14 not in acc
@@ -218,29 +218,34 @@ alerts = open(os.path.join(bz.log.LOG_DIR, "alerts.jsonl")).read()
 assert '"STOP"' in alerts and '"RESUME"' in alerts, alerts
 assert not os.path.exists(trader.PAUSE) or "lost" not in open(trader.PAUSE).read() or alerts.count('"STOP"') >= 1
 checks += 2
-# ---- F: hands-off. A team asks 50 P for RET-09 (worth 177 to us). With cash 177 and no earmark: nothing accepts it, nothing
-#         is quoted for it, nothing is countered. With --hands-off none (control) the quoter does bid for it.
-def with_ret09(cash):
+# ---- F: RET-09 is a buy target (Thameur and Maru, 2026-10-04). A team asks 50 P for it (worth 177 to us, market cap
+#         1.03 x 70 = 72): the trader accepts it, above the 40 P per hour board budget. At 90 P (over the cap) it does not
+#         accept, and its standing bid stays at or under 72. With --hands-off RET-09 (control) nothing touches it.
+def with_ret09(cash, price=50):
     g = Fake(cash, ticks=6)
-    g.board_offers.append(offer(15, "m5", {"assets": [{"id": 75, "kind": "card", "ref": "RET-09"}]}, {"cash": 50}))
+    g.board_offers.append(offer(15, "m5", {"assets": [{"id": 75, "kind": "card", "ref": "RET-09", "rarity": "rare"}]}, {"cash": price}))
     return g
 
 
 f = with_ret09(177)
 run(f)
-assert 15 not in [c[1] for c in f.calls if c[0] == "accept"], "F: a hands-off card is never accepted"
-assert not [c for c in f.calls if c[0] == "list" and c[2] == {"cards": ["RET-09"]}], "F: and never quoted"
+assert 15 in [c[1] for c in f.calls if c[0] == "accept"], "F: RET-09 at 50 (under the market cap) is bought"
+f = with_ret09(177, price=90)
+run(f)
+assert 15 not in [c[1] for c in f.calls if c[0] == "accept"], "F: RET-09 at 90 is over the market cap: never accepted"
+bids9 = [c[1]["cash"] for c in f.calls if c[0] == "list" and c[2] == {"cards": ["RET-09"]}]
+assert bids9 and max(bids9) <= 72, f"F: the standing bid for RET-09 stays under the market cap, got {bids9}"
 f = with_ret09(177)
-run(f, ("--hands-off", "none"))
-assert [c for c in f.calls if c[0] == "list" and c[2] == {"cards": ["RET-09"]}] or 15 in [c[1] for c in f.calls if c[0] == "accept"], \
-    "F control: without hands-off the trader goes after RET-09"
-checks += 3
+run(f, ("--hands-off", "RET-09"))
+assert 15 not in [c[1] for c in f.calls if c[0] == "accept"], "F control: a hands-off card is never accepted"
+assert not [c for c in f.calls if c[0] == "list" and c[2] == {"cards": ["RET-09"]}], "F control: and never quoted"
+checks += 5
 
 # ---- G: accepts we could not take are logged with the reason, and the heartbeat is written
 f = Fake(27, ticks=6)
-tmp = run(f, ("--budget", "5"))                                   # 5 P an hour: the 9 P buy is over the budget
+tmp = run(f, ("--budget", "5"))                                   # 5 P an hour: the 8 P buy is over the budget
 rows = [json.loads(line) for line in open(os.path.join(tmp, "trader_blocked.jsonl"))]
-assert any(r["offer"] == 10 and r["reason"] == "budget" and r["surplus"] == 4.0 and r["cost"] == 9 for r in rows), rows
+assert any(r["offer"] == 10 and r["reason"] == "budget" and r["surplus"] == 5.0 and r["cost"] == 8 for r in rows), rows
 assert 11 not in [r["offer"] for r in rows if r["reason"] == "budget"], "the swap costs nothing: never blocked by the budget"
 hb = json.load(open(trader.HEARTBEAT))
 assert hb["live"] is True and hb["cash"] == 27 and hb["tick"] >= 100 and hb["stopped"] is False, hb

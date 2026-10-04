@@ -75,5 +75,5 @@ w("signals", {"id": 18586, "ref": "RET-09", "price": 84, "venue": "rastro", "tic
   {"id": 18600, "ref": "SAL-06", "price": 18, "venue": "rastro", "tick": 1293, "clears": True, "value": 27.5},
   {"id": 18601, "ref": "RET-09", "price": 200, "venue": "rastro", "tick": 1293, "clears": False, "value": 177.1})
 ho = [i for i in activity.timeline(d) if i["kind"] == "handsoff"]
-assert len(ho) == 1 and ho[0]["status"] == "alert" and "84 P" in ho[0]["en"] and "Maru" in ho[0]["es"], ho; checks += 1
+assert len(ho) == 1 and ho[0]["status"] == "alert" and "84 P" in ho[0]["en"] and "OBJETIVO" in ho[0]["es"], ho; checks += 1
 print(f"test_activity: {checks} checks passed")

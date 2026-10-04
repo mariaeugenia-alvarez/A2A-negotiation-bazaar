@@ -31,6 +31,7 @@ from bz.boards import BoardScanner
 from bz.guard import CASH_FLOOR, earmark_total, spend_allowed, tick_scale
 from bz.state import State
 from bz.quoter import Quoter
+from bz.quotes import market_cap
 from bz.trade import DEFAULT_GUARD, DEFAULT_PROTECT, GameValues, anchor, cost, counter_body, is_lowball, judge, wanted_refs
 
 PAUSE = os.path.join(log.LOG_DIR, "trader.pause")
@@ -44,7 +45,9 @@ MAX_COUNTER_RATIO = 1.25  # a sell counter above this x their price: 0 of 22 acc
 BID_MEMORY = 60         # ticks a bid for a card is remembered: we never sell that card below it
 HEARTBEAT = os.path.join(log.LOG_DIR, "trader.heartbeat")
 GAME_PAUSED_SLEEP = 20  # seconds between clock reads while the game is paused (doors closed at night)
-DEFAULT_HANDS_OFF = "RET-09"  # Maru is buying it by hand: no quote, no accept, no counter
+DEFAULT_HANDS_OFF = "none"  # cards a person buys by hand (no quote, accept or counter). RET-09 left this list on 2026-10-04
+DEFAULT_TARGETS = "RET-09"  # cards the trader buys even though they complete a page: never over value - margin, never over
+# the market cap. Thameur and Maru, 2026-10-04: the last card of El Retiro (worth 177 to us, market about 72)
 DEFAULT_EARMARK = "none"  # off by default: nothing proves a completed page scores; switch on with --earmark RET-09:60
 
 
@@ -105,6 +108,11 @@ def parse_guard(text: str) -> dict:
         if k and k.lower() != "none" and v:
             out[k.strip()] = float(v)
     return out
+
+
+def wanted_in(o: dict) -> list:
+    """Cards an offer gives (what we would receive)."""
+    return [a.get("ref") for a in (o.get("give") or {}).get("assets") or []]
 
 
 def game_paused(clk: dict) -> bool:
@@ -169,6 +177,8 @@ def main() -> None:
     ap.add_argument("--budget", type=int, default=BOARD_BUDGET, help="most we spend on public-board accepts (cash + fee) per hour")
     ap.add_argument("--hands-off", default=DEFAULT_HANDS_OFF,
                     help='cards a person buys by hand: the trader never quotes, accepts or counters them ("none" to clear)')
+    ap.add_argument("--buy-targets", default=DEFAULT_TARGETS,
+                    help='cards to buy even when they complete a page, at most the market cap ("none" to clear)')
     ap.add_argument("--protect-pages", default=",".join(sorted(DEFAULT_PROTECT)),
                     help='sets whose page we are completing: their cards never go, like a complete page ("none" to clear)')
     ap.add_argument("--guard-pages", default=",".join(f"{k}:{v}" for k, v in sorted(DEFAULT_GUARD.items())),
@@ -192,12 +202,20 @@ def main() -> None:
         sys.exit("another trader.py is already running (logs/trader.lock)")
     b = connect()
     st, fees, fees_at, seen = State(b), {}, -999, set()
+    book = {r: v["book"] for r, v in st.catalog["rarities"].items()}  # for the market cap of every buy
+    rarity_of = {c["id"]: c["rarity"] for s_ in st.catalog["sets"] for c in s_["cards"]}
+
+    def cap_of(asset: dict) -> int:
+        """Market cap of one card; a card whose rarity we cannot find gets no cap (its value still limits the price)."""
+        r = asset.get("rarity") or rarity_of.get(asset.get("ref"))
+        return market_cap(r, book[r]) if r in book else 10 ** 6
     cool_until = 0
     sent = {}       # incoming offer id -> our counter
     earmark = parse_earmark(args.earmark)
     hands_off = {r.strip() for r in args.hands_off.split(",") if r.strip() and r.strip().lower() != "none"}
     protect = {r.strip() for r in args.protect_pages.split(",") if r.strip() and r.strip().lower() != "none"}
     guard = parse_guard(args.guard_pages)
+    targets = {r.strip() for r in args.buy_targets.split(",") if r.strip() and r.strip().lower() != "none"} - hands_off
     complete_seen = None
     idle_told = False  # sets whose page is complete: a new one is announced once, and protected from then on
     scanner, blocked_seen = BoardScanner(), set()
@@ -207,6 +225,7 @@ def main() -> None:
     quoter = Quoter(b, args.quote_budget, notify=args.notify, earmark=earmark, hands_off=hands_off) if args.quotes else None
     log.say(f"trader: {'LIVE' if args.live else 'shadow'}" + (f" + quotes (budget {args.quote_budget} P)" if quoter else "")
             + (f" + boards ({args.budget} P per hour)" if args.live and args.live_boards else "")
+            + (f" · buy targets {sorted(targets)} (market cap)" if targets else "")
             + (f" · earmark {earmark}" if earmark else "") + (f" · hands-off {sorted(hands_off)}" if hands_off else ""))
     while True:
         try:
@@ -298,7 +317,8 @@ def main() -> None:
                     continue
                 # accepts are certain gains: judge them against our real cash. Open bids and counters only PROMISE cash (they
                 # fill 2-5 % of the time, and an unfunded fill just fails), so they must not block a sure accept.
-                d = judge(o, values, by_ref, st.cash, fees, missing, me_id, reserved, pending, hands_off, protect, guard)
+                d = judge(o, values, by_ref, st.cash, fees, missing, me_id, reserved, pending, hands_off, protect, guard,
+                          targets, cap_of)
                 sale = single_card_bid(o)
                 if d["action"] == "accept" and sale and sale[1] < best_bid(sale[0]):  # someone recently paid more
                     d = {**d, "action": "counter", "counter_cash": best_bid(sale[0]),
@@ -341,7 +361,7 @@ def main() -> None:
                     return "cooldown"
                 if source_ == "board" and not args.live_boards:
                     return "boards_off"
-                if source_ == "board" and cost(d_) > left:
+                if source_ == "board" and cost(d_) > left and not (set(wanted_in(o_)) & targets):
                     return "budget"
                 if not spend_allowed(d_["cash_out"] + d_["fee"] - d_["cash_in"], st.cash, reserve):
                     return "earmark"

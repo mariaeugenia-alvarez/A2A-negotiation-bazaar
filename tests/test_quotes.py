@@ -12,8 +12,11 @@ checks = 0
 # prices: our real values at tick 561 (affinity RET 1.3, SAL 1.1, MAL 0.9)
 assert bid_price(13.0, 10, "common") == 8                 # RET-02: market 0.8 of book, +5 for us
 assert bid_price(27.5, 25, "uncommon") == 20              # SAL-06
-assert bid_price(27.5, 25, "uncommon", best_other=22) == 23   # outbid another team, still under 27.5 - 2.75
-assert bid_price(27.5, 25, "uncommon", best_other=30) == 24   # never above value - margin
+assert bid_price(27.5, 25, "uncommon", best_other=22) == 20   # 2026-10-04: no outbid over the market cap (0.8 x 25)
+assert bid_price(27.5, 25, "uncommon", best_other=18) == 20 and bid_price(177.1, 70, "rare", 0) == 68   # RET-09: 0.97 x 70
+assert bid_price(177.1, 70, "rare", best_other=75) == 72                                               # cap 1.03 x 70
+assert bid_price(27.5, 25, "uncommon", best_other=30) == 20   # never above value - margin, nor the market cap (20)
+assert bid_price(22.0, 25, "uncommon", best_other=30) == 19    # value - margin (22 - 2.2 = 19.8) below the cap: 19
 assert bid_price(77.0, 70, "rare") == 68                  # SAL-09: rares trade near book
 assert bid_price(63.0, 70, "rare") is None                # MAL-09: value - margin = 56 = 0.8 x book, below RARE_FLOOR 0.9
 assert bid_price(1.5, 10, "common") is None               # nothing clears the margin

@@ -118,7 +118,7 @@ def wanted_refs(o: dict) -> list:
 
 def judge(offer: dict, values, by_ref: dict, cash: int, fees: dict, missing: dict, me_id: str,
           reserved=frozenset(), pending=frozenset(), hands_off=frozenset(), protect=DEFAULT_PROTECT,
-          guard=None) -> dict:
+          guard=None, targets=frozenset(), cap_of=None) -> dict:
     """values: GameValues (live) or a bz.price.Valuer (wrapped in FormulaValues, for tests).
     reserved: asset ids already given in one of our open offers; they are never offered or handed over twice.
     pending: cards our own open bids already ask for. Getting one here too could leave us a duplicate worth ~25 %
@@ -128,6 +128,8 @@ def judge(offer: dict, values, by_ref: dict, cash: int, fees: dict, missing: dic
     A COMPLETE page is protected by itself, from the live album (missing[set] == []): no flag needed.
     guard: set -> share; selling the only copy of a card of that set needs a gain of at least share x its value
     (default DEFAULT_GUARD; every other set SINGLE_SHARE)."""
+    # targets: cards the trader is told to buy even though they complete a page (2026-10-04: RET-09, given by Thameur
+    # and Maru). cap_of(asset) -> the most we pay for that card (the market cap of its rarity); None: no cap.
     guard = DEFAULT_GUARD if guard is None else guard
     if hasattr(values, "card_value"):
         values = FormulaValues(values, by_ref)
@@ -175,7 +177,7 @@ def judge(offer: dict, values, by_ref: dict, cash: int, fees: dict, missing: dic
         lost += values.lose(asset)
         cards_out += 1
 
-    got, cards_in = 0.0, 0
+    got, cards_in, cap = 0.0, 0, 0
     if give.get("types"):
         return {**out, "action": "human", "why": "offers a type we cannot value"}
     refs_in = [a.get("ref") for a in give.get("assets") or []]
@@ -190,8 +192,10 @@ def judge(offer: dict, values, by_ref: dict, cash: int, fees: dict, missing: dic
         if ref in pending:
             return {**out, "action": "human", "why": f"we already bid for {ref}: if both fill, one copy is worth ~25 %"}
         s = ref.split("-")[0]
-        if len(missing.get(s, [])) == 1 and ref in missing[s]:
+        if len(missing.get(s, [])) == 1 and ref in missing[s] and ref not in targets:
             return {**out, "action": "human", "why": f"{ref} completes the {s} page: decide by hand"}
+        if cap_of is not None:
+            cap += cap_of(a)
         try:
             got += values.gain(ref)
         except Exception:  # unknown card, or the value call failed: never guess
@@ -207,11 +211,15 @@ def judge(offer: dict, values, by_ref: dict, cash: int, fees: dict, missing: dic
     res = {**out, "got": round(got, 1), "lost": round(lost, 1), "cash_in": cash_in, "cash_out": cash_out, "fee": fee,
            "surplus": round(surplus, 1), "margin": round(margin, 1), "assets": chosen, "gives": named + chosen,
            "counter_cash": None}
-    if surplus >= margin:
+    over_market = bool(cap_of is not None and cards_in and cash_out and not cash_in and cash_out > cap)
+    res["market_cap"] = cap if cap_of is not None and cards_in else None
+    if surplus >= margin and not over_market:
         return {**res, "action": "accept", "why": f"+{surplus:.1f} P of value after a {fee} P fee"}
     base = got - lost  # a counter is an offer WE post: they accept, so they pay the fee
-    if cash_out and not cash_in:  # we would pay: the most that still clears the margin
+    if cash_out and not cash_in:  # we would pay: the most that still clears the margin, never over the market cap
         top = math.floor(base - margin)
+        if over_market:
+            top = min(top, cap)
         if top >= 1:
             return {**res, "action": "counter", "counter_cash": min(top, cash), "why": f"pay at most {top}, not {cash_out}"}
     if cash_in and not cash_out:  # we would be paid: the least that still clears it

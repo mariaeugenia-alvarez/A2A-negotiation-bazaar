@@ -32,7 +32,7 @@ def _item(r, kind, status, es, en, key):
     return {"ts": r.get("ts"), "tick": r.get("tick"), "kind": kind, "status": status, "es": es, "en": en, "key": key}
 
 
-HANDS_OFF = ("RET-09",)  # cards a person buys by hand: an ask under our value is told at once (tick 1272-1420: RET-09
+HANDS_OFF = ("RET-09",)  # the last card of El Retiro (a trader buy target since 2026-10-04): an ask under our value is told at once (tick 1272-1420: RET-09
 # stood at 84 P, worth 177 to us, for 150 ticks; only signals.jsonl saw it)
 
 
@@ -109,9 +109,9 @@ def timeline(log_dir: str = None, since_ts: float = 0, hands_off=HANDS_OFF) -> l
     for x in _read("signals", d):  # a hands-off card on a board at a price that clears our value: a person must act
         if x.get("ref") in hands_off and x.get("clears") and x.get("id") not in told:
             told.add(x.get("id"))
-            es = (f"MANO (Maru): {x['ref']} a la venta a {x.get('price')} P en {x.get('venue')} (oferta {x.get('id')}), "
-                  f"nos vale {x.get('value')}: comprar a mano")
-            en = f"HANDS-OFF {x['ref']} for sale at {x.get('price')} P on {x.get('venue')} (offer {x.get('id')}), worth {x.get('value')}: buy by hand"
+            es = (f"OBJETIVO: {x['ref']} a la venta a {x.get('price')} P en {x.get('venue')} (oferta {x.get('id')}), "
+                  f"nos vale {x.get('value')}: el trader la compra si no pasa del precio de mercado")
+            en = f"TARGET {x['ref']} for sale at {x.get('price')} P on {x.get('venue')} (offer {x.get('id')}), worth {x.get('value')}: the trader buys it at or under the market cap"
             out.append(_item(x, "handsoff", "alert", es, en, f"ho{x.get('id')}"))
     out = [i for i in out if (i["ts"] or 0) >= since_ts]
     return sorted(out, key=lambda i: (i["ts"] or 0, i["tick"] or 0))

@@ -18,7 +18,7 @@ bids = {}
 record_bids(bids, board, set(), "t09", 1300)                       # the old behaviour: our 24 counted, the cause of 20 -> 24
 assert max(p for _, p in bids["SAL-06"]) == 24; checks += 1
 # with only our own bid on the board, the quoter no longer prices against itself: same price as with no bid
-assert bid_price(27.5, 25, "uncommon", 0) == 20 and bid_price(27.5, 25, "uncommon", 24) == 24; checks += 1
+assert bid_price(27.5, 25, "uncommon", 0) == 20 and bid_price(27.5, 25, "uncommon", 24) == 20; checks += 1   # + market cap
 
 # B. sell counters: the real cases of tick 1203 (161 for their 20) and 320 (65 for their 56)
 assert MAX_COUNTER_RATIO == 1.25
@@ -124,4 +124,27 @@ assert game_paused({"tick": 1445, "paused": False, "doors": "closed"}) is True
 assert game_paused({"tick": 1500, "paused": False, "doors": "open"}) is False
 assert game_paused({"tick": 1500}) is False
 checks += 4
-print(f"test_trader_fixes (with F): {checks} checks passed")
+
+# G. RET-09, buy target with the market cap (Thameur and Maru, 2026-10-04): value 177.1, cap 1.03 x 70 = 72
+from bz.quotes import market_cap  # noqa: E402
+assert market_cap("rare", 70) == 72 and market_cap("uncommon", 25) == 20 and market_cap("common", 10) == 8
+CAP = lambda a: market_cap(a.get("rarity"), {"common": 10, "uncommon": 25, "rare": 70}[a.get("rarity")])  # noqa: E731
+MISS9 = {"RET": ["RET-09"], "LAV": []}
+
+
+class V9(V):
+    def gain(self, ref):
+        return 177.1
+
+
+ask = lambda p: {"id": 9, "maker": "t08", "venue": "v10", "status": "open", "give": {"assets": [{"id": 90, "kind": "card", "ref": "RET-09", "rarity": "rare"}]},  # noqa: E731
+                 "want": {"cash": p}}
+d = judge(ask(70), V9(), {}, 433, {"v10": (0, 0)}, MISS9, "t09", targets={"RET-09"}, cap_of=CAP)
+assert d["action"] == "accept" and d["market_cap"] == 72, d                       # completes El Retiro at market: buy
+d = judge(ask(90), V9(), {}, 433, {"v10": (0, 0)}, MISS9, "t09", targets={"RET-09"}, cap_of=CAP)
+assert d["action"] == "counter" and d["counter_cash"] == 72, d                    # over the cap: counter at the cap
+assert judge(ask(70), V9(), {}, 433, {"v10": (0, 0)}, MISS9, "t09", cap_of=CAP)["action"] == "human"   # not a target: a person
+d = judge(ask(30), V9(), {}, 433, {"v10": (0, 0)}, {"RET": ["RET-09", "RET-08"]}, "t09", cap_of=CAP)
+assert d["action"] == "accept", d                                                 # not the last card, under the cap: buy
+checks += 5
+print(f"test_trader_fixes (with G): {checks} checks passed")

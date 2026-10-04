@@ -14,6 +14,11 @@ within the cap. Never an ask for anything but a spare copy (a second copy is wor
 import math
 
 MARKET = {"common": 0.8, "uncommon": 0.8, "rare": 0.97}  # median team-trade price / book, Saturday feed
+# the most we pay for a card of each rarity, x book: the median team-trade price (feed, ticks 230-1420: common 0.70,
+# uncommon 0.80, rare 1.03, epic 1.12; commons and uncommons kept at the quoter's 0.8). Thameur, 2026-10-04: never buy
+# over the market value. Paying more does not raise our score (a team-trade gain counts up to 50; cash scores nothing)
+# and it gives the seller, a rival in a relative ranking, the difference.
+MARKET_CAP = {"common": 0.8, "uncommon": 0.8, "rare": 1.03, "epic": 1.12}
 MIN_SURPLUS = 2.0
 MIN_SHARE = 0.10
 CLOSE = 3  # a page this many cards from complete or fewer gets its bids first
@@ -25,10 +30,16 @@ def margin(value: float) -> float:
     return max(MIN_SURPLUS, MIN_SHARE * value)
 
 
+def market_cap(rarity: str, book: int) -> int:
+    """The most we pay for one card of this rarity (MARKET_CAP x book)."""
+    return math.floor(MARKET_CAP.get(rarity, 0.8) * book)
+
+
 def bid_price(value: float, book: int, rarity: str, best_other: int = 0):
-    """None when no price both clears our margin and is at least 1."""
+    """None when no price both clears our margin and is at least 1. Never above the market cap: another team's higher
+    bid no longer pulls ours over the market value."""
     ref = round(MARKET.get(rarity, 0.8) * book)
-    top = math.floor(value - margin(value))
+    top = min(math.floor(value - margin(value)), market_cap(rarity, book))
     p = min(top, max(ref, best_other + 1 if best_other else 0))
     low = RARE_FLOOR if rarity in ("rare", "epic") else FLOOR
     return p if p >= 1 and p >= low * book else None
